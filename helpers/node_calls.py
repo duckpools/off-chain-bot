@@ -1,0 +1,115 @@
+import json
+
+import requests
+
+from consts import node_url, node_pass, headers, ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND
+from helpers.generic_calls import logger, get_request
+
+
+def unlock_wallet():
+    response = requests.post(f"{node_url}/wallet/unlock", json={"pass": node_pass}, headers=headers)
+    logger.debug(f"Unlock wallet response status code: {response.status_code}")
+    return response.status_code
+
+
+def current_height():
+    return json.loads(get_request(node_url + "/blocks/lastHeaders/1").text)[0]['height']
+
+
+def tree_to_address(addr):
+    return json.loads(get_request(node_url + "/utils/ergoTreeToAddress/" + addr).text)["address"]
+
+
+def box_id_to_binary(box_id):
+    return json.loads(get_request(node_url + "/utxo/withPool/byIdBinary/" + box_id).text)["bytes"]
+
+
+def sign_tx(tx):
+    """
+    Signs a transaction by sending it to the node, then logs and returns the response.
+
+    This function makes a POST request to the "/wallet/transaction/send" endpoint of the node with
+    the given transaction. It logs the full text of the response and its status code, and then prints them.
+    If the response text contains "Double spending attempt", it returns a predefined error code for that.
+    If the status code is not 200, it returns a generic error code.
+    If the status code is 200, it attempts to parse the response text as JSON and return it.
+
+    If a requests exception occurs during the POST request, it is logged and a generic error code is returned.
+    If a JSON decoding error occurs when parsing the response, it is logged and a generic error code is returned.
+
+    :param tx: The transaction to be signed and sent.
+    :return: The parsed JSON response if successful, or an error code if not.
+    :raises: Does not raise any exceptions, but logs errors and returns error codes.
+    """
+    try:
+        res = requests.post(node_url + "/wallet/transaction/send", json=tx, headers=headers)
+    except requests.exceptions.RequestException as e:
+        logger.error("Request error: %s", e)
+        return ERROR
+
+    logger.debug("Request Response: %s", res.text)
+    print(res.text)
+    print(res.status_code)
+
+    if "Double spending attempt" in res.text:
+        return DOUBLE_SPENDING_ATTEMPT
+    elif res.status_code != HTTP_OK:
+        return ERROR
+
+    try:
+        return json.loads(res.text)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to decode JSON: %s", e)
+        return ERROR
+
+
+def first_output_from_mempool_tx(tx):
+    """
+    Get the first output of a specific transaction from mempool.
+
+    The function sends a GET request to retrieve a list of unconfirmed transactions.
+    It then iterates over these transactions looking for the one matching the given ID.
+    If found, it returns the first output of this transaction.
+
+    :param tx: The ID of the transaction to search for.
+    :return: The first output of the transaction if found, None otherwise.
+    """
+
+    try:
+        response = get_request(node_url + "/transactions/unconfirmed?limit=100&offset=0")
+        transactions = json.loads(response.text)
+    except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+        logger.error("Error while getting unconfirmed transactions: %s", e)
+        return None
+
+    for transaction in transactions:
+        if transaction["id"] == tx:
+            return transaction["outputs"][0]
+
+    logger.info("No transaction found with id: %s", tx)
+    return None
+
+
+def get_box_from_id(box_id):
+    """
+    Get the UTXO box by its ID.
+
+    The function sends a GET request to retrieve the UTXO box by its ID.
+
+    :param box_id: The ID of the UTXO box to retrieve.
+    :return: The UTXO box if found, None if not found, or an error code if an error occurred.
+    """
+    try:
+        response = get_request(f"{node_url}/utxo/byId/{box_id}")
+
+        if response == HTTP_NOT_FOUND:
+            logger.warning(f"Box not found with ID: {box_id}")
+            return None
+
+        return json.loads(response.text)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error while getting box by ID: {e}")
+        return ERROR
+    except json.JSONDecodeError as e:
+        logger.error(f"Error while decoding response: {e}")
+        return ERROR
