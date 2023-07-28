@@ -1,9 +1,9 @@
 import json
 
-from consts import MIN_BOX_VALUE, TX_FEE, NULL_TX_OBJ
+from consts import MIN_BOX_VALUE, TX_FEE, NULL_TX_OBJ, ERROR
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
-from helpers.node_calls import box_id_to_binary, sign_tx
+from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
 from helpers.platform_functions import get_parent_box, get_head_child, get_children_boxes, get_base_child, \
     get_interest_box, get_dex_box
 from logger import set_logger
@@ -12,7 +12,36 @@ logger = set_logger(__name__)
 
 
 def refund_repay_proxy_box(box):
-    return -1
+    transaction_to_sign = \
+    {
+        "requests": [
+            {
+                "address": tree_to_address(box["additionalRegister"]["R4"]["renderedValue"]),
+                "value": box["value"] - TX_FEE,
+                "assets": [
+                    {
+                        "tokenId": box["assets"][0]["tokenId"],
+                        "amount": box["assets"][0]["amount"]
+                    }
+                ],
+                "registers": {
+                }
+            }
+        ],
+        "fee": TX_FEE,
+        "inputsRaw":
+            [box_id_to_binary(box["boxId"])],
+        "dataInputsRaw":
+            []
+    }
+
+    logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
+    tx_id = sign_tx(transaction_to_sign)
+    if tx_id != ERROR:
+        logger.info("Successfully submitted transaction with ID: %s", tx_id)
+    else:
+        logger.info("Failed to submit transaction, attempting to refund")
+    return
 
 
 def process_repay_partial_proxy_box(pool, box, empty):
@@ -20,7 +49,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
         return
 
     collateral_box = box["additionalRegisters"]["R4"]["renderedValue"]
-    final_borrow_tokens = int(box["additionalR`egisters"]["R5"]["renderedValue"])
+    final_borrow_tokens = int(box["additionalRegisters"]["R5"]["renderedValue"])
     whole_collateral_box = get_box_from_id_explorer(collateral_box)
     logger.debug("Whole collateral box: ", whole_collateral_box)
 
@@ -91,7 +120,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
 
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
     tx_id = sign_tx(transaction_to_sign)
-    if tx_id != -1:
+    if tx_id != ERROR:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     else:
         logger.info("Failed to submit transaction, attempting to refund")
