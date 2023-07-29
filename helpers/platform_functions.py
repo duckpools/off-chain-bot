@@ -159,8 +159,6 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
     num_children = len(parent_interest_rates)
     compounded_interest = INTEREST_MULTIPLIER
 
-
-
     base_child_rates = json.loads(base_child["additionalRegisters"]["R4"]["renderedValue"])
     compounded_interest = apply_interest(base_child_rates, loan_child_index, compounded_interest)
 
@@ -191,8 +189,15 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft):
         loan_amount = int(box["assets"][0]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
-        nano_ergs_per_token = int(dex_box["assets"][2]["amount"]) / int(dex_box["value"])
-        return [int(box["value"]) <= ((total_due * LIQUIDATION_THRESHOLD) / (1000 * nano_ergs_per_token)), total_due]
+        collateral_amount = int(box["value"] - 4000000)
+        collateral_value = ((int(dex_box["assets"][2]["amount"]) * collateral_amount * int(
+            dex_box["additionalRegisters"]["R4"]["renderedValue"])) /
+                            ((int(dex_box["value"]) +
+                              (int(dex_box["value"]) * 2) / 100) *
+                             1000 +
+                             collateral_amount *
+                             int(dex_box["additionalRegisters"]["R4"]["renderedValue"])))
+        return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
         return [False, False]
@@ -228,12 +233,17 @@ def liquidation_allowed(box, parent_box, head_child, children):
         else:
             return False
 
+        collateral_value = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * int(dex_box["additionalRegisters"]["R4"]["renderedValue"])) /
+        ((int(dex_box["assets"][2]["amount"]) +
+          (int(dex_box["assets"][2]["amount"]) * 2) / 100) *
+         1000 +
+         int(box["assets"][0]["amount"]) *
+         int(dex_box["additionalRegisters"]["R4"]["renderedValue"])) - 4000000)
+
         loan_amount = int(box["assets"][1]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
-        nano_ergs_per_token = int(dex_box["value"]) / int(dex_box["assets"][2]["amount"])
-
-        return [int(box["assets"][0]["amount"]) <= ((total_due * LIQUIDATION_THRESHOLD) / (1000 * nano_ergs_per_token))
+        return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000)
             and box["assets"][1]["tokenId"] == BORROW_TOKEN_ID, total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
