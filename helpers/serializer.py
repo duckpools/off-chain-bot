@@ -41,10 +41,16 @@ def bad_encode_long(n: int):
 
 
 def encode_long_tuple(arr):
-    res = "11" + '{0:02x}'.format(len(arr))
+    res = "11"
+    length_vlq = vlq(len(arr))
+    res += ''.join(['{0:02x}'.format(i) for i in length_vlq])
     for long in arr:
         res += bad_encode_long(long)
     return res
+
+
+def encode_long_pair(entry1, entry2):
+    return '59' + encode_long(entry1)[2:] + encode_long(entry2)[2:]
 
 
 def encode_coll_int(arr):
