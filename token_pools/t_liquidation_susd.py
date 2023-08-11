@@ -149,13 +149,14 @@ def get_dex_box_and_tokens(transaction, nft):
 
 
 def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children):
-    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, ERG_USD_DEX_NFT)
+    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["collateral_supported"]["erg"]["dex_nft"])
 
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
-    price_of_token = dex_tokens / dex_initial_val
     tokens_to_liquidate = box["value"] - MIN_BOX_VALUE - 3 * TX_FEE
-    liquidation_value = floor(tokens_to_liquidate * price_of_token * 0.993)
+    liquidation_value = floor((dex_tokens * tokens_to_liquidate * 995) /
+			((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
+			(tokens_to_liquidate * 995)))
     loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     loan_parent_index = loan_indexes[0]
     base_child = get_base_child(children, loan_parent_index)
