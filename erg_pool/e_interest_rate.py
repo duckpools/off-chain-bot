@@ -129,7 +129,10 @@ def e_update_interest_rate(pool, curr_height, latest_tx):
                         "registers": {
                             "R4": encode_long_tuple(interest_history),
                             "R5": encode_long(curr_height + 5),
-                            "R6": box["additionalRegisters"]["R6"]["serializedValue"]
+                            "R6": box["additionalRegisters"]["R6"]["serializedValue"],
+                            "R7": "0101",
+                            "R8": "0101",
+                            "R9": "0101"
                         }
                     }
                 ],
