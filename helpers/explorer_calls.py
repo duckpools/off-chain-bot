@@ -38,10 +38,9 @@ def get_box_from_id_explorer(box_id):
 # To do get randomised box
 def get_dummy_box(dummy_script):
     boxes_json = get_unspent_boxes_by_address(dummy_script, 300)
-    boxes_list = json.loads(boxes_json)["boxes"]
 
-    if not boxes_list:
+    if not boxes_json:
         raise ValueError("No boxes found.")
 
-    return secrets.choice(boxes_list)
+    return secrets.choice(boxes_json)
 
