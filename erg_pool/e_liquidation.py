@@ -199,9 +199,9 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = box["assets"][0]["amount"]
     liquidation_value = floor(
-        (dex_initial_val.toBigInt * tokens_to_liquidate * 995) /
-        (dex_tokens.toBigInt + floor(
-            dex_tokens.toBigInt * 2 / 100
+        (dex_initial_val * tokens_to_liquidate * 995) /
+        (dex_tokens + floor(
+            dex_tokens * 2 / 100
         ) * 1000 +
          (tokens_to_liquidate * 995))) - 4000000
     loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
