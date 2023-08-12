@@ -3,7 +3,7 @@ import math
 import time
 from math import floor
 
-from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, ERG_USD_DEX_NFT
+from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
@@ -43,7 +43,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": "04c60f"
+                        "R4": pool["collateral_supported"]["erg"]["dex_fee_serialized"]
                     }
                 },
                 {
@@ -91,7 +91,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": "04c60f"
+                        "R4": pool["collateral_supported"]["erg"]["dex_fee_serialized"]
                     }
                 },
                 {
@@ -154,9 +154,10 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = box["value"] - MIN_BOX_VALUE - 3 * TX_FEE
-    liquidation_value = floor((dex_tokens * tokens_to_liquidate * 995) /
+    dex_fee = pool["collateral_supported"]["erg"]["dex_fee"]
+    liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
 			((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
-			(tokens_to_liquidate * 995)))
+			(tokens_to_liquidate * dex_fee)))
     loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     loan_parent_index = loan_indexes[0]
     base_child = get_base_child(children, loan_parent_index)
