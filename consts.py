@@ -14,8 +14,8 @@ SIG_RSV_ID = "003bd19d0187117f130b62e1bcab0939929ff5c7709f843c5c4dd158949285d0"
 MAX_RETRIES = 5
 REQUEST_DELAY = 10
 
-MAX_LP_TOKENS = 90000000001000000
-MAX_BORROW_TOKENS = 90000000000000000
+MAX_LP_TOKENS = 9000000001000000
+MAX_BORROW_TOKENS = 9000000000000000
 MIN_BOX_VALUE = 1000000
 TX_FEE = 1000000
 MAX_TX_FEE = 4000000
@@ -105,7 +105,9 @@ pools = [
         # SigUSD Collateral
         "collateral_supported": {
             "erg": {
-                "dex_nft": "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec"
+                "dex_nft": "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
             }
         }
     },
@@ -143,7 +145,9 @@ pools = [
         # QUACKS Collateral
         "collateral_supported": {
             "erg": {
-                "dex_nft": "46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1"
+                "dex_nft": "46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1",
+                "dex_fee": 997,
+                "dex_fee_serialized": "04ca0f"
             }
         }
     },
@@ -181,7 +185,9 @@ pools = [
         #sigRSV Collateral
         "collateral_supported": {
             "erg": {
-                "dex_nft": "1d5afc59838920bb5ef2a8f9d63825a55b1d48e269d7cecee335d637c3ff5f3f"
+                "dex_nft": "1d5afc59838920bb5ef2a8f9d63825a55b1d48e269d7cecee335d637c3ff5f3f",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
             }
         }
     }
