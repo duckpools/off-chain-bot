@@ -38,7 +38,12 @@ def create_new_child(head_child, pool):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple(new_interest_history)
+                        "R4": encode_long_tuple(new_interest_history),
+                        "R5": "0101",
+                        "R6": "0101",
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
                 {
@@ -53,7 +58,10 @@ def create_new_child(head_child, pool):
                     "registers": {
                         "R4": "11018084af5f",
                         "R5": head_child["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": encode_int(len(new_interest_history))
+                        "R6": encode_int(len(new_interest_history)),
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
             ],
