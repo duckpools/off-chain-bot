@@ -86,7 +86,7 @@ def process_lend_proxy_box(pool, box, latest_tx):
            "finalBorrowed": borrowed}
 
 
-    if tx_id != -1:
+    if tx_id != -1 and tx_id != 1409:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")

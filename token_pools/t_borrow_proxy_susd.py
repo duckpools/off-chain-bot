@@ -1,10 +1,10 @@
 import json
 
-from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR
+from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, DEFAULT_BUFFER
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
 from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, get_pool_param_box
-from helpers.serializer import encode_int_tuple, encode_long
+from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -76,7 +76,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R6": box["additionalRegisters"]["R7"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R9": encode_long(int(box["additionalRegisters"]["R6"]["renderedValue"]) + 400000)
+                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + 400000, DEFAULT_BUFFER)
                     }
                 },
                 {
