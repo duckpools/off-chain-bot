@@ -38,7 +38,12 @@ def create_new_child(pool, head_child):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple(new_interest_history)
+                        "R4": encode_long_tuple(new_interest_history),
+                        "R5": "0101",
+                        "R6": "0101",
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
                 {
@@ -53,7 +58,10 @@ def create_new_child(pool, head_child):
                     "registers": {
                         "R4": "11018084af5f",
                         "R5": head_child["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": encode_int(len(new_interest_history))
+                        "R6": encode_int(len(new_interest_history)),
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
             ],
@@ -128,8 +136,11 @@ def t_update_interest_rate(pool, curr_height, latest_tx):
                         ],
                         "registers": {
                             "R4": encode_long_tuple(interest_history),
-                            "R5": encode_long(curr_height + 5),
-                            "R6": box["additionalRegisters"]["R6"]["serializedValue"]
+                            "R5": encode_long(curr_height + 3),
+                            "R6": box["additionalRegisters"]["R6"]["serializedValue"],
+                            "R7": "0101",
+                            "R8": "0101",
+                            "R9": "0101"
                         }
                     }
                 ],
