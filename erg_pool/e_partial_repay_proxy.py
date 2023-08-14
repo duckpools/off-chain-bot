@@ -16,7 +16,7 @@ def refund_repay_proxy_box(box):
     {
         "requests": [
             {
-                "address": tree_to_address(box["additionalRegister"]["R4"]["renderedValue"]),
+                "address": tree_to_address(box["additionalRegisters"]["R6"]["renderedValue"]),
                 "value": box["value"] - TX_FEE,
                 "assets": [
                 ],
