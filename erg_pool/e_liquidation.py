@@ -62,6 +62,10 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                             {
                                 "tokenId": dummy_box["assets"][0]["tokenId"],
                                 "amount": dummy_box["assets"][0]["amount"]
+                            },
+                            {
+                                "tokenId": dummy_box["assets"][1]["tokenId"],
+                                "amount": dummy_box["assets"][1]["amount"]
                             }
                         ],
                         "registers": {
