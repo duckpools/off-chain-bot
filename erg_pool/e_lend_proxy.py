@@ -24,7 +24,6 @@ def process_lend_proxy_box(pool, box, latest_tx):
     receive_amount = final_circulating - circulating_tokens
     pool_gets = int(held_tokens - receive_amount)
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
-
     transaction_to_sign = \
         {
             "requests": [
