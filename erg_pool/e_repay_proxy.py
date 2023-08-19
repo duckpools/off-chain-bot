@@ -107,7 +107,6 @@ def process_repay_proxy_box(pool, box, empty):
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")
-        refund_repay_proxy_box(box)
     return
 
 
