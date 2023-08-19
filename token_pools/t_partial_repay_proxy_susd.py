@@ -16,7 +16,7 @@ def refund_repay_proxy_box(box):
     {
         "requests": [
             {
-                "address": tree_to_address(box["additionalRegister"]["R4"]["renderedValue"]),
+                "address": tree_to_address(box["additionalRegisters"]["R6"]["renderedValue"]),
                 "value": box["value"] - TX_FEE,
                 "assets": [
                     {
@@ -129,4 +129,4 @@ def process_repay_partial_proxy_box(pool, box, empty):
 
 
 def t_partial_repay_proxy_job(pool):
-    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box, "PARTIAL REPAYMENT", 1067927)
+    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box, "PARTIAL REPAYMENT", 1071199)

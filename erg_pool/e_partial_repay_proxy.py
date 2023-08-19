@@ -123,4 +123,4 @@ def process_repay_partial_proxy_box(pool, box, empty):
 
 
 def e_partial_repay_proxy_job(pool):
-    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box, "PARTIAL REPAYMENT")
+    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box, "PARTIAL REPAYMENT", 1071199)
