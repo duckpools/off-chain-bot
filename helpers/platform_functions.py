@@ -189,6 +189,7 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft):
         loan_amount = int(box["assets"][0]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
+        total_due += 2
         collateral_amount = int(box["value"] - 4000000)
         collateral_value = ((int(dex_box["assets"][2]["amount"]) * collateral_amount * int(
             dex_box["additionalRegisters"]["R4"]["renderedValue"])) /
