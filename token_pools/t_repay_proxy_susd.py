@@ -69,6 +69,12 @@ def process_repay_proxy_box(pool, box, empty):
         logger.debug("No Interest Box Found")
         return
 
+    collateral_box_binary = None
+    try:
+        collateral_box_binary = box_id_to_binary(collateral_box)
+    except Exception:
+        refund_repay_proxy_box(box)
+
     transaction_to_sign = \
         {
             "requests": [
@@ -100,7 +106,7 @@ def process_repay_proxy_box(pool, box, empty):
             ],
             "fee": TX_FEE,
             "inputsRaw":
-                [box_id_to_binary(box["boxId"]), box_id_to_binary(collateral_box)],
+                [box_id_to_binary(box["boxId"]), collateral_box_binary],
             "dataInputsRaw":
                 [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
                   box_id_to_binary(head_child["boxId"])]

@@ -3,7 +3,7 @@ import math
 import time
 from math import floor
 
-from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, BOT_DUMMY_SCRIPT, DEFAULT_BUFFER
+from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, DEFAULT_BUFFER
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
@@ -15,7 +15,7 @@ logger = set_logger(__name__)
 
 
 def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate, liquidation_value,
-                               lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child):
+                               lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child, dummy_script):
     """
     Create a transaction to sign for liquidation.
     """
@@ -27,7 +27,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
 
     liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
     liquidation_buffer = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[1]
-    dummy_box = get_dummy_box(BOT_DUMMY_SCRIPT)
+    dummy_box = get_dummy_box(dummy_script)
     curr_height = current_height()
     if (liquidation_buffer == DEFAULT_BUFFER):
         transaction_to_sign = \
@@ -234,7 +234,7 @@ def get_dex_box_and_tokens(transaction, nft):
     return dex_box, lp_tokens, dex_box_address
 
 
-def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children):
+def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children, dummy_script):
     dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["collateral_supported"]["erg"]["dex_nft"])
 
     dex_initial_val = dex_box["value"]
@@ -249,7 +249,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
     base_child = get_base_child(children, loan_parent_index)
 
     transaction_to_sign = create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate,
-                                                     liquidation_value, lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child)
+                                                     liquidation_value, lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child, dummy_script)
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
     print(transaction_to_sign)
     if transaction_to_sign is None:
@@ -264,7 +264,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
         return [sig_usd_tx, sig_rsv_tx]
 
 
-def t_liquidation_job(pool):
+def t_liquidation_job(pool, dummy_script):
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
@@ -283,7 +283,7 @@ def t_liquidation_job(pool):
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")
                 try:
-                    tx = process_liquidation(pool, box, tx[0], tx[1], liquidation_response[1], head_child, parent_box, children)
+                    tx = process_liquidation(pool, box, tx[0], tx[1], liquidation_response[1], head_child, parent_box, children, dummy_script)
                 except Exception as e:
                     logger.exception(
                         f"Failed to process liquidation box for transaction id: {transaction_id}. Exception: {e}")
