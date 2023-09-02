@@ -48,10 +48,9 @@ def split_utxos():
 def get_input_boxes():
     time.sleep(10)
     current_boxes = json.loads(requests.get(f"{node_url}/wallet/boxes/unspent", params={"minConfirmations": -1}, headers=headers).text)
-    print(current_boxes)
     boxes = []
     for box in current_boxes:
-        if box["box"]["value"] >= 2 * MIN_BOX_VALUE:
+        if int(box["box"]["value"]) >= 2 * MIN_BOX_VALUE:
             boxes.append(box)
             if len(boxes) == 2:
                 return boxes
