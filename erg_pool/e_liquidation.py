@@ -4,7 +4,7 @@ import time
 from math import floor
 
 from consts import TX_FEE, PENALTY_DENOMINATION, MIN_BOX_VALUE, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, DEFAULT_BUFFER
+    ERG_RSV_DEX_NFT, DEFAULT_BUFFER, node_address
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
@@ -15,7 +15,7 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate, liquidation_value,
+def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate, liquidation_value, client_amount,
                                lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child, dummy_script):
     """
     Create a transaction to sign for liquidation.
@@ -79,7 +79,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     [box_id_to_binary(base_child["boxId"]), box_id_to_binary(parent_box["boxId"]),
                      box_id_to_binary(head_child["boxId"]), box_id_to_binary(dex_box["boxId"])]
             }
-    elif (curr_height > liquidation_buffer and  borrower_share < MIN_BOX_VALUE):
+    elif (curr_height > liquidation_buffer and borrower_share < MIN_BOX_VALUE):
         transaction_to_sign = {
             "requests": [
                 {
@@ -202,6 +202,19 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     else:
         print("Waiting for buffer")
         return None
+    if (client_amount >= MIN_BOX_VALUE + TX_FEE and curr_height > liquidation_buffer):
+        transaction_to_sign["requests"].append(
+            {
+                "address": node_address,
+                "value": client_amount - TX_FEE,
+                "assets": [
+                ],
+                "registers": {
+                }
+            }
+        )
+        transaction_to_sign["requests"][0]["value"] -= client_amount
+        transaction_to_sign["fee"] += TX_FEE
     return transaction_to_sign
 
 
@@ -238,13 +251,19 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
          1000 +
          int(box["assets"][0]["amount"]) *
          995))
+    client_amount = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * 995) //
+        ((int(dex_box["assets"][2]["amount"]) +
+          (int(dex_box["assets"][2]["amount"]) * 1) // 100) *
+         1000 +
+         int(box["assets"][0]["amount"]) *
+         995)) - liquidation_value
     loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     loan_parent_index = loan_indexes[0]
     base_child = get_base_child(children, loan_parent_index)
 
     transaction_to_sign = create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens,
                                                      tokens_to_liquidate,
-                                                     liquidation_value, lp_tokens, dex_box_address, total_due,
+                                                     liquidation_value, client_amount, lp_tokens, dex_box_address, total_due,
                                                      head_child, parent_box, base_child, dummy_script)
     if transaction_to_sign is None:
         return [sig_usd_tx, sig_rsv_tx]

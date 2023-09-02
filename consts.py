@@ -1,13 +1,13 @@
 import os
 
 # Set Constants here
-node_url = ""
-explorer_url = ""
+node_url = "http://159.65.250.130:9053"
+explorer_url = "https://api.ergoplatform.com/api/v1"
 headers = {
     "api_key": os.environ["API_KEY"]
 }
 node_pass = os.environ["WALLET_PASS"]
-node_address = ""
+node_address = "9i9RhfdHQA2bHA8GqWKkYevp3nozASRjJfFkh29utjNL9gqE7Q7"
 
 ERG_USD_DEX_NFT = "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec"
 ERG_RSV_DEX_NFT = "1d5afc59838920bb5ef2a8f9d63825a55b1d48e269d7cecee335d637c3ff5f3f"
