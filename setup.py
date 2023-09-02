@@ -138,5 +138,6 @@ def create_dummy_boxes(input_boxes, dummy_script):
 dummy_script = generate_dummy_script(node_address)
 split_utxos()
 input_boxes = mint_dummy_tokens()
-create_dummy_boxes(input_boxes, dummy_script)
+if input_boxes:
+    create_dummy_boxes(input_boxes, dummy_script)
 
