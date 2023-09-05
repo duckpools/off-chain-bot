@@ -2,7 +2,8 @@ import json
 import requests
 import time
 
-from consts import MIN_BOX_VALUE, node_address, TX_FEE, node_url, headers
+from consts import MIN_BOX_VALUE, TX_FEE
+from client_consts import node_url, headers, node_address
 from helpers.node_calls import sign_tx, box_id_to_binary, generate_dummy_script
 from logger import set_logger
 

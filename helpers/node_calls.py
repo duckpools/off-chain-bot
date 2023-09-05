@@ -2,7 +2,8 @@ import json
 
 import requests
 
-from consts import node_url, node_pass, headers, ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND
+from consts import ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND
+from client_consts import node_url, headers, node_pass
 from helpers.generic_calls import logger, get_request
 
 

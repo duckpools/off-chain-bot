@@ -1,7 +1,8 @@
 from time import sleep
 
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
-from consts import pools, node_address
+from consts import pools
+from client_consts import node_address
 from erg_pool.e_borrow_proxy import e_borrow_proxy_job
 from erg_pool.e_interest_rate import e_update_interest_rate
 from erg_pool.e_lend_proxy import e_lend_proxy_job

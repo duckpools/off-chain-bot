@@ -4,7 +4,8 @@ import time
 from math import floor
 
 from consts import TX_FEE, PENALTY_DENOMINATION, MIN_BOX_VALUE, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, DEFAULT_BUFFER, node_address
+    ERG_RSV_DEX_NFT, DEFAULT_BUFFER
+from client_consts import node_address
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \

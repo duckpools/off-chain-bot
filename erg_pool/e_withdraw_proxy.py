@@ -1,7 +1,8 @@
 import json
 from math import ceil
 
-from consts import MAX_LP_TOKENS, TX_FEE, MIN_BOX_VALUE, ERROR, node_address
+from consts import MAX_LP_TOKENS, TX_FEE, MIN_BOX_VALUE, ERROR
+from client_consts import node_address
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
 from helpers.platform_functions import calculate_service_fee, get_pool_param_box
