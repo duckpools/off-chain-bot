@@ -2,7 +2,8 @@ import json
 import secrets
 import requests
 
-from consts import explorer_url, HTTP_NOT_FOUND
+from consts import HTTP_NOT_FOUND
+from client_consts import explorer_url
 from helpers.generic_calls import logger, get_request
 
 

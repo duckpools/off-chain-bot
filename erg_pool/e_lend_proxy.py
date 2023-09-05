@@ -2,6 +2,7 @@ import json
 import math
 
 from consts import MIN_BOX_VALUE, TX_FEE, MAX_LP_TOKENS, ERROR
+from client_consts import node_address
 from helpers.job_helpers import job_processor, latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
 from helpers.platform_functions import calculate_final_amount, get_pool_param_box
@@ -13,7 +14,7 @@ logger = set_logger(__name__)
 def process_lend_proxy_box(pool, box, latest_tx):
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
-    usable_value = box["value"] - MIN_BOX_VALUE - TX_FEE
+    usable_value = box["value"] - MIN_BOX_VALUE - TX_FEE - MIN_BOX_VALUE
     service_fee = max(calculate_final_amount(usable_value, pool["thresholds"]), MIN_BOX_VALUE)
     erg_to_give = usable_value - service_fee
     held_tokens = int(erg_pool_box["assets"][1]["amount"])
@@ -69,6 +70,14 @@ def process_lend_proxy_box(pool, box, latest_tx):
                         "R5": "0400",
                         "R6": "0400",
                         "R7": "0e20" + box["boxId"]
+                    }
+                },
+                {
+                    "address": node_address,
+                    "value": MIN_BOX_VALUE,
+                    "assets": [
+                    ],
+                    "registers": {
                     }
                 }
             ],

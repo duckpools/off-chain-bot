@@ -2,6 +2,7 @@ import json
 from math import ceil
 
 from consts import MAX_LP_TOKENS, TX_FEE, MIN_BOX_VALUE, ERROR
+from client_consts import node_address
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
 from helpers.platform_functions import calculate_service_fee, get_pool_param_box
@@ -58,7 +59,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
                 },
                 {
                     "address": tree_to_address(user_tree),
-                    "value": user_gets + 2 * MIN_BOX_VALUE,
+                    "value": user_gets + 1 * MIN_BOX_VALUE,
                     "assets": [
                     ],
                     "registers": {
@@ -66,6 +67,14 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
                         "R5": "0400",
                         "R6": "0400",
                         "R7": "0e20" + box["boxId"]
+                    }
+                },
+                {
+                    "address": node_address,
+                    "value": MIN_BOX_VALUE,
+                    "assets": [
+                    ],
+                    "registers": {
                     }
                 }
             ],
