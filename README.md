@@ -1,4 +1,4 @@
-# duckpools-off-chain-bots
+# duckpools off-chain bots
 
 ## Overview
 Orders placed via the duckpools.io user interface (UI) undergo off-chain processing to enhance efficiency and scalability. Off-chain bots — automated programs that operate outside of the blockchain — scan for these pending orders and queue them for submission to the blockchain. This mechanism allows for increased concurrent usage of the protocol.
