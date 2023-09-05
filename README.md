@@ -9,14 +9,14 @@ Orders placed via the duckpools.io user interface (UI) undergo off-chain process
 
 ## Requirements
 
-To operate the off-chain bot, you'll need to fulfill the following prerequisites:
+To operate the off-chain bot, you'll need to fulfil the following prerequisites:
 
 ### Ergo-Node Setup
 - You must have an Ergo-Node properly configured and running.
 - The node should have a wallet set up with a minimum balance of 0.1 ERG to handle transaction fees and other operations.
 
 ### Hardware
-- The bot has minimal computational needs, there are no explicit prerequisites for hardware.
+- The bot has minimal computational needs; there are no explicit prerequisites for hardware.
 
 ### Software
 - Python 3.x must be installed on the machine where you plan to run the off-chain bot.
