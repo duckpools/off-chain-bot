@@ -1,6 +1,7 @@
 import json
 from math import floor
 
+from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXECUTION_FEE, MAX_INTEREST_SIZE, \
     INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR
 from helpers.node_calls import box_id_to_binary, sign_tx
@@ -127,7 +128,7 @@ def t_update_interest_rate(pool, curr_height, latest_tx):
                 "requests": [
                     {
                         "address": pool["child"],
-                        "value": box["value"] - TX_FEE,
+                        "value": box["value"] - 1.9 * TX_FEE,
                         "assets": [
                             {
                             "tokenId": box["assets"][0]["tokenId"],
@@ -142,9 +143,17 @@ def t_update_interest_rate(pool, curr_height, latest_tx):
                             "R8": "0101",
                             "R9": "0101"
                         }
+                    },
+                    {
+                        "address": node_address,
+                        "value": 0.7 * MIN_BOX_VALUE,
+                        "assets": [
+                        ],
+                        "registers": {
+                        }
                     }
                 ],
-                "fee": TX_FEE,
+                "fee": 1.2 * TX_FEE,
                 "inputsRaw":
                     [box_id_to_binary(box["boxId"])],
                 "dataInputsRaw":
