@@ -42,7 +42,7 @@ Please ensure all the above requirements are met before proceeding with the setu
     ```bash
     python3 setup.py
     ```
-    **Note**: Running this setup file will spend 0.072 ERG to create boxes that are spendable only by your node. These boxes are necessary for executing liquidation transactions. If you choose to stop running the off-chain bot in the future, you can collect these boxes.
+    **Note**: Running this setup file will spend 0.074 ERG to create boxes that are spendable only by your node. These boxes are necessary for executing liquidation transactions. If you choose to stop running the off-chain bot in the future, you can collect these boxes.
 
 ### Step 3: Run `main.py`
 
