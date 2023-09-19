@@ -20,6 +20,7 @@ To operate the off-chain bot, you'll need to fulfil the following prerequisites:
 
 ### Software
 - Python 3.x must be installed on the machine where you plan to run the off-chain bot.
+- Python requests module installed.
 
 Please ensure all the above requirements are met before proceeding with the setup steps.
 
@@ -34,7 +35,6 @@ Please ensure all the above requirements are met before proceeding with the setu
     - `api_key`: Your node's API key.
     - `node_pass`: Your node's wallet password.
     - `node_address`: Your node's wallet address.
-
 ### Step 2: Execute `setup.py`
 
 1. Open your terminal and navigate to the folder where `setup.py` is located.
@@ -52,6 +52,44 @@ Please ensure all the above requirements are met before proceeding with the setu
     ```
 
 Your off-chain bot should now be up and running. If you encounter any issues, please feel free to contact duckpools community Discord.
+
+## Updating the Off-Chain Bot
+
+To update the Off-Chain Bot, generally you will simply need to:
+
+1. Stop the `main.py` script if it is currently running.
+2. Use git stash to save your constants in the `client_consts.py` file.
+     ```bash
+    git stash
+    ```
+4. Pull the latest changes from the remote repository using:
+      ```bash
+    git pull
+    ```
+6. Re-apply your local changes using:
+     ```bash
+    git stash apply
+    ```
+
+## How to Terminate the Off-Chain Bot
+
+If you decide to stop running the off-chain bot indefinitely, follow the steps below to properly terminate it and collect your setup UTXOs. Keep in mind that reactivating the bot will require you to go through the setup process again.
+
+### Termination Steps
+
+1. **Stop the Main Script**:  
+   If `main.py` is currently running, stop the script to halt the bot's operation.
+    ```bash
+    # Use Ctrl+C or the appropriate command to stop the script
+    ```
+    
+2. **Run the Collection Script**:  
+   Execute the `collection.py` script to collect your setup UTXOs.
+    ```bash
+    python3 collection.py
+    ```
+
+By following these steps, you'll terminate the bot and retrieve your setup UTXOs.
 
 ### Disclaimer
 By running this software, you assume all responsibility and risk associated with its operation. Users are to exercise caution and perform their own due diligence when running the bot, especially in a live environment.
