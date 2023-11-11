@@ -217,7 +217,7 @@ pools = [
         # RSN Collateral
         "collateral_supported": {
             "erg": {
-                "dex_nft": "46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1",
+                "dex_nft": "1b694b15467c62f0cd4525e368dbdea2329c713aa200b73df4a622e950551b40",
                 "dex_fee": 997,
                 "dex_fee_serialized": "04ca0f"
             }
