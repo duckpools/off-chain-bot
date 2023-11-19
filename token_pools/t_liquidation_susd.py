@@ -3,6 +3,7 @@ import math
 import time
 from math import floor
 
+from client_consts import node_address
 from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, DEFAULT_BUFFER
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
@@ -155,7 +156,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         },
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
-                            "amount": str(dex_tokens - liquidation_value - client_amount)
+                            "amount": str(dex_tokens - liquidation_value)
                         }
                     ],
                     "registers": {
@@ -172,7 +173,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         },
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
-                            "amount": str(liquidation_value - borrower_share + client_amount)
+                            "amount": str(liquidation_value - borrower_share)
                         }
                     ],
                     "registers": {
@@ -180,7 +181,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                 },
                 {
                     "address": user,
-                    "value": MIN_BOX_VALUE / 2,
+                    "value": MIN_BOX_VALUE / 4,
                     "assets": [
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
@@ -215,7 +216,27 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     else:
         print("Waiting for buffer")
         return None
+
+
+    if (client_amount > 0 and curr_height > liquidation_buffer):
+        transaction_to_sign["requests"].append(
+            {
+                "address": node_address,
+                "value": MIN_BOX_VALUE / 4,
+                "assets": [
+                    {
+                        "tokenId": dex_box["assets"][2]["tokenId"],
+                        "amount": str(client_amount)
+                    }
+                ],
+                "registers": {
+                }
+            }
+        )
+        transaction_to_sign["requests"][0]["assets"][2]["amount"] -= client_amount
     return transaction_to_sign
+
+
 
 
 def get_dex_box_and_tokens(transaction, nft):
