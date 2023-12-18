@@ -107,8 +107,10 @@ def calculate_final_amount(total_amount, thresholds, precision=0.01):
     lower_bound = 0
     upper_bound = total_amount
     mid_point = (upper_bound + lower_bound) / 2.0
+    counter = 0
 
-    while abs(total_amount - calculate_service_fee(mid_point, thresholds) - mid_point) > precision:
+    while counter < 200 and abs(total_amount - calculate_service_fee(mid_point, thresholds) - mid_point) > precision:
+        counter += 1
         mid_point = (upper_bound + lower_bound) / 2.0
         if mid_point + calculate_service_fee(mid_point, thresholds) > total_amount:
             upper_bound = mid_point
