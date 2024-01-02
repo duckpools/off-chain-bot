@@ -111,7 +111,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:
         logger.info("Double spend, trying with fee: %s", str(fee + 12))
-        process_borrow_proxy_box(box, latest_tx, fee + 12)
+        process_borrow_proxy_box(pool, box, latest_tx, fee + 12)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")
         transaction_to_sign = \
