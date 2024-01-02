@@ -4,6 +4,7 @@ from math import floor
 from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXECUTION_FEE, MAX_INTEREST_SIZE, \
     INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR
+from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
 from helpers.platform_functions import get_parent_box, get_head_child, get_pool_box, get_pool_box_from_tx, \
     get_interest_param_box
@@ -83,7 +84,8 @@ def create_new_child(head_child, pool):
     return
 
 
-def e_update_interest_rate(pool, curr_height, latest_tx):
+def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script):
+    dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
     if len(json.loads(box["additionalRegisters"]["R4"]["renderedValue"])) == MAX_INTEREST_SIZE:
@@ -151,11 +153,27 @@ def e_update_interest_rate(pool, curr_height, latest_tx):
                         ],
                         "registers": {
                         }
+                    },
+                    {
+                        "address": dummy_box["address"],
+                        "value": MIN_BOX_VALUE,
+                        "assets": [
+                            {
+                                "tokenId": dummy_box["assets"][0]["tokenId"],
+                                "amount": dummy_box["assets"][0]["amount"]
+                            },
+                            {
+                                "tokenId": dummy_box["assets"][1]["tokenId"],
+                                "amount": dummy_box["assets"][1]["amount"]
+                            }
+                        ],
+                        "registers": {
+                        }
                     }
                 ],
                 "fee": 1.2 * TX_FEE,
                 "inputsRaw":
-                    [box_id_to_binary(box["boxId"])],
+                    [box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"])],
                 "dataInputsRaw":
                     [box_id_to_binary(erg_pool_box["boxId"]), box_id_to_binary(interest_param_box["boxId"])]
             }

@@ -181,7 +181,7 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
             return apply_interest(parent_interest_rates, loan_parent_index, compounded_interest) * principal / INTEREST_MULTIPLIER
 
 
-def liquidation_allowed_susd(box, parent_box, head_child, children, nft):
+def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -206,7 +206,7 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft):
                              1000 +
                              collateral_amount *
                              int(dex_box["additionalRegisters"]["R4"]["renderedValue"])))
-        return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000), total_due]
+        return [collateral_value <= ((total_due * liquidation_threshold) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
         return [False, False]

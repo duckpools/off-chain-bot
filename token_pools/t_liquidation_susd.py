@@ -281,7 +281,7 @@ def t_liquidation_job(pool, dummy_script):
     children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"])
+            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"])
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")
