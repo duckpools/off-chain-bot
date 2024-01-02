@@ -98,7 +98,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     }
                 }
             ],
-            "fee": fee,
+            "fee": 2*fee,
             "inputsRaw":
                 [box_id_to_binary(erg_pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
@@ -117,7 +117,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:
         logger.info("Double spending attempt, trying again with fee: %s", str(fee + 12))
         print("Double spending attempt, trying again with higher fee")
-        process_borrow_proxy_box(box, latest_tx, fee + 12)
+        process_borrow_proxy_box(pool, box, latest_tx, fee=fee + 2000)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")
         transaction_to_sign = \
