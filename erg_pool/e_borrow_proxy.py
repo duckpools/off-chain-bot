@@ -98,7 +98,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     }
                 }
             ],
-            "fee": 2*fee,
+            "fee": fee,
             "inputsRaw":
                 [box_id_to_binary(erg_pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
