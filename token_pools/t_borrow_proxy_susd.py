@@ -76,7 +76,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R6": box["additionalRegisters"]["R7"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + 400000, DEFAULT_BUFFER)
+                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + pool["proxy_forced_liquidation"], DEFAULT_BUFFER)
                     }
                 },
                 {

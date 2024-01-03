@@ -13,7 +13,6 @@ logger = set_logger(__name__)
 
 
 def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
-    print(f"Latest transaction data: {latest_tx}")
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     held_token_in_proxy = box["assets"][0]
@@ -23,7 +22,6 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         dex_box = get_dex_box(ERG_RSV_DEX_NFT)
     else:
         dex_box = None
-    print(f"Found DEX Box: {dex_box}")
 
     if not dex_box:
         logger.debug("No Dex Box Found")
@@ -85,7 +83,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R6": box["additionalRegisters"]["R7"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + 400000, DEFAULT_BUFFER)
+                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + pool["proxy_forced_liquidation"], DEFAULT_BUFFER)
                     }
                 },
                 {
