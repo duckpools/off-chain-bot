@@ -23,14 +23,13 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     liquidation_penalty = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[1]
     borrower_share = math.floor(((collateral_value - total_due) * (PENALTY_DENOMINATION - liquidation_penalty)) / PENALTY_DENOMINATION)
     user = tree_to_address(box["additionalRegisters"]["R4"]["renderedValue"])
-    print(borrower_share)
 
 
     liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
     liquidation_buffer = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[1]
     dummy_box = get_dummy_box(dummy_script)
     curr_height = current_height()
-    if (liquidation_buffer == DEFAULT_BUFFER):
+    if ((curr_height < liquidation_forced) and liquidation_buffer == DEFAULT_BUFFER):
         transaction_to_sign = \
             {
                 "requests": [
@@ -76,7 +75,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     [box_id_to_binary(base_child["boxId"]), box_id_to_binary(parent_box["boxId"]),
                      box_id_to_binary(head_child["boxId"]), box_id_to_binary(dex_box["boxId"])]
             }
-    elif (curr_height > liquidation_buffer and borrower_share < 1):
+    elif ((curr_height > liquidation_forced or curr_height > liquidation_buffer) and borrower_share < 1):
         transaction_to_sign = {
             "requests": [
                 {
@@ -138,7 +137,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
             "dataInputsRaw": [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
                   box_id_to_binary(head_child["boxId"])]
         }
-    elif (curr_height > liquidation_buffer):
+    elif ((curr_height > liquidation_forced or curr_height > liquidation_buffer)):
         transaction_to_sign = {
             "requests": [
                 {

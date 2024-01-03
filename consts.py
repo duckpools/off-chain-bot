@@ -263,7 +263,7 @@ pools = [
         # rsADA Collateral
         "collateral_supported": {
             "erg": {
-                "dex_nft": "1b694b15467c62f0cd4525e368dbdea2329c713aa200b73df4a622e950551b40",
+                "dex_nft": "ae97c5eccd59a065cd973a8d6afb8bb79f9cc70368a7dcdf73aaeab1cedf6f6b",
                 "dex_fee": 997,
                 "dex_fee_serialized": "04ca0f"
             }
