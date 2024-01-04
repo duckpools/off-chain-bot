@@ -3,7 +3,7 @@ from math import floor
 
 from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXECUTION_FEE, MAX_INTEREST_SIZE, \
-    INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR
+    INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR, DOUBLE_SPENDING_ATTEMPT
 from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
 from helpers.platform_functions import get_parent_box, get_head_child, get_pool_box, get_pool_box_from_tx, \
@@ -84,7 +84,7 @@ def create_new_child(head_child, pool):
     return
 
 
-def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script):
+def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*TX_FEE):
     dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
@@ -148,7 +148,7 @@ def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script):
                     },
                     {
                         "address": node_address,
-                        "value": 0.7 * MIN_BOX_VALUE,
+                        "value":  1.9 * TX_FEE - fee,
                         "assets": [
                         ],
                         "registers": {
@@ -171,7 +171,7 @@ def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script):
                         }
                     }
                 ],
-                "fee": 1.2 * TX_FEE,
+                "fee": fee,
                 "inputsRaw":
                     [box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"])],
                 "dataInputsRaw":
@@ -179,8 +179,11 @@ def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script):
             }
         logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
         tx_id = sign_tx(transaction_to_sign)
-        if tx_id != ERROR:
+        if tx_id != ERROR and tx_id != DOUBLE_SPENDING_ATTEMPT:
             logger.info("Successfully submitted interest transaction with ID: %s", tx_id)
+        elif tx_id == DOUBLE_SPENDING_ATTEMPT:
+            logger.info("Double Spend attempt, trying with higher fee")
+            e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee + 2000)
         else:
             logger.warning(
                 "Failed to submit transaction: %s Failed txID quoted as: %s",
