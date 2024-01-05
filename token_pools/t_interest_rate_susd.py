@@ -88,9 +88,16 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*T
     dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
+    box_curr_height = int(box["additionalRegisters"]["R5"]["renderedValue"])
     if len(json.loads(box["additionalRegisters"]["R4"]["renderedValue"])) == MAX_INTEREST_SIZE:
         create_new_child(pool, box)
-    elif int(box["additionalRegisters"]["R5"]["renderedValue"]) + INTEREST_FREQUENCY_POLL < curr_height:
+    elif box_curr_height + INTEREST_FREQUENCY_POLL < curr_height:
+        if box_curr_height + INTEREST_FREQUENCY_POLL + 70 < curr_height:
+            fee += 900000
+        elif box_curr_height + INTEREST_FREQUENCY_POLL + 35 < curr_height:
+            fee += 300000
+        elif box_curr_height + INTEREST_FREQUENCY_POLL + 20 < curr_height:
+            fee += 100000
         if latest_tx is None:
             erg_pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
             borrowed = MAX_BORROW_TOKENS - int(erg_pool_box["assets"][2]["amount"])
