@@ -93,9 +93,9 @@ def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*T
         create_new_child(box, pool)
     elif box_curr_height + INTEREST_FREQUENCY_POLL < curr_height:
         if box_curr_height + INTEREST_FREQUENCY_POLL + 70 < curr_height:
-            fee += 900000
+            fee += 400000
         elif box_curr_height + INTEREST_FREQUENCY_POLL + 35 < curr_height:
-            fee += 300000
+            fee += 200000
         elif box_curr_height + INTEREST_FREQUENCY_POLL + 20 < curr_height:
             fee += 100000
         if latest_tx is None:
