@@ -93,11 +93,11 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*T
         create_new_child(pool, box)
     elif box_curr_height + INTEREST_FREQUENCY_POLL < curr_height:
         if box_curr_height + INTEREST_FREQUENCY_POLL + 70 < curr_height:
-            fee += 400000
+            fee += 90000
         elif box_curr_height + INTEREST_FREQUENCY_POLL + 35 < curr_height:
-            fee += 200000
+            fee += 60000
         elif box_curr_height + INTEREST_FREQUENCY_POLL + 20 < curr_height:
-            fee += 100000
+            fee += 10000
         if latest_tx is None:
             erg_pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
             borrowed = MAX_BORROW_TOKENS - int(erg_pool_box["assets"][2]["amount"])
