@@ -30,7 +30,8 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     user = tree_to_address(box["additionalRegisters"]["R4"]["renderedValue"])
     dummy_box = get_dummy_box(dummy_script)
     curr_height = current_height()
-    if (liquidation_buffer == DEFAULT_BUFFER):
+    is_forced_liquidation = liquidation_forced < curr_height
+    if (liquidation_buffer == DEFAULT_BUFFER and not is_forced_liquidation):
         transaction_to_sign = \
             {
                 "requests": [
@@ -80,7 +81,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     [box_id_to_binary(base_child["boxId"]), box_id_to_binary(parent_box["boxId"]),
                      box_id_to_binary(head_child["boxId"]), box_id_to_binary(dex_box["boxId"])]
             }
-    elif (curr_height > liquidation_buffer and borrower_share < MIN_BOX_VALUE):
+    elif ((curr_height > liquidation_buffer or is_forced_liquidation) and borrower_share < MIN_BOX_VALUE):
         transaction_to_sign = {
             "requests": [
                 {
@@ -134,7 +135,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
             "dataInputsRaw": [box_id_to_binary(base_child["boxId"]), box_id_to_binary(parent_box["boxId"]),
                               box_id_to_binary(head_child["boxId"])]
         }
-    elif (curr_height > liquidation_buffer):
+    elif (curr_height > liquidation_buffer or is_forced_liquidation):
         transaction_to_sign = {
             "requests": [
                 {
@@ -284,7 +285,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
         return [sig_usd_tx, sig_rsv_tx]
 
 
-def e_liquidation_job(pool, dummy_script):
+def e_liquidation_job(pool, dummy_script, height):
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
@@ -298,7 +299,7 @@ def e_liquidation_job(pool, dummy_script):
     children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed(box, parent_box, head_child, children)
+            liquidation_response = liquidation_allowed(box, parent_box, head_child, children, height)
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")
