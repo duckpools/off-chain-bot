@@ -181,7 +181,7 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
             return apply_interest(parent_interest_rates, loan_parent_index, compounded_interest) * principal / INTEREST_MULTIPLIER
 
 
-def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold):
+def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold, height):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -196,6 +196,7 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
         dex_box = get_dex_box(nft)
         loan_amount = int(box["assets"][0]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
+        liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
         total_due += 2
         collateral_amount = int(box["value"] - 4000000)
@@ -206,6 +207,8 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
                              1000 +
                              collateral_amount *
                              int(dex_box["additionalRegisters"]["R4"]["renderedValue"])))
+        if int(liquidation_forced) < int(height):
+            return [True, total_due]
         return [collateral_value <= ((total_due * liquidation_threshold) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
@@ -221,7 +224,7 @@ def get_children_boxes(address, nft):
     return res
 
 
-def liquidation_allowed(box, parent_box, head_child, children):
+def liquidation_allowed(box, parent_box, head_child, children, height):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -248,10 +251,12 @@ def liquidation_allowed(box, parent_box, head_child, children):
          1000 +
          int(box["assets"][0]["amount"]) *
          int(dex_box["additionalRegisters"]["R4"]["renderedValue"])) - 4000000)
-
+        liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
         loan_amount = int(box["assets"][1]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
+        if int(liquidation_forced) < int(height):
+            return [True, total_due]
         return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000)
             and box["assets"][1]["tokenId"] == BORROW_TOKEN_ID, total_due]
     except (KeyError, IndexError, ValueError, TypeError):

@@ -46,7 +46,7 @@ if __name__ == "__main__":
                             curr_tx_obj = e_repay_to_pool_job(pool, curr_tx_obj)
                             e_repay_proxy_job(pool)
                             e_partial_repay_proxy_job(pool)
-                            e_liquidation_job(pool, dummy_script)
+                            e_liquidation_job(pool, dummy_script, curr_height)
                             e_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                         else:
                             curr_tx_obj = t_lend_proxy_job(pool)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
                             curr_tx_obj = t_repay_to_pool_job(pool, curr_tx_obj)
                             t_repay_proxy_job(pool)
                             t_partial_repay_proxy_job(pool)
-                            t_liquidation_job(pool, dummy_script)
+                            t_liquidation_job(pool, dummy_script, curr_height)
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")

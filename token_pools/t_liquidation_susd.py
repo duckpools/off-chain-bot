@@ -266,7 +266,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
         return [sig_usd_tx, sig_rsv_tx]
 
 
-def t_liquidation_job(pool, dummy_script):
+def t_liquidation_job(pool, dummy_script, height):
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
@@ -280,7 +280,7 @@ def t_liquidation_job(pool, dummy_script):
     children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"])
+            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"], height)
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")
