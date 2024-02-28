@@ -178,7 +178,7 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
         if num_children == loan_parent_index + 1:
             return principal * compounded_interest / INTEREST_MULTIPLIER
         else:
-            return apply_interest(parent_interest_rates, loan_parent_index, compounded_interest) * principal / INTEREST_MULTIPLIER
+            return apply_interest(parent_interest_rates, loan_parent_index + 1, compounded_interest) * principal / INTEREST_MULTIPLIER
 
 
 def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold, height):
