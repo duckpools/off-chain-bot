@@ -53,7 +53,7 @@ pools = [
         "proxy_partial_repay": "21oVVJWKo1R7NvYL5pSTkLpKR89QHizFoXzgrA87ecoVtRBXJWhf8ZKfUrQHU4NQ97fY6W17yifLGPWCwLhQ85vmwiwGDx2njfspUDmRt1RvBRAiKHYXYbu6mBaNUEUSPzL7ZsyYNLv2aV1NfeWympbEf3jDmZUDs1Dg8A9s31LCmV2aJxJb2P5P3FS8d7sSBcQUNbtZ1Ch3aYihL6HDX1Xc6HhFFrjyzxCUQ6d2ZfecvWQCbKHQ1zasA2TuPnHchmcEgJBvP4n7xC3kby3o4xxw8bPfNaLEaqWZFbJ8DS513dsU8udpKEStXM3ze6p68ktx9PpYKZREmt4M3MFKvxVkzQKmQbuxPsKsT6D6kxbuL1yeEb",
 
         # ERG Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # ERG Token IDs
@@ -86,7 +86,7 @@ pools = [
         "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
 
         # SIGUSD Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # SIGUSD Token IDs
@@ -128,7 +128,7 @@ pools = [
         "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
 
         # QUACKS Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # QUACKS Token IDs
@@ -170,7 +170,7 @@ pools = [
         "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
 
         # sigRSV Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # sigRSV Token IDs
@@ -212,7 +212,7 @@ pools = [
         "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
 
         # RSN Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # RSN Token IDs
@@ -254,7 +254,7 @@ pools = [
         "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
 
         # rsADA Param Addresses
-        "parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P15jmTY6Q56uxWPvBJbv9BJ",
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
         "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
 
         # rsADA Token IDs
