@@ -7,18 +7,8 @@ from client_consts import explorer_url
 from helpers.generic_calls import logger, get_request
 
 
-def get_unspent_boxes_by_address(addr, limit=60):
-    offset = 0
-    all_boxes = []
-    while True:
-        response = get_request(f"{explorer_url}/boxes/unspent/byAddress/{addr}?limit={limit}&offset={offset}")
-        data = json.loads(response.text)
-        boxes = data['items']
-        all_boxes.extend(boxes)
-        offset += len(boxes)
-        if len(boxes) < limit or offset >= data['total']:
-            break
-    return all_boxes
+def get_unspent_boxes_by_address(addr, limit=70, offset=0):
+    return json.loads(get_request(f"{explorer_url}/boxes/unspent/byAddress/{addr}?limit={limit}&offset={offset}").text)['items']
 
 def get_box_from_id_explorer(box_id):
     """
