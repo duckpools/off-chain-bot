@@ -24,8 +24,11 @@ def get_dex_box(token, start_limit=5, max_limit=200):
         unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
         for box in unspent_boxes:
-            if box["assets"][0]["tokenId"] == token:
-                return box
+            try:
+                if box["assets"][0]["tokenId"] == token:
+                    return box
+            except Exception as e:
+                logger.info(e)
 
         limit *= 2  # Double the limit for the next iteration
 
