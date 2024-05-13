@@ -20,6 +20,7 @@ from erg_pool.e_repay_to_pool import e_repay_to_pool_job
 from token_pools.t_repay_to_pool_susd import t_repay_to_pool_job
 from erg_pool.e_withdraw_proxy import e_withdraw_proxy_job
 from token_pools.t_withdraw_proxy_sigusd import t_withdraw_proxy_job
+from explorer_calls import get_balance, get_transactions
 
 logger = set_logger(__name__)
 if __name__ == "__main__":
@@ -48,6 +49,8 @@ if __name__ == "__main__":
                             e_partial_repay_proxy_job(pool)
                             e_liquidation_job(pool, dummy_script, curr_height)
                             e_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
+                            get_balance(node_address)
+                            get_transactions(node_address)
                         else:
                             curr_tx_obj = t_lend_proxy_job(pool)
                             curr_tx_obj = t_withdraw_proxy_job(pool, curr_tx_obj)
