@@ -3,7 +3,7 @@ import json
 import requests
 
 from consts import ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND
-from client_consts import node_url, headers, node_pass
+from client_consts import node_url, headers, node_pass, node_address
 from helpers.generic_calls import logger, get_request
 
 
@@ -118,6 +118,122 @@ def get_box_from_id(box_id):
 def generate_dummy_script(node_address):
     script_payload = {
         "source": f"PK(\"{node_address}\") && HEIGHT >= -1"
+    }
+    try:
+        # Making the POST request
+        response = requests.post(f"{node_url}/script/p2sAddress", json=script_payload, headers=headers)
+
+        # Checking if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON response
+            parsed_response = json.loads(response.text)
+            return parsed_response["address"]
+
+        else:
+            print(f"Error: Received status code {response.status_code}")
+            print(f"Message: {response.text}")
+            return None
+
+    except requests.RequestException as e:
+        print(f"An error occurred while making the request: {e}")
+        return None
+
+
+def clean_node():
+    address = node_address
+    unspent_boxes_url = f"https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/{address}?limit=50"
+    response = requests.get(unspent_boxes_url)
+    if response.status_code != 200:
+        raise Exception(f"Failed to get unspent boxes: {response.text}")
+
+    unspent_boxes = response.json()["items"]
+    inputs_raw = []
+    total_value = 0
+    tokens_held = []
+    for box in unspent_boxes:
+        box_id = box['boxId']
+        total_value += int(box["value"])
+        box_info_url = f"{node_url}/utxo/withPool/byIdBinary/{box_id}"
+        box_response = requests.get(box_info_url)
+        if box["assets"]:
+            for asset in box["assets"]:
+                tokens_held.append(
+                    {
+                        "tokenId": asset["tokenId"],
+                        "amount": asset["amount"]
+                    }
+                )
+        if box_response.status_code != 200:
+            raise Exception(f"Failed to get box info for {box_id}: {box_response.text}")
+
+        inputs_raw.append(box_response.json()["bytes"])
+
+    # Step 3: Construct the transaction object
+    transaction = {
+        "requests": [
+            {
+                "address": address,
+                "value": total_value - 5000000,
+                "assets": tokens_held,
+                "registers": {"R4": "0400"}
+            }
+        ],
+        "fee": 5000000,
+        "inputsRaw": inputs_raw,
+        "dataInputsRaw": []
+    }
+    return sign_tx(transaction)
+
+
+def generate_pool_nft_script(node_address):
+    script_payload = {
+        "source": f"PK(\"{node_address}\") && HEIGHT >= -12201"
+    }
+    try:
+        # Making the POST request
+        response = requests.post(f"{node_url}/script/p2sAddress", json=script_payload, headers=headers)
+
+        # Checking if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON response
+            parsed_response = json.loads(response.text)
+            return parsed_response["address"]
+
+        else:
+            print(f"Error: Received status code {response.status_code}")
+            print(f"Message: {response.text}")
+            return None
+
+    except requests.RequestException as e:
+        print(f"An error occurred while making the request: {e}")
+        return None
+
+def generate_lp_tokens_script(node_address):
+    script_payload = {
+        "source": f"PK(\"{node_address}\") && HEIGHT >= -12202"
+    }
+    try:
+        # Making the POST request
+        response = requests.post(f"{node_url}/script/p2sAddress", json=script_payload, headers=headers)
+
+        # Checking if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON response
+            parsed_response = json.loads(response.text)
+            return parsed_response["address"]
+
+        else:
+            print(f"Error: Received status code {response.status_code}")
+            print(f"Message: {response.text}")
+            return None
+
+    except requests.RequestException as e:
+        print(f"An error occurred while making the request: {e}")
+        return None
+
+def generate_y_tokens_script(node_address):
+    script_payload = {
+        "source": f"PK(\"{node_address}\") && HEIGHT >= -12203"
     }
     try:
         # Making the POST request

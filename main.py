@@ -1,5 +1,9 @@
 from time import sleep
 
+from optionPools.bootstrapping.create_pool import create_pool
+from optionPools.default.add_liquidity import add_liquidity_job
+from optionPools.option_consts import option_pools
+from settings import scan_option_pools
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
 from client_consts import node_address
@@ -8,7 +12,7 @@ from erg_pool.e_interest_rate import e_update_interest_rate
 from erg_pool.e_lend_proxy import e_lend_proxy_job
 from erg_pool.e_liquidation import e_liquidation_job
 from erg_pool.e_partial_repay_proxy import e_partial_repay_proxy_job
-from helpers.node_calls import unlock_wallet, current_height, generate_dummy_script
+from helpers.node_calls import unlock_wallet, current_height, generate_dummy_script, clean_node
 from token_pools.t_interest_rate_susd import t_update_interest_rate
 from token_pools.t_lend_proxy_sUsd import t_lend_proxy_job
 from token_pools.t_liquidation_susd import t_liquidation_job
@@ -37,6 +41,10 @@ if __name__ == "__main__":
                 unlock_wallet()
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
+                if scan_option_pools:
+
+                    add_liquidity_job(option_pools[0], "050a")
+                    exit()
                 for pool in pools[0:]:
                     try:
                         if pool["is_Erg"]:
