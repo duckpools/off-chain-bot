@@ -168,17 +168,29 @@ def clean_node():
 
         inputs_raw.append(box_response.json()["bytes"])
 
+    aggregated_assets = {}
+    for asset in tokens_held:
+        token_id = asset["tokenId"]
+        amount = asset["amount"]
+        if token_id in aggregated_assets:
+            aggregated_assets[token_id] += amount
+        else:
+            aggregated_assets[token_id] = amount
+
+    # Convert the aggregated dictionary back to a list of dictionaries
+    result = [{"tokenId": token_id, "amount": amount} for token_id, amount in aggregated_assets.items()]
+
     # Step 3: Construct the transaction object
     transaction = {
         "requests": [
             {
                 "address": address,
-                "value": total_value - 5000000,
-                "assets": tokens_held,
+                "value": total_value - 3000000,
+                "assets": result,
                 "registers": {"R4": "0400"}
             }
         ],
-        "fee": 5000000,
+        "fee": 3000000,
         "inputsRaw": inputs_raw,
         "dataInputsRaw": []
     }

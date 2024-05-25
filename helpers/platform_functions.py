@@ -3,7 +3,7 @@ import time
 from math import floor
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID
+    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, CDF_ADDRESS, CDF_NFT
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
@@ -266,4 +266,12 @@ def liquidation_allowed(box, parent_box, head_child, children, height):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
         return [False, False]
 
+
+def get_CDF_box():
+    found_boxes = get_unspent_boxes_by_address(CDF_ADDRESS)
+    res = []
+    for box in found_boxes:
+        if box["assets"] and box["assets"][0]["tokenId"] == CDF_NFT:
+            return box
+    return None
 

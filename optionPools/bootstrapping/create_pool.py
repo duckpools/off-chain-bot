@@ -162,21 +162,22 @@ def cancel_active_creations(pool_nft_script, lp_tokens_script, y_tokens_script, 
     return True
 
 
-def create_pool(r4_value):
+def create_pool(r4_value, stage):
     y_token = "1368440201d3a950c9900bb9f4138223e5ee77f598f36a425ca665a886bb2c48"
     pool_nft_script = generate_pool_nft_script(node_address)
     lp_token_script = generate_lp_tokens_script(node_address)
     y_token_script = generate_y_tokens_script(node_address)
-    logger.info("Checking if there are active create pool attempts...")
-    if count_mint_active(pool_nft_script, lp_token_script, y_token_script) > 0:
-        logger.warning("There is already an attempt to create pool, attempting to cancel...")
-        if cancel_active_creations(pool_nft_script, lp_token_script, y_token_script, y_token):
-            create_pool()
-        return
-    logger.info("No active market creations found, attempting to mint pool tokens")
-    mint_tokens(pool_nft_script, lp_token_script, y_token_script, y_token)
-    logger.info("Waiting for transactions to confirm, please do not terminate the program...")
-    start_time = time.time()
+    if stage <= 1:
+        logger.info("Checking if there are active create pool attempts...")
+        if count_mint_active(pool_nft_script, lp_token_script, y_token_script) > 0:
+            logger.warning("There is already an attempt to create pool, attempting to cancel...")
+            if cancel_active_creations(pool_nft_script, lp_token_script, y_token_script, y_token):
+                create_pool()
+            return
+        logger.info("No active market creations found, attempting to mint pool tokens")
+        mint_tokens(pool_nft_script, lp_token_script, y_token_script, y_token)
+        logger.info("Waiting for transactions to confirm, please do not terminate the program...")
+        start_time = time.time()
     while count_mint_active(pool_nft_script, lp_token_script, y_token_script) < 3:
         time.sleep(45)
         if (time.time() - start_time) > 900:

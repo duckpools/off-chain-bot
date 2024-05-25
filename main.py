@@ -1,8 +1,10 @@
 from time import sleep
 
-from optionPools.bootstrapping.create_pool import create_pool
-from optionPools.default.add_liquidity import add_liquidity_job
+from optionPools.actions.withdraw_liquidity import withdraw_liquidity_job
+from optionPools.actions.add_liquidity import add_liquidity_job
+from optionPools.bootstrapping.buy_option import buy_option_test
 from optionPools.option_consts import option_pools
+from optionPools.bootstrapping.create_pool import create_pool
 from settings import scan_option_pools
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
@@ -42,8 +44,13 @@ if __name__ == "__main__":
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
                 if scan_option_pools:
-
+                    buy_option_test(option_pools[0], 2)
+                    exit()
+                    create_pool(5,1)
+                    exit()
                     add_liquidity_job(option_pools[0], "050a")
+                    exit()
+                    withdraw_liquidity_job(option_pools[0], "050a")
                     exit()
                 for pool in pools[0:]:
                     try:
