@@ -2,9 +2,12 @@ from time import sleep
 
 from optionPools.actions.withdraw_liquidity import withdraw_liquidity_job
 from optionPools.actions.add_liquidity import add_liquidity_job
+from optionPools.actions.repayment import repay_to_pool_job
 from optionPools.bootstrapping.buy_option import buy_option_test
 from optionPools.option_consts import option_pools
 from optionPools.bootstrapping.create_pool import create_pool
+from optionPools.bootstrapping.sell_option import sell_option_test
+from optionPools.bootstrapping.exercise_option import exercise_option_test
 from settings import scan_option_pools
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
@@ -44,14 +47,35 @@ if __name__ == "__main__":
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
                 if scan_option_pools:
-                    buy_option_test(option_pools[0], 2)
+                    add_liquidity_job(option_pools[0], "050a")
+                    exit()
+                    withdraw_liquidity_job(option_pools[0], "050a")
+                    exit()
+                    add_liquidity_job(option_pools[0], "050a")
+                    exit()
+                    buy_option_test(option_pools[0], 20000000)
+                    exit()
+
+                    buy_option_test(option_pools[0], 20000000)
+                    exit()
+
+
+                    sell_option_test(option_pools[0], "1c9bd0f3333e4a7b812b5ef161bba95d0fde50ec9ae943058aecef60b16a9875")
+                    exit()
+
+                    repay_to_pool_job(option_pools[0], "0580ade204")
+                    exit()
+                    exercise_option_test(option_pools[0], "1c9bd0f3333e4a7b812b5ef161bba95d0fde50ec9ae943058aecef60b16a9875")
+                    exit()
+
+
+                    clean_node()
                     exit()
                     create_pool(5,1)
                     exit()
                     add_liquidity_job(option_pools[0], "050a")
                     exit()
-                    withdraw_liquidity_job(option_pools[0], "050a")
-                    exit()
+
                 for pool in pools[0:]:
                     try:
                         if pool["is_Erg"]:

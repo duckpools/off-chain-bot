@@ -8,9 +8,8 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def process_repay_to_pool(pool, box, latest_tx):
+def process_repay_to_pool(pool, box, latest_tx, serialized_r4):
     pool_box = op_latest_pool_info(pool, latest_tx)
-
     erg_to_give = int(box["value"]) - TX_FEE
     y_to_give = 0
     if len(box["assets"]) > 1:
@@ -23,23 +22,24 @@ def process_repay_to_pool(pool, box, latest_tx):
                     "value": pool_box["value"] + erg_to_give,
                     "assets": [
                         {
-                            "tokenId": pool["assets"][0]["tokenId"],
-                            "amount": pool["assets"][0]["amount"]
+                            "tokenId": pool_box["assets"][0]["tokenId"],
+                            "amount": pool_box["assets"][0]["amount"]
                         },
                         {
-                            "tokenId": pool["assets"][1]["tokenId"],
-                            "amount": pool["assets"][1]["amount"]
+                            "tokenId": pool_box["assets"][1]["tokenId"],
+                            "amount": pool_box["assets"][1]["amount"]
                         },
                         {
-                            "tokenId": pool["assets"][2]["tokenId"],
-                            "amount": pool["assets"][2]["amount"] + y_to_give
+                            "tokenId": pool_box["assets"][2]["tokenId"],
+                            "amount": pool_box["assets"][2]["amount"] + y_to_give
                         },
                         {
-                            "tokenId": pool["assets"][3]["tokenId"],
-                            "amount": pool["assets"][3]["amount"] + 1
+                            "tokenId": pool_box["assets"][3]["tokenId"],
+                            "amount": pool_box["assets"][3]["amount"] + 1
                         }
                     ],
                     "registers": {
+                        "R4": serialized_r4
                     }
                 },
             ],
@@ -62,5 +62,5 @@ def process_repay_to_pool(pool, box, latest_tx):
     return obj
 
 
-def repay_to_pool_job(pool, curr_tx_obj):
-    op_job_processor(pool, pool["repayment"], None, curr_tx_obj, process_repay_to_pool, "repay to pool", 1051829)
+def repay_to_pool_job(pool, serialized_r4):
+    op_job_processor(pool, pool["repayment"], None, serialized_r4, process_repay_to_pool, "repay to pool", 1051829)
