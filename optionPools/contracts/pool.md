@@ -118,7 +118,8 @@
     val currentPoolNft = SELF.tokens(0)
     val currentLPTokens = SELF.tokens(1)
     val currentYTokens = SELF.tokens(2)
-    val currentOptionTokens = SELF.tokens(3)
+    val currentCallTokens = SELF.tokens(3)
+	val currentPutTokens = SELF.tokens(4)
     val currentRiskFreeRate = SELF.R4[Long].get
     val currentStrikes = SELF.R5[Coll[Long]].get // (Expiry, Strike, Amount)
 
@@ -129,7 +130,8 @@
     val successorPoolNft = successor.tokens(0)
     val successorLPTokens = successor.tokens(1)
     val successorYTokens = successor.tokens(2)
-    val successorOptionTokens = successor.tokens(3)
+    val successorCallTokens = successor.tokens(3)
+	val successorPutTokens = successor.tokens(4)
     val successorRiskFreeRate = successor.R4[Long].get
     val successorStrikes = successor.R5[Coll[Long]].get // (Expiry, Strike)
 
@@ -148,8 +150,8 @@
     val isValidMinValue = successorPoolValue >= MinimumBoxValue 
     val isYIdPreserved = successorYTokens._1 == currentYTokens._1
     val isRiskFreeRateMaintained = successorRiskFreeRate == currentRiskFreeRate
-    val isOptionTokenIdRetained = successorOptionTokens._1 == currentOptionTokens._1
-    val retainStrikes = successorStrikes == currentStrikes
+    val isCallOptionIdRetained = successorCallTokens._1 == currentCallTokens._1
+	val isPutOptionIdRetained = successorPutTokens._1 == currentPutTokens._1
     
     val commonReplication = (
         isValidSuccessorScript &&
@@ -157,7 +159,8 @@
         isValidLPTokenId &&
         isValidMinValue &&
         isYIdPreserved &&
-        isRiskFreeRateMaintained
+        isRiskFreeRateMaintained &&
+		isCallOptionIdRetained
     )
     
     sigmaProp(if (CONTEXT.dataInputs.size == 0) {        
@@ -165,8 +168,9 @@
 		val isXIncreasing = successorPoolValue - currentPoolValue > 0 // Assume all deposits offer at least some value to prevent spam
 		val isYIncreasing = successorYAmount - currentYAmount >= 0
 		val isInput0Self = INPUTS(0).id == SELF.id
-		val isInput1Valid = INPUTS(1).tokens(0)._1 == currentOptionTokens._1
-		val isOptionTokensAmountValid = successorOptionTokens._2 == currentOptionTokens._2 + 1
+		val isInput1Valid = INPUTS(1).tokens(0)._1 == currentCallTokens._1
+		val isOptionTokensAmountValid = successorCallTokens._2 == currentCallTokens._2 + 1
+		// OR PUT TOKENS
 
 		// Validate deposit operation
 		val isValidDeposit = (
@@ -184,9 +188,12 @@
         val indices = successor.R7[Coll[Int]].get // (CDFIndex1, CDFIndex2)
 		        
         val y = hints(1).toBigInt // Hint value for calculating the triple sqrt of a/b
-        val sqrtT = hints(2).toBigInt // Hint value for sqrt(t)
-        val CDFIndex1 = indices(0) // Asserted Index for N(d1)
-        val CDFIndex2 = indices(1) // Asserted Index for N(d2)
+		val yp = hints(2).toBigInt
+        val sqrtT = hints(3).toBigInt // Hint value for sqrt(t)
+        val CDFIndex1 = indices(0) // Asserted Index for Call N(d1)
+        val CDFIndex2 = indices(1) // Asserted Index for Call N(d2)
+		val CDFPutIndex1 = indices(2) // Asserted Index for Put N(d1)
+        val CDFPutIndex2 = indices(3) // Asserted Index for Put N(d2)
         val CDF_Hint = CONTEXT.dataInputs(0) // CDF dataInput
         val CDF_keys = CDF_Hint.R4[Coll[Long]].get
         val CDF_values = CDF_Hint.R5[Coll[Long]].get
@@ -224,30 +231,72 @@
 			(((Nd1 * S) - (Nd2 * K * ert) / p), isCDFIndex1Valid && isCDFIndex2Valid)
 		}
 		
+		
+		def getPutPrice(values: (BigInt, BigInt)) = {
+			val t = values(0)
+			val K = values(1)
+			
+			val r = currentRiskFreeRate
+			
+			val d1 = getD1(Coll(K.toBigInt, yp, sqrtT, t, r.toBigInt))
+			val d2 = d1 - ((σ * sqrtT) / p)
+			
+			val abs_d1 = max(d1, -1 * d1)
+			val abs_d2 = max(d2, -1 * d2)
+						
+			val isCDFIndex1Valid = (
+				((abs_d1 >= ((35 * p) / 10).toBigInt)  && (CDFPutIndex1 == CDF_keys.size - 1)) ||
+				((CDF_keys(CDFPutIndex1).toBigInt <= abs_d1) && (CDF_keys(CDFPutIndex1 + 1).toBigInt >= abs_d1))
+			)
+			
+			val isCDFIndex2Valid = (
+				((abs_d2 >= ((35 * p) / 10).toBigInt)  && (CDFPutIndex2 == CDF_keys.size - 1)) ||
+				((CDF_keys(CDFPutIndex2).toBigInt <= abs_d2) && (CDF_keys(CDFPutIndex2 + 1).toBigInt >= abs_d2))
+			)
+			
+			val Nd1 = if (d1 >= 0) p - CDF_values(CDFPutIndex1).toBigInt else CDF_values(CDFPutIndex1).toBigInt
+			val Nd2 = if (d2 >= 0) p - CDF_values(CDFPutIndex2).toBigInt else CDF_values(CDFPutIndex2).toBigInt
+			
+			val rt = (r * t) / p
+			val ert = eX(rt)
+				
+			((((Nd2 * K * ert) / p) - (Nd1 * S)), isCDFIndex1Valid && isCDFIndex2Valid)
+		}
 
 
-		val isOptionTokensRetained = successorOptionTokens == currentOptionTokens
-		if (isOptionTokensRetained) {
+		val isOptionTokensRetained = successorCallTokens == currentCallTokens
+		val isPutTokensRetained = successorPutTokens == currentPutTokens
+		if (isOptionTokensRetained && isPutTokensRetained) {
 			// Exchange Path
 			// Attempt to calculate total value of options outstanding
 			val t_height = currentStrikes(0).toBigInt
 			val K = currentStrikes(1).toBigInt
+			val Kp = currentStrikes(3).toBigInt
 		
+			val retainStrikes = successorStrikes == currentStrikes
+
 			val curr_height_hint = hints(0)
 			val isValidHeightHint = HEIGHT >= curr_height_hint  && curr_height_hint < HEIGHT + 8
 			val t = (t_height - curr_height_hint) * p / MinutesInAYear
 			
 			val callPriceResponse = getCallPrice((t, K))
+			val putPriceResponse = getPutPrice((t, Kp))
 			val callPrice = callPriceResponse(0)
-			val isValidCDFIndices = callPriceResponse(1)
+			val putPrice = putPriceResponse(0)
+			val isValidCDFIndices = callPriceResponse(1) && putPriceResponse(1)
 			
+			val xDeduction = putPrice * currentStrikes(4)
 			val yDeduction = callPrice * currentStrikes(2)
+			val xAddition = currentStrikes(2) * optionUnitSize
+			val yAddition = currentStrikes(4)
 			
-			val currentTotalY = currentYAmount - yDeduction
-			val successorTotalY = successorYAmount - yDeduction
+			val currentTotalX = currentXAmount - xDeduction + xAddition
+			val successorTotalX = successorXAmount - xDeduction + xAddition
+			val currentTotalY = currentYAmount - yDeduction + yAddition
+			val successorTotalY = successorYAmount - yDeduction +yAddition
 			
-			val currentXValue = LendTokenMultiplier * (currentXAmount.toBigInt) / currentLPCirculating.toBigInt
-			val successorXValue = LendTokenMultiplier * (successorXAmount.toBigInt) / successorLPCirculating.toBigInt
+			val currentXValue = LendTokenMultiplier * (currentTotalX.toBigInt) / currentLPCirculating.toBigInt
+			val successorXValue = LendTokenMultiplier * (successorTotalX.toBigInt) / successorLPCirculating.toBigInt
 			
 			val currentYValue = LendTokenMultiplier * (currentTotalY.toBigInt) / currentLPCirculating.toBigInt
 			val successorYValue = LendTokenMultiplier * (successorTotalY.toBigInt) / successorLPCirculating.toBigInt
@@ -265,11 +314,12 @@
 				isValidCDF &&
 				isValidHeightHint &&
 				isValidSquareRoot((t, sqrtT)) &&
-				isValidTripleSquareRoot((K, y))
+				isValidTripleSquareRoot((K, y)) &&
+				isValidTripleSquareRoot((Kp, yp))
 			)
 			isValidExchange
 	
-		} else {
+		} else if (isPutTokensRetained) {
 			// Trade Path
 			val isLPMaintained = successorLPTokens == currentLPTokens
 			val deltaYTokens = successorYAmount - currentYAmount
@@ -310,7 +360,7 @@
 			
 			val isValidOptionValue = optionValue >= optionSize + MinTxFee
 			val isValidOptionBox = (
-				optionBox.tokens(0)._1 == currentOptionTokens._1 &&
+				optionBox.tokens(0)._1 == currentCallTokens._1 &&
 				optionBox.tokens(0)._2 == 1
 			)
 			
@@ -340,6 +390,79 @@
 				isValidTripleSquareRoot((K, y))
 			)
 			isValidTrade
+		} else {
+			// Trade Path
+			val isLPMaintained = successorLPTokens == currentLPTokens
+			val deltaXTokens = successorXAmount - currentXAmount
+			val isSellingOption = deltaXTokens < 0
+			val optionBox = if (isSellingOption) INPUTS(1) else OUTPUTS(1)
+			val optionScript = optionBox.propositionBytes
+			val optionValue = optionBox.value
+			val optionYTokens = optionBox.tokens(1)
+			val K = optionBox.R4[Long].get.toBigInt // Strike Price
+			val t_height = optionBox.R5[Long].get // Expiry Block
+			val strike_indices = optionBox.R7[Coll[Int]].get // (ExpiryIndex, StrikeIndex)
+			val expiry_index = strike_indices(0)
+			val strike_index = strike_indices(1)
+			
+			val isValidIndices = (
+				currentStrikes(expiry_index) == t_height &&
+				currentStrikes(strike_index) == K
+			) || isSellingOption
+		
+			val optionSize = if (isSellingOption) (successorYAmount - currentYAmount) else (currentYAmount - successorYAmount) 			
+			
+			val currentStrikeCount = currentStrikes(strike_index + 1) // Implement correct logic for this
+			val successorStrikeCount = successorStrikes(strike_index + 1) // Implement correct logic for this
+			val correctStrikeAdjustment = if (isSellingOption) {
+				currentStrikeCount - optionSize == successorStrikeCount
+			} else {
+				currentStrikeCount + optionSize == successorStrikeCount
+			}
+				
+			val curr_height_hint = hints(0)
+			
+			val isValidHeightHint = HEIGHT >= curr_height_hint  && curr_height_hint < HEIGHT + 8
+			val t = (t_height - curr_height_hint) * p / MinutesInAYear
+			
+			val isValidOptionScript = blake2b256(optionScript) == OptionAddress
+			
+			val isValidOptionValue = optionValue >= 2 * MinTxFee
+			val isValidOptionBox = (
+				optionBox.tokens(0)._1 == currentPutTokens._1 &&
+				optionBox.tokens(0)._2 == 1
+			)
+			val isValidYTokens = (
+				optionBox.tokens(1)._1 == currentYTokens._1 &&
+				optionBox.tokens(1)._2 == optionSize
+			)
+			
+			val putPriceResponse = getPutPrice((t, K))
+			val putPrice = putPriceResponse(0)
+			val isValidCDFIndices = putPriceResponse(1)
+			
+			val isValidPrice = if (isSellingOption) {
+				-1 * deltaXTokens <= putPrice.toBigInt * optionSize.toBigInt
+			} else {
+				deltaXTokens >= putPrice.toBigInt * optionSize.toBigInt
+			}
+			val isYTokenIdRetained = successorYTokens._1 == currentYTokens._1
+			
+			val isValidTrade = (
+				commonReplication &&
+				isValidOptionBox &&
+				isValidOptionScript && 
+				isValidOptionValue &&
+				isValidYTokens &&
+				isValidCDF &&
+				isValidPrice &&
+				isValidHeightHint &&
+				isValidCDFIndices &&
+				correctStrikeAdjustment &&
+				isValidSquareRoot((t, sqrtT)) &&
+				isValidTripleSquareRoot((K, y))
+			)
+			isValidTrade		
 		}
     })
 }
