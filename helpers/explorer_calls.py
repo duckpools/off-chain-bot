@@ -3,7 +3,7 @@ import secrets
 import requests
 
 from consts import HTTP_NOT_FOUND
-from client_consts import explorer_url
+from client_consts import explorer_url, node_address, wallet_details
 from helpers.generic_calls import logger, get_request
 
 
@@ -44,3 +44,31 @@ def get_dummy_box(dummy_script):
 
     return secrets.choice(boxes_json)
 
+def get_balance(node_address):
+    url = f"https://api.ergoplatform.com/api/v1/addresses/{node_address}/balance/total"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()["confirmed"]["nanoErgs"]
+    else:
+        return None
+def get_transactions(node_address):
+    url = f"https://api.ergoplatform.com/api/v1/addresses/{node_address}/transactions"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()["total"]
+    else:
+        return None
+
+if wallet_details == "true":
+    balance = get_balance(node_address)/1000000000
+    transaction = get_transactions(node_address)
+    if balance:
+        logger.info(f"The balance of {node_address} is {balance}")
+    else:
+        logger.info(f"Failed to retrieve balance for {address}")
+    if transaction:
+        logger.info(f"The total transaction count is {transaction}")
+    else:
+        logger.info(f"Failed to retrieve transactions for {node_address}")
+else:
+    logger.info("Skipping balance and transaction retrieval as wallet_details is set to 'false'")
