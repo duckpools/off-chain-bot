@@ -13,7 +13,7 @@ def update_std():
     if box_curr_height < curr_height:
         dex_box = get_dex_box("9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec")
         current_index = int(box["additionalRegisters"]["R5"]["renderedValue"])
-        new_entry = floor(100000000000000 * int(dex_box["assets"][2]["amount"])/ int(dex_box["value"]))
+        new_entry = int(100000000000000 * int(dex_box["assets"][2]["amount"])/ int(dex_box["value"]))
 
         entries = json.loads(box["additionalRegisters"]["R4"]["renderedValue"])
         previous_entry = int(box["additionalRegisters"]["R8"]["renderedValue"])
@@ -21,19 +21,21 @@ def update_std():
         x = floor(new_entry * P / previous_entry) - P
         lnX= (
                 x -
-                floor((x * x) / (2 * P)) +
-                floor((x * x * x) / (3 * P * P)) -
-                floor((x * x * x * x) / (4 * P * P * P)) +
-                floor((x * x * x * x * x) / (5 * P * P * P * P)) -
-                floor((x * x * x * x * x * x) / (6 * P * P * P * P * P))
+                int((x * x) / (2 * P)) +
+                int((x * x * x) / (3 * P * P)) -
+                int((x * x * x * x) / (4 * P * P * P)) +
+                int((x * x * x * x * x) / (5 * P * P * P * P)) -
+                int((x * x * x * x * x * x) / (6 * P * P * P * P * P))
         )
         entries[current_index] = lnX
+        print(lnX)
         sum_of_entries = 0
         for entry in entries:
             sum_of_entries += int(entry)
         mean = floor(sum_of_entries / 100)
         squared_diff_sum = sum((price - mean) ** 2 for price in entries)
-        new_volatilty = floor(sqrt(floor(squared_diff_sum / 99)))
+        new_volatilty = int(sqrt(floor(squared_diff_sum / 99)))
+        print(new_volatilty)
 
         transaction_to_sign = \
             {
