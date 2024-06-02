@@ -26,7 +26,7 @@
 	 * ln(1 + x) ≈ x - x^2/2 + x^3/3 - x^4/4 + x^5/5 - x^6/6
 	 * This expansion is adjusted by dividing each term by p (precision) to maintain appropriate scaling.
 	 * 
-	 * @param x The value for which the natural logarithm is being approximated.
+	 * @param x The value for which the natural logarithm is being approximated multiplied by p.
 	 * @return An approximation of ln(x) using the Taylor series expansion.
 	 */
 	def lnX(x: BigInt): BigInt = {
