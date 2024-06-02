@@ -17,12 +17,8 @@
 		val originalValue = values._1
 		val supposedSquareRoot = values._2
 		val calculatedValue = (supposedSquareRoot * supposedSquareRoot)
-        val error = (originalValue - calculatedValue)
-        val errorMargin = max(error, -1 * error)
-        
-        // Adaptive error margin based on the supposed square root
-        val adaptiveMargin = 2 * supposedSquareRoot + 1
-        errorMargin < adaptiveMargin
+		val errorMargin = originalValue - calculatedValue
+		errorMargin > -20 * p && errorMargin < 20 * p // TODO: Define proper range
 	}
 
 	val dexNFT = fromBase58("BJbaZAXMoFm9gi2MBXA9eyPi38ugjKZ66SQrnwQmoDNj")
@@ -54,6 +50,10 @@
 	val newEntry = lnX((currentPrice.toBigInt * p / previousPrice.toBigInt)-p)
 	val sampleVariance = squaredDiffSum / (n - 1)
 	
+	val retainScript = successor.propositionBytes == SELF.propositionBytes
+	val retainTokens = successor.tokens == SELF.tokens
+	val retainValue = successor.value >= SELF.value - 1000000
+	
 	sigmaProp(
 		iHeight < HEIGHT &&
 		fHeight == iHeight + updateFrequency &&
@@ -64,7 +64,10 @@
 		isValidSquareRoot((sampleVariance, fVolatility)) &&
 		annualizedVolatility == fVolatility * sqrtUpdatesInAYear &&
 		reportedValue == currentPrice &&
-		isValidReport 
+		isValidReport && 
+		retainScript &&
+		retainTokens &&
+		retainValue
 	)
 }
 ```
