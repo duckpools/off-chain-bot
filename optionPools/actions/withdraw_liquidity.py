@@ -4,7 +4,7 @@ import math
 from consts import MIN_BOX_VALUE, TX_FEE, MAX_OPTION_LP_TOKENS
 from helpers.job_helpers import op_job_processor, op_latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_CDF_box, get_spot_price, get_volatility, calculate_call_price
+from helpers.platform_functions import get_CDF_box, get_spot_price, get_volatility, calculate_call_price, get_opDEX_box
 from helpers.serializer import encode_long_tuple, encode_coll_int
 from logger import set_logger
 
@@ -14,7 +14,8 @@ logger = set_logger(__name__)
 def process_withdraw_liquidity(pool, box, latest_tx, serialized_r4):
     pool_box = op_latest_pool_info(pool, latest_tx)
     cdf_box = get_CDF_box()
-    S = get_spot_price()
+    dex_box = get_opDEX_box()
+    S = get_spot_price(box)
     P = 1000000
     σ = get_volatility()
     r = int(pool_box["additionalRegisters"]["R4"]["renderedValue"])
@@ -82,13 +83,17 @@ def process_withdraw_liquidity(pool, box, latest_tx, serialized_r4):
                         {
                             "tokenId": pool_box["assets"][3]["tokenId"],
                             "amount": pool_box["assets"][3]["amount"]
+                        },
+                        {
+                            "tokenId": pool_box["assets"][4]["tokenId"],
+                            "amount": pool_box["assets"][4]["amount"]
                         }
                     ],
                     "registers": {
                         "R4": pool_box["additionalRegisters"]["R4"]["serializedValue"],
                         "R5": pool_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": encode_long_tuple([t_hint, y, sqrtT]),
-                        "R7": encode_coll_int([nd1i, nd2i])
+                        "R7": encode_coll_int([nd1i, nd2i, nd1i, nd2i])
                     }
                 },
                 {

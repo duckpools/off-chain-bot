@@ -5,7 +5,7 @@ from consts import MIN_BOX_VALUE, TX_FEE, MAX_OPTION_LP_TOKENS
 from helpers.job_helpers import op_job_processor, op_latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_CDF_box, calculate_call_price, get_spot_price, get_volatility, \
-    calculate_put_price
+    calculate_put_price, get_opDEX_box
 from helpers.serializer import encode_long_tuple, encode_coll_int
 from logger import set_logger
 
@@ -17,7 +17,8 @@ import time
 def process_add_liquidity(pool, box, latest_tx, serialized_r4):
     pool_box = op_latest_pool_info(pool, latest_tx)
     cdf_box = get_CDF_box()
-    S = get_spot_price()
+    dex_box = get_opDEX_box()
+    S = get_spot_price(dex_box)
     P = 1000000
     σ = get_volatility()
     r = int(pool_box["additionalRegisters"]["R4"]["renderedValue"])
@@ -59,7 +60,6 @@ def process_add_liquidity(pool, box, latest_tx, serialized_r4):
 
     pool_gets = int(held_tokens - receive_amount)
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
-    print(nd1i, nd2i, pnd1i, pnd2i)
     transaction_to_sign = \
         {
             "requests": [
@@ -116,7 +116,7 @@ def process_add_liquidity(pool, box, latest_tx, serialized_r4):
             "inputsRaw":
                 [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
-                [box_id_to_binary(cdf_box["boxId"])]
+                [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(cdf_box["boxId"])]
         }
     print(transaction_to_sign)
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))

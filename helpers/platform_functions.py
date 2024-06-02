@@ -6,7 +6,7 @@ import numpy as np
 import scipy.stats as stats
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, CDF_ADDRESS, CDF_NFT
+    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, CDF_ADDRESS, CDF_NFT, STD_ADDRESS, STD_NFT
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
@@ -278,6 +278,23 @@ def get_CDF_box():
             return box
     return None
 
+def get_std_box():
+    found_boxes = get_unspent_boxes_by_address(STD_ADDRESS)
+    res = []
+    for box in found_boxes:
+        if box["assets"] and box["assets"][0]["tokenId"] == STD_NFT:
+            return box
+    return None
+
+
+def get_opDEX_box():
+    found_boxes = get_unspent_boxes_by_address("5vSUZRZbdVbnk4sJWjg2uhL94VZWRg4iatK9VgMChufzUgdihgvhR8yWSUEJKszzV7Vmi6K8hCyKTNhUaiP8p5ko6YEU9yfHpjVuXdQ4i5p4cRCzch6ZiqWrNukYjv7Vs5jvBwqg5hcEJ8u1eerr537YLWUoxxi1M4vQxuaCihzPKMt8NDXP4WcbN6mfNxxLZeGBvsHVvVmina5THaECosCWozKJFBnscjhpr3AJsdaL8evXAvPfEjGhVMoTKXAb2ZGGRmR8g1eZshaHmgTg2imSiaoXU5eiF3HvBnDuawaCtt674ikZ3oZdekqswcVPGMwqqUKVsGY4QuFeQoGwRkMqEYTdV2UDMMsfrjrBYQYKUBFMwsQGMNBL1VoY78aotXzdeqJCBVKbQdD3ZZWvukhSe4xrz8tcF3PoxpysDLt89boMqZJtGEHTV9UBTBEac6sDyQP693qT3nKaErN8TCXrJBUmHPqKozAg9bwxTqMYkpmb9iVKLSoJxG7MjAj72SRbcqQfNCVTztSwN3cRxSrVtz4p87jNFbVtFzhPg7UqDwNFTaasySCqM")
+    res = []
+    for box in found_boxes:
+        if box["assets"] and box["assets"][0]["tokenId"] == "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec":
+            return box
+    return None
+
 def calculate_call_price(S, σ, r, K, t_hint, t_block):
     P = 1000000
     minutes_in_a_year = 262800
@@ -410,8 +427,9 @@ def calculate_put_price(S, σ, r, K, t_hint, t_block):
     return [floor((-nd2 * K * ans) / (P))- floor((nd1 * S)), y, sqrtT, nd1i, nd2i]
 
 
-def get_spot_price():
-    return 122
+
+def get_spot_price(box):
+    return floor(1000000000000000 * box["assets"][2]["amount"] / box["value"])
 
 def get_volatility():
     return 650000
