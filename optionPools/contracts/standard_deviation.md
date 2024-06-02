@@ -64,7 +64,7 @@
 		isValidSquareRoot((sampleVariance, fVolatility)) &&
 		annualizedVolatility == fVolatility * sqrtUpdatesInAYear &&
 		reportedValue == currentPrice &&
-		isValidReport && true
+		isValidReport 
 	)
 }
 ```
