@@ -65,7 +65,8 @@
 	 * 
 	 * This function takes a tuple containing two BigInt values: the original value and the supposed square root value.
 	 * It calculates the square of the supposed square root and compares it to the original value.
-	 * The function returns true if the calculated value is approximately equal to the original value, within an error range 2n+1 (given perfect squares are 2n+1 apart)
+	 * The function returns true if the calculated value is approximately equal to the original value,
+	 * within an error range 2n+1 (given perfect squares are 2n+1 apart)
 	 */
 	def isValidSquareRoot(values: (BigInt, BigInt), p: BigInt): Boolean = {
 	  val originalValue = values._1
