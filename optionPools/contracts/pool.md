@@ -11,8 +11,8 @@
     val LendTokenMultiplier = 1000000000000000L.toBigInt
     val OptionAddress = fromBase58("ELRnm8pk3r1FLmSTU5bt2JXpqM9unEdF1MjWAxTi7jeK")
     val MinTxFee = 1000000L
-    val S = 122L
-    val σ = 650000L
+    val S = (1000000000000000L.toBigInt * CONTEXT.dataInputs(0).tokens(2)._2.toBigInt) / CONTEXT.dataInputs(0).value.toBigInt // Spot Price of 1000000 ERG
+    val σ = CONTEXT.dataInputs(1).R9[Long].get
     val p = 1000000L.toBigInt // p is our precision
     val sqrtP = 1000L.toBigInt // Pre-computed sqrt(P)
     val CDF_NFT = fromBase58("5S4m2iXPzA7tGfxPHcATPXBYcTXc6LQ1jGj3H1buqydV") // Verification for CDF dataInput
@@ -163,7 +163,7 @@
 		isCallOptionIdRetained
     )
     
-    sigmaProp(if (CONTEXT.dataInputs.size == 0) {        
+    sigmaProp(if (CONTEXT.dataInputs.size <= 2) {        
 		val isLPMaintained = successorLPTokens == currentLPTokens
 		val isXIncreasing = successorPoolValue - currentPoolValue > 0 // Assume all deposits offer at least some value to prevent spam
 		val isYIncreasing = successorYAmount - currentYAmount >= 0
@@ -194,11 +194,11 @@
         val CDFIndex2 = indices(1) // Asserted Index for Call N(d2)
 		val CDFPutIndex1 = indices(2) // Asserted Index for Put N(d1)
         val CDFPutIndex2 = indices(3) // Asserted Index for Put N(d2)
-        val CDF_Hint = CONTEXT.dataInputs(0) // CDF dataInput
+        val CDF_Hint = CONTEXT.dataInputs(2) // CDF dataInput
         val CDF_keys = CDF_Hint.R4[Coll[Long]].get
         val CDF_values = CDF_Hint.R5[Coll[Long]].get
         val isValidCDF = CDF_Hint.tokens(0)._1 == CDF_NFT
-		
+				
 		
 		def getCallPrice(values: (BigInt, BigInt)) = {
 			val t = values(0)
@@ -285,8 +285,8 @@
 			val putPrice = putPriceResponse(0)
 			val isValidCDFIndices = callPriceResponse(1) && putPriceResponse(1)
 			
-			val xDeduction = putPrice * currentStrikes(4)
-			val yDeduction = callPrice * currentStrikes(2)
+			val xDeduction = putPrice * currentStrikes(4) / 100000000L.toBigInt
+			val yDeduction = (callPrice * currentStrikes(2) * optionUnitSize) / 100000000L.toBigInt
 			val xAddition = currentStrikes(2) * optionUnitSize
 			val yAddition = currentStrikes(4)
 			
@@ -332,6 +332,9 @@
 			val strike_indices = optionBox.R7[Coll[Int]].get // (ExpiryIndex, StrikeIndex)
 			val expiry_index = strike_indices(0)
 			val strike_index = strike_indices(1)
+			val callsOutstanding = if (isSellingOption) currentStrikes(2).toBigInt * optionUnitSize.toBigInt else successorStrikes(2).toBigInt * optionUnitSize.toBigInt
+			val xAmountToUse = if (isSellingOption) currentXAmount else successorXAmount
+			val callUtility = p + p * (callsOutstanding) / (xAmountToUse + callsOutstanding)
 			
 			val isValidIndices = (
 				currentStrikes(expiry_index) == t_height &&
@@ -369,9 +372,9 @@
 			val isValidCDFIndices = callPriceResponse(1)
 			
 			val isValidPrice = if (isSellingOption) {
-				-1 * deltaYTokens <= callPrice.toBigInt * optionSize.toBigInt
+				-1 * deltaYTokens <= callPrice.toBigInt * optionSize.toBigInt / (callUtility * 100000000L.toBigInt)
 			} else {
-				deltaYTokens >= callPrice.toBigInt * optionSize.toBigInt
+				deltaYTokens >= callUtility * callPrice.toBigInt * optionSize.toBigInt / (p * p * 100000000L.toBigInt)
 			}
 			val isYTokenIdRetained = successorYTokens._1 == currentYTokens._1
 			
@@ -404,6 +407,9 @@
 			val strike_indices = optionBox.R7[Coll[Int]].get // (ExpiryIndex, StrikeIndex)
 			val expiry_index = strike_indices(0)
 			val strike_index = strike_indices(1)
+			val putsOutstanding = if (isSellingOption) currentStrikes(4).toBigInt  else successorStrikes(4).toBigInt 
+			val yAmountToUse = if (isSellingOption) currentYAmount else successorYAmount
+			val putUtility = p + p * (putsOutstanding) / (yAmountToUse + putsOutstanding)
 			
 			val isValidIndices = (
 				currentStrikes(expiry_index) == t_height &&
@@ -442,9 +448,9 @@
 			val isValidCDFIndices = putPriceResponse(1)
 			
 			val isValidPrice = if (isSellingOption) {
-				-1 * deltaXTokens <= putPrice.toBigInt * optionSize.toBigInt
+				-1 * deltaXTokens <= p * putPrice.toBigInt * optionSize.toBigInt / (putUtility * p * 100000000L.toBigInt)
 			} else {
-				deltaXTokens >= putPrice.toBigInt * optionSize.toBigInt
+				deltaXTokens >= putUtility * putPrice.toBigInt * optionSize.toBigInt / (p * p * 100000000L.toBigInt)
 			}
 			val isYTokenIdRetained = successorYTokens._1 == currentYTokens._1
 			
