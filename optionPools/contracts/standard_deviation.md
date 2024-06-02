@@ -17,8 +17,12 @@
 		val originalValue = values._1
 		val supposedSquareRoot = values._2
 		val calculatedValue = (supposedSquareRoot * supposedSquareRoot)
-		val errorMargin = originalValue - calculatedValue
-		errorMargin > -20 * p && errorMargin < 20 * p // TODO: Define proper range
+        val error = (originalValue - calculatedValue)
+        val errorMargin = max(error, -1 * error)
+        
+        // Adaptive error margin based on the supposed square root
+        val adaptiveMargin = 2 * supposedSquareRoot + 1
+        errorMargin < adaptiveMargin
 	}
 
 	val dexNFT = fromBase58("BJbaZAXMoFm9gi2MBXA9eyPi38ugjKZ66SQrnwQmoDNj")
