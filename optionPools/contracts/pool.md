@@ -26,7 +26,7 @@
 	 * ln(1 + x) ≈ x - x^2/2 + x^3/3 - x^4/4 + x^5/5 - x^6/6
 	 * This expansion is adjusted by dividing each term by p (precision) to maintain appropriate scaling.
 	 * 
-	 * @param x The value for which the natural logarithm is being approximated.
+	 * @param x The value for which the natural logarithm is being approximated multiplied by p.
 	 * @return An approximation of ln(x) using the Taylor series expansion.
 	 */
 	def lnX(x: BigInt): BigInt = {
@@ -65,15 +65,24 @@
 	 * 
 	 * This function takes a tuple containing two BigInt values: the original value and the supposed square root value.
 	 * It calculates the square of the supposed square root and compares it to the original value.
-	 * The function returns true if the calculated value is approximately equal to the original value, within an error range of -100 to 100.
+	 * The function returns true if the calculated value is approximately equal to the original value,
+	 * within an error range 2n+1 (given perfect squares are 2n+1 apart)
 	 */
-	def isValidSquareRoot(values: (BigInt, BigInt)): Boolean = {
-		val originalValue = values._1
-		val supposedSquareRoot = values._2
-		val calculatedValue = (supposedSquareRoot * supposedSquareRoot) / p
-		val errorMargin = originalValue - calculatedValue
-		errorMargin > -100 && errorMargin < 100 // TODO: Define proper range
+	def isValidSquareRoot(values: (BigInt, BigInt), p: BigInt): Boolean = {
+	  val originalValue = values._1
+	  val supposedSquareRoot = values._2
+	  val calculatedValue = (supposedSquareRoot * supposedSquareRoot) / p
+	  val error = (originalValue - calculatedValue)
+	  val errorMargin = max(error, -1 * error)
+	  
+	  // Adaptive error margin based on the supposed square root
+	  val adaptiveMargin = 2 * supposedSquareRoot + 1
+	  errorMargin < adaptiveMargin
 	}
+
+
+
+
 
     // Calculates d1 in Black-Scholes model
     def getD1(values: Coll[BigInt]) = {
