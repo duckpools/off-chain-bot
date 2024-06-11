@@ -1,22 +1,18 @@
 ```scala
 {
-    // CURRENT PLAN IS TO OFFER ONE STRIKE WITH 2 TIMES.
-    // When a time is deleted a new one can be added (+ 1 month on the current)
-    // Maintain 2d array of volumes
-	
 	// Constants
-    val MaxLPTokens = 9000000000001000L
+	val MaxLPTokens = 9000000000001000L
 	val optionUnitSize = 10000000L // 0.01 ERGS
-    val MinimumBoxValue = 1000000
-    val LendTokenMultiplier = 1000000000000000L.toBigInt
-    val OptionAddress = fromBase58("ELRnm8pk3r1FLmSTU5bt2JXpqM9unEdF1MjWAxTi7jeK")
-    val MinTxFee = 1000000L
-    val S = (1000000000000000L.toBigInt * CONTEXT.dataInputs(0).tokens(2)._2.toBigInt) / CONTEXT.dataInputs(0).value.toBigInt // Spot Price of 1000000 ERG
-    val σ = CONTEXT.dataInputs(1).R9[Long].get
-    val p = 1000000L.toBigInt // p is our precision
-    val sqrtP = 1000L.toBigInt // Pre-computed sqrt(P)
-    val CDF_NFT = fromBase58("5S4m2iXPzA7tGfxPHcATPXBYcTXc6LQ1jGj3H1buqydV") // Verification for CDF dataInput
-    val MinutesInAYear = 262800L
+	val MinimumBoxValue = 1000000
+	val LendTokenMultiplier = 1000000000000000L.toBigInt
+	val OptionAddress = fromBase58("ELRnm8pk3r1FLmSTU5bt2JXpqM9unEdF1MjWAxTi7jeK")
+	val MinTxFee = 1000000L
+	val S = (1000000000000000L.toBigInt * CONTEXT.dataInputs(0).tokens(2)._2.toBigInt) / CONTEXT.dataInputs(0).value.toBigInt // Spot Price of 1000000 ERG
+	val σ = CONTEXT.dataInputs(1).R9[Long].get
+	val p = 1000000L.toBigInt // p is our precision
+	val sqrtP = 1000L.toBigInt // Pre-computed sqrt(P)
+	val CDF_NFT = fromBase58("5S4m2iXPzA7tGfxPHcATPXBYcTXc6LQ1jGj3H1buqydV") // Verification for CDF dataInput
+	val MinutesInAYear = 262800L
 	
 	// User Defined Functions
 	/**
@@ -39,7 +35,7 @@
 			(x * x * x * x * x * x) / (6 * p * p * p * p * p)
 		)
 	}
-
+	
 	/**
 	 * Calculates the exponential of -x (e^-x) using a Taylor series expansion.
 	 * 
@@ -80,27 +76,23 @@
 	  errorMargin < adaptiveMargin
 	}
 
-
-
-
-
-    // Calculates d1 in Black-Scholes model
-    def getD1(values: Coll[BigInt]) = {
-        // Logic to calculate ln(S/K)
-        val K = values(0)
-        val y = values(1)
-        val sqrtT = values(2)
-        val t = values(3)
-        val r = values(4)
-        val x = y - p // Input in Taylor expansion
-        val lnSK = lnX(x) * 8 // Multiply by 8 for equivalence to ln(S/K)
-        // Calculate d1 by decomposing fraction into smaller parts
-        (
-            (p * p * lnSK) / (σ * sqrtT) +
-            (p * t * r) / (σ * sqrtT) +
-            (σ * t) / (2 * sqrtT)
-        )
-    }
+	// Calculates d1 in Black-Scholes model
+	def getD1(values: Coll[BigInt]) = {
+		// Logic to calculate ln(S/K)
+		val K = values(0)
+		val y = values(1)
+		val sqrtT = values(2)
+		val t = values(3)
+		val r = values(4)
+		val x = y - p // Input in Taylor expansion
+		val lnSK = lnX(x) * 8 // Multiply by 8 for equivalence to ln(S/K)
+		// Calculate d1 by decomposing fraction into smaller parts
+		(
+			(p * p * lnSK) / (σ * sqrtT) +
+			(p * t * r) / (σ * sqrtT) +
+			(σ * t) / (2 * sqrtT)
+		)
+	}
     
 	/**
 	 * Validates that the second value is the correct triple square root of the first value within an acceptable error range.
@@ -121,58 +113,58 @@
 		errorMargin >= -12 * generalRatio && errorMargin <= 12 * generalRatio // Dynamic margin of accepted error, validates y hint
 	}
 	
-    // Current state variables
-    val currentScript = SELF.propositionBytes
-    val currentPoolValue = SELF.value
-    val currentPoolNft = SELF.tokens(0)
-    val currentLPTokens = SELF.tokens(1)
-    val currentYTokens = SELF.tokens(2)
-    val currentCallTokens = SELF.tokens(3)
+	// Current state variables
+	val currentScript = SELF.propositionBytes
+	val currentPoolValue = SELF.value
+	val currentPoolNft = SELF.tokens(0)
+	val currentLPTokens = SELF.tokens(1)
+	val currentYTokens = SELF.tokens(2)
+	val currentCallTokens = SELF.tokens(3)
 	val currentPutTokens = SELF.tokens(4)
-    val currentRiskFreeRate = SELF.R4[Long].get
-    val currentStrikes = SELF.R5[Coll[Long]].get // (Expiry, Strike, Amount)
-
-    // Successor state variables
-    val successor = OUTPUTS(0)
-    val successorScript = successor.propositionBytes
-    val successorPoolValue = successor.value
-    val successorPoolNft = successor.tokens(0)
-    val successorLPTokens = successor.tokens(1)
-    val successorYTokens = successor.tokens(2)
-    val successorCallTokens = successor.tokens(3)
+	val currentRiskFreeRate = SELF.R4[Long].get
+	val currentStrikes = SELF.R5[Coll[Long]].get // (Expiry, Strike, Amount)
+	
+	// Successor state variables
+	val successor = OUTPUTS(0)
+	val successorScript = successor.propositionBytes
+	val successorPoolValue = successor.value
+	val successorPoolNft = successor.tokens(0)
+	val successorLPTokens = successor.tokens(1)
+	val successorYTokens = successor.tokens(2)
+	val successorCallTokens = successor.tokens(3)
 	val successorPutTokens = successor.tokens(4)
-    val successorRiskFreeRate = successor.R4[Long].get
-    val successorStrikes = successor.R5[Coll[Long]].get // (Expiry, Strike)
-
-    val currentLPCirculating = MaxLPTokens - currentLPTokens._2
-    val currentXAmount = currentPoolValue
-    val currentYAmount = currentYTokens._2
-
-    val successorLPCirculating = MaxLPTokens - successorLPTokens._2
-    val successorXAmount = successorPoolValue
-    val successorYAmount = successorYTokens._2
-
-    // Validation checks
-    val isValidSuccessorScript = successorScript == currentScript
-    val isPoolNftPreserved = successorPoolNft == currentPoolNft 
-    val isValidLPTokenId = successorLPTokens._1 == currentLPTokens._1
-    val isValidMinValue = successorPoolValue >= MinimumBoxValue 
-    val isYIdPreserved = successorYTokens._1 == currentYTokens._1
-    val isRiskFreeRateMaintained = successorRiskFreeRate == currentRiskFreeRate
-    val isCallOptionIdRetained = successorCallTokens._1 == currentCallTokens._1
+	val successorRiskFreeRate = successor.R4[Long].get
+	val successorStrikes = successor.R5[Coll[Long]].get // (Expiry, Strike)
+	
+	val currentLPCirculating = MaxLPTokens - currentLPTokens._2
+	val currentXAmount = currentPoolValue
+	val currentYAmount = currentYTokens._2
+	
+	val successorLPCirculating = MaxLPTokens - successorLPTokens._2
+	val successorXAmount = successorPoolValue
+	val successorYAmount = successorYTokens._2
+	
+	// Validation checks
+	val isValidSuccessorScript = successorScript == currentScript
+	val isPoolNftPreserved = successorPoolNft == currentPoolNft 
+	val isValidLPTokenId = successorLPTokens._1 == currentLPTokens._1
+	val isValidMinValue = successorPoolValue >= MinimumBoxValue 
+	val isYIdPreserved = successorYTokens._1 == currentYTokens._1
+	val isRiskFreeRateMaintained = successorRiskFreeRate == currentRiskFreeRate
+	val isCallOptionIdRetained = successorCallTokens._1 == currentCallTokens._1
 	val isPutOptionIdRetained = successorPutTokens._1 == currentPutTokens._1
-    
-    val commonReplication = (
-        isValidSuccessorScript &&
-        isPoolNftPreserved &&
-        isValidLPTokenId &&
-        isValidMinValue &&
-        isYIdPreserved &&
-        isRiskFreeRateMaintained &&
+	
+	val commonReplication = (
+		isValidSuccessorScript &&
+		isPoolNftPreserved &&
+		isValidLPTokenId &&
+		isValidMinValue &&
+		isYIdPreserved &&
+		isRiskFreeRateMaintained &&
 		isCallOptionIdRetained
-    )
-    
-    sigmaProp(if (CONTEXT.dataInputs.size <= 2) {        
+	)
+
+	sigmaProp(if (CONTEXT.dataInputs.size <= 2) {        
 		val isLPMaintained = successorLPTokens == currentLPTokens
 		val isXIncreasing = successorPoolValue - currentPoolValue > 0 // Assume all deposits offer at least some value to prevent spam
 		val isYIncreasing = successorYAmount - currentYAmount >= 0
@@ -180,7 +172,7 @@
 		val isInput1Valid = INPUTS(1).tokens(0)._1 == currentCallTokens._1
 		val isOptionTokensAmountValid = successorCallTokens._2 == currentCallTokens._2 + 1
 		// OR PUT TOKENS
-
+	
 		// Validate deposit operation
 		val isValidDeposit = (
 			commonReplication &&
@@ -192,21 +184,21 @@
 			isOptionTokensAmountValid
 		)
 		isValidDeposit      
-    } else {
+	} else {
 		val hints = successor.R6[Coll[Long]].get // (curr_height, y, sqrtT)
-        val indices = successor.R7[Coll[Int]].get // (CDFIndex1, CDFIndex2)
-		        
-        val y = hints(1).toBigInt // Hint value for calculating the triple sqrt of a/b
+		val indices = successor.R7[Coll[Int]].get // (CDFIndex1, CDFIndex2)
+				
+		val y = hints(1).toBigInt // Hint value for calculating the triple sqrt of a/b
 		val yp = hints(2).toBigInt
-        val sqrtT = hints(3).toBigInt // Hint value for sqrt(t)
-        val CDFIndex1 = indices(0) // Asserted Index for Call N(d1)
-        val CDFIndex2 = indices(1) // Asserted Index for Call N(d2)
+		val sqrtT = hints(3).toBigInt // Hint value for sqrt(t)
+		val CDFIndex1 = indices(0) // Asserted Index for Call N(d1)
+		val CDFIndex2 = indices(1) // Asserted Index for Call N(d2)
 		val CDFPutIndex1 = indices(2) // Asserted Index for Put N(d1)
-        val CDFPutIndex2 = indices(3) // Asserted Index for Put N(d2)
-        val CDF_Hint = CONTEXT.dataInputs(2) // CDF dataInput
-        val CDF_keys = CDF_Hint.R4[Coll[Long]].get
-        val CDF_values = CDF_Hint.R5[Coll[Long]].get
-        val isValidCDF = CDF_Hint.tokens(0)._1 == CDF_NFT
+		val CDFPutIndex2 = indices(3) // Asserted Index for Put N(d2)
+		val CDF_Hint = CONTEXT.dataInputs(2) // CDF dataInput
+		val CDF_keys = CDF_Hint.R4[Coll[Long]].get
+		val CDF_values = CDF_Hint.R5[Coll[Long]].get
+		val isValidCDF = CDF_Hint.tokens(0)._1 == CDF_NFT
 				
 		
 		def getCallPrice(values: (BigInt, BigInt)) = {
@@ -271,8 +263,8 @@
 				
 			((((Nd2 * K * ert) / p) - (Nd1 * S)), isCDFIndex1Valid && isCDFIndex2Valid)
 		}
-
-
+	
+	
 		val isOptionTokensRetained = successorCallTokens == currentCallTokens
 		val isPutTokensRetained = successorPutTokens == currentPutTokens
 		if (isOptionTokensRetained && isPutTokensRetained) {
@@ -283,7 +275,7 @@
 			val Kp = currentStrikes(3).toBigInt
 		
 			val retainStrikes = successorStrikes == currentStrikes
-
+	
 			val curr_height_hint = hints(0)
 			val isValidHeightHint = HEIGHT >= curr_height_hint  && curr_height_hint < HEIGHT + 8
 			val t = (t_height - curr_height_hint) * p / MinutesInAYear
