@@ -1,3 +1,6 @@
+import hashlib
+
+
 def zigzag(i):
     return (i >> 63) ^ (i << 1)
 
@@ -84,3 +87,17 @@ def hex_to_base58(hex_string):
     num_leading_zeros //= 2  # Each pair of hex digits represents a byte
 
     return '1' * num_leading_zeros + base58_string
+
+def bytesLike(hex_text):
+    """
+    This function Convert ergo tree addresses into bytes-like values.
+    """
+    return bytes.fromhex(hex_text)
+
+def blake2b256(bytes_value):
+    """
+    This function compute blake2b256 hash
+    """
+    h = hashlib.blake2b(person = b'', digest_size=32)
+    h.update(bytes_value)
+    return h.hexdigest()

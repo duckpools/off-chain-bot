@@ -267,3 +267,79 @@ def liquidation_allowed(box, parent_box, head_child, children, height):
         return [False, False]
 
 
+def add_pool_to_list(pools_list, new_pool):
+    pools_list.append(new_pool)
+    return pools_list
+
+def format_dict_to_python_string(data):
+    """
+    Converts the dictionary back to a Python code representation with proper formatting.
+    """
+    formatted_str = '{\n'
+    for key, value in data.items():
+        if isinstance(value, str):
+            formatted_str += f"    '{key}': '{value}',\n"
+        elif isinstance(value, bool):
+            # Correct capitalization for boolean values
+            value_str = 'True' if value else 'False'
+            formatted_str += f"    '{key}': {value_str},\n"
+        elif isinstance(value, list):
+            formatted_str += f"    '{key}': {value},\n"
+        else:
+            formatted_str += f"    '{key}': {value},\n"
+    formatted_str += '}'
+    return formatted_str
+
+def format_list_to_python_string(data):
+    """
+    Converts the list back to a Python code representation with proper formatting.
+    """
+    formatted_str = '[\n'
+    for item in data:
+        formatted_str += '    ' + format_dict_to_python_string(item) + ',\n'
+    formatted_str += ']'
+    return formatted_str
+
+def update_pools_in_file(new_pool):
+    file_path = "proposed_pools.py"
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    start_idx = end_idx = None
+    for i, line in enumerate(lines):
+        if 'pools =' in line:
+            start_idx = i
+        if start_idx is not None and line.strip() == ']':
+            end_idx = i
+            break
+
+    if start_idx is not None and end_idx is not None:
+        pools_lines = lines[start_idx:end_idx+1]
+        pools_str = ''.join(pools_lines)
+        import re
+        pools_str = re.sub(r'#.*', '', pools_str)  # Remove comments for safe parsing
+        pools_str = pools_str.split('=', 1)[1].strip()
+
+        # Convert string to list using ast.literal_eval
+        import ast
+        try:
+            pools_list = ast.literal_eval(pools_str)
+        except SyntaxError:
+            pools_list = []
+
+        # Append the new pool to the list
+        updated_pools_list = add_pool_to_list(pools_list, new_pool)
+
+        # Format the updated list to a Python string without extra brackets
+        formatted_pools_str = 'pools = ' + format_list_to_python_string(updated_pools_list) + '\n'
+
+        # Replace the old pools list in the lines
+        updated_lines = lines[:start_idx] + [formatted_pools_str] + lines[end_idx+1:]
+    else:
+        # Handle the case where pools are defined but empty or not properly defined
+        updated_pools_list = add_pool_to_list([], new_pool)
+        formatted_pools_str = 'pools = ' + format_list_to_python_string(updated_pools_list) + '\n'
+        updated_lines = lines + [formatted_pools_str]
+
+    with open(file_path, 'w') as file:
+        file.writelines(updated_lines)

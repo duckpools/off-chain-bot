@@ -145,11 +145,11 @@ def mint_token(recipient, name, description, decimals, amount, ergValue=2000000)
             "requests": [
                 {
                   "address": recipient,
-                  "ergValue": 2000000,
-                  "amount": 1,
+                  "ergValue": ergValue,
+                  "amount": amount,
                   "name": name,
                   "description": description,
-                  "decimals": 0,
+                  "decimals": decimals,
                   "registers": {
                   }
                 }
@@ -161,6 +161,33 @@ def mint_token(recipient, name, description, decimals, amount, ergValue=2000000)
                 []
         }
     sign_tx(transaction_to_sign)
+
+
+def pay_token_to_address(recipient, tokenId, amount):
+    transaction_to_sign = \
+        {
+            "requests": [
+                {
+                    "address": recipient,
+                    "value": 2000000,
+                    "assets": [
+                        {
+                            "tokenId": tokenId,
+                            "amount": amount
+                        }
+                    ],
+                    "registers": {
+                    }
+                }
+            ],
+            "fee": TX_FEE,
+            "inputsRaw":
+                [],
+            "dataInputsRaw":
+                []
+        }
+    sign_tx(transaction_to_sign)
+
 
 
 def clean_node(fee):
@@ -206,3 +233,30 @@ def clean_node(fee):
         "dataInputsRaw": []
     }
     return sign_tx(transaction)
+
+
+def compile_script(script):
+    script_payload = {
+        "source": script
+    }
+    try:
+        # Making the POST request
+        response = requests.post(f"{node_url}/script/p2sAddress", json=script_payload, headers=headers)
+
+        # Checking if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON response
+            parsed_response = json.loads(response.text)
+            return parsed_response["address"]
+
+        else:
+            print(f"Error: Received status code {response.status_code}")
+            print(f"Message: {response.text}")
+            return None
+
+    except requests.RequestException as e:
+        print(f"An error occurred while making the request: {e}")
+        return None
+
+def address_to_tree(addr):
+    return json.loads(get_request(node_url + f"/script/addressToTree/{addr}").text)["tree"]
