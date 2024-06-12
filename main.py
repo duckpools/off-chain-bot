@@ -1,5 +1,6 @@
 from time import sleep
 
+from bootstrapping.pool_creation import create_pool
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
 from client_consts import node_address
@@ -21,6 +22,8 @@ from token_pools.t_repay_to_pool_susd import t_repay_to_pool_job
 from erg_pool.e_withdraw_proxy import e_withdraw_proxy_job
 from token_pools.t_withdraw_proxy_sigusd import t_withdraw_proxy_job
 
+create_pool()
+dd
 logger = set_logger(__name__)
 if __name__ == "__main__":
     logger.info("Beginning Off-Chain Bot")
@@ -32,6 +35,7 @@ if __name__ == "__main__":
 
     while not sleep(SLEEP_TIME):
         try:
+
             new_height = current_height()
             if new_height > curr_height:
                 unlock_wallet()

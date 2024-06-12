@@ -65,3 +65,22 @@ def encode_int_tuple(arr):
     for long in arr:
         res += bad_encode_long(long)
     return res
+
+
+def hex_to_base58(hex_string):
+    base58_alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+    # Convert hex string to an integer
+    num = int(hex_string, 16)
+
+    # Encode the integer to Base58
+    base58_string = ""
+    while num > 0:
+        num, remainder = divmod(num, 58)
+        base58_string = base58_alphabet[remainder] + base58_string
+
+    # Handle leading zeros
+    num_leading_zeros = len(hex_string) - len(hex_string.lstrip('0'))
+    num_leading_zeros //= 2  # Each pair of hex digits represents a byte
+
+    return '1' * num_leading_zeros + base58_string

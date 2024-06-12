@@ -2,8 +2,8 @@ import json
 
 import requests
 
-from consts import ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND
-from client_consts import node_url, headers, node_pass
+from consts import ERROR, DOUBLE_SPENDING_ATTEMPT, HTTP_OK, HTTP_NOT_FOUND, TX_FEE
+from client_consts import node_url, headers, node_pass, node_address
 from helpers.generic_calls import logger, get_request
 
 
@@ -137,3 +137,72 @@ def generate_dummy_script(node_address):
     except requests.RequestException as e:
         print(f"An error occurred while making the request: {e}")
         return None
+
+
+def mint_token(recipient, name, description, decimals, amount, ergValue=2000000):
+    transaction_to_sign = \
+        {
+            "requests": [
+                {
+                  "address": recipient,
+                  "ergValue": 2000000,
+                  "amount": 1,
+                  "name": name,
+                  "description": description,
+                  "decimals": 0,
+                  "registers": {
+                  }
+                }
+            ],
+            "fee": TX_FEE,
+            "inputsRaw":
+                [],
+            "dataInputsRaw":
+                []
+        }
+    sign_tx(transaction_to_sign)
+
+
+def clean_node(fee):
+    unspent_boxes_url = f"https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/{node_address}?limit=50"
+    response = requests.get(unspent_boxes_url)
+    if response.status_code != 200:
+        raise Exception(f"Failed to get unspent boxes: {response.text}")
+
+    unspent_boxes = response.json()["items"]
+    inputs_raw = []
+    total_value = 0
+    tokens_held = []
+    for box in unspent_boxes:
+        box_id = box['boxId']
+        total_value += int(box["value"])
+        box_info_url = f"{node_url}/utxo/withPool/byIdBinary/{box_id}"
+        box_response = requests.get(box_info_url)
+        if box["assets"]:
+            for asset in box["assets"]:
+                tokens_held.append(
+                    {
+                        "tokenId": asset["tokenId"],
+                        "amount": asset["amount"]
+                    }
+                )
+        if box_response.status_code != 200:
+            raise Exception(f"Failed to get box info for {box_id}: {box_response.text}")
+
+        inputs_raw.append(box_response.json()["bytes"])
+
+    # Step 3: Construct the transaction object
+    transaction = {
+        "requests": [
+            {
+                "address": node_address,
+                "value": total_value - fee,
+                "assets": tokens_held,
+                "registers": {"R4": "0400"}
+            }
+        ],
+        "fee": fee,
+        "inputsRaw": inputs_raw,
+        "dataInputsRaw": []
+    }
+    return sign_tx(transaction)
