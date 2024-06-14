@@ -39,7 +39,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         {
             "requests": [
                 {
-                    "address": pool["address"],
+                    "address": pool["pool"],
                     "value": pool_box["value"],
                     "assets": [
                         {
