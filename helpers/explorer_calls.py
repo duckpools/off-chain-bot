@@ -10,6 +10,11 @@ from helpers.generic_calls import logger, get_request
 def get_unspent_boxes_by_address(addr, limit=70, offset=0):
     return json.loads(get_request(f"{explorer_url}/boxes/unspent/byAddress/{addr}?limit={limit}&offset={offset}").text)['items']
 
+
+def get_unspent_by_tokenId(tokenId):
+    return json.loads(get_request(f"{explorer_url}/boxes/unspent/byTokenId/{tokenId}").text)['items']
+
+
 def get_box_from_id_explorer(box_id):
     """
     Get the UTXO box by its ID from Ergo platform explorer API.
