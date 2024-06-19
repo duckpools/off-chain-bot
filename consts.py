@@ -54,7 +54,7 @@ pools = [
 
         # ERG Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # ERG Token IDs
         "POOL_NFT": "90290924d95d699f5852d54dd5c20d01a3c729b11e7ccb5444671f62bec3b4bc",
@@ -87,7 +87,7 @@ pools = [
 
         # SIGUSD Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # SIGUSD Token IDs
         "POOL_NFT": "6a5506ff2e12fe121686dfb5089b3576d0d921caba2eb68de99f7aa54c18d658",
@@ -129,7 +129,7 @@ pools = [
 
         # QUACKS Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # QUACKS Token IDs
         "POOL_NFT": "a694087fd21779c0e4319555d3dcdf68c2110b7588f5f17e4688aaf57285e1b1",
@@ -171,7 +171,7 @@ pools = [
 
         # sigRSV Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # sigRSV Token IDs
         "POOL_NFT": "7551aef0a24153387c02b37cafb78aec7a852f092a23d9012bb1d06b479d42a3",
@@ -213,7 +213,7 @@ pools = [
 
         # RSN Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # RSN Token IDs
         "POOL_NFT": "02a406e0fc7c2bcd8438f53de3e8c4f70d272be21c5e7989615d27f8ea48bb98",
@@ -255,7 +255,7 @@ pools = [
 
         # rsADA Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # rsADA Token IDs
         "POOL_NFT": "84f30401051b972faac719b3589a0978fa54a7b721c7d6b40053ba4aeefad1db",
@@ -297,7 +297,7 @@ pools = [
 
         # SPF Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # SPF Token IDs
         "POOL_NFT": "0bd05d8f87dfd1e834f01e11ef2c632a62dc525ac5c9d6edce988e0f4709bde7",
