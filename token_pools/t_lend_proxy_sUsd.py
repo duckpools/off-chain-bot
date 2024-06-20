@@ -137,4 +137,4 @@ def process_lend_proxy_box(pool, box, latest_tx):
 
 
 def t_lend_proxy_job(pool):
-    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box, "lend", 1047423)
+    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box, "lend", 1290000)
