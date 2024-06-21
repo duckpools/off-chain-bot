@@ -4,9 +4,12 @@ from math import floor
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
     ERG_RSV_DEX_NFT, BORROW_TOKEN_ID
-from helpers.explorer_calls import get_unspent_boxes_by_address
+from helpers.explorer_calls import get_unspent_boxes_by_address, get_unspent_by_tokenId
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
+
+
+
 
 
 def get_dex_box(token, start_limit=5, max_limit=200):
@@ -18,22 +21,26 @@ def get_dex_box(token, start_limit=5, max_limit=200):
     :param max_limit: The maximum number of boxes to search.
     :return: The dex box containing the specified token, or None if not found.
     """
-    limit = start_limit
+    try:
+        return get_unspent_by_tokenId(token)[0]
+    except Exception:
+        limit = start_limit
 
-    while limit <= max_limit:
-        unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
-        for box in unspent_boxes:
-            try:
-                if box["assets"][0]["tokenId"] == token:
-                    return box
-            except Exception as e:
-                logger.info(e)
+        while limit <= max_limit:
+            unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
-        limit *= 2  # Double the limit for the next iteration
+            for box in unspent_boxes:
+                try:
+                    if box["assets"][0]["tokenId"] == token:
+                        return box
+                except Exception as e:
+                    logger.info(e)
 
-    logger.warning("Could not find dex_box")
-    return None
+            limit *= 2  # Double the limit for the next iteration
+
+        logger.warning("Could not find dex_box")
+        return None
 
 def get_pool_box_from_tx(tx):
     return first_output_from_mempool_tx(tx)

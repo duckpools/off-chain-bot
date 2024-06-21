@@ -54,7 +54,7 @@ pools = [
 
         # ERG Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # ERG Token IDs
         "POOL_NFT": "90290924d95d699f5852d54dd5c20d01a3c729b11e7ccb5444671f62bec3b4bc",
@@ -87,7 +87,7 @@ pools = [
 
         # SIGUSD Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # SIGUSD Token IDs
         "POOL_NFT": "6a5506ff2e12fe121686dfb5089b3576d0d921caba2eb68de99f7aa54c18d658",
@@ -129,7 +129,7 @@ pools = [
 
         # QUACKS Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # QUACKS Token IDs
         "POOL_NFT": "a694087fd21779c0e4319555d3dcdf68c2110b7588f5f17e4688aaf57285e1b1",
@@ -171,7 +171,7 @@ pools = [
 
         # sigRSV Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # sigRSV Token IDs
         "POOL_NFT": "7551aef0a24153387c02b37cafb78aec7a852f092a23d9012bb1d06b479d42a3",
@@ -213,7 +213,7 @@ pools = [
 
         # RSN Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # RSN Token IDs
         "POOL_NFT": "02a406e0fc7c2bcd8438f53de3e8c4f70d272be21c5e7989615d27f8ea48bb98",
@@ -255,7 +255,7 @@ pools = [
 
         # rsADA Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # rsADA Token IDs
         "POOL_NFT": "84f30401051b972faac719b3589a0978fa54a7b721c7d6b40053ba4aeefad1db",
@@ -297,7 +297,7 @@ pools = [
 
         # SPF Param Addresses
         "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
-        "interest_parameter": "FKdvshkgUUFzdDZEEPVPCDdpRbY7cK99x4sAfJuaqmStCkbwx1P16yEu7R3Yfd1fMBG6qWsFQ",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
 
         # SPF Token IDs
         "POOL_NFT": "0bd05d8f87dfd1e834f01e11ef2c632a62dc525ac5c9d6edce988e0f4709bde7",
@@ -314,6 +314,48 @@ pools = [
                 "dex_nft": "f40afb6f877c40a30c8637dd5362227285738174151ce66d6684bc1b727ab6cf",
                 "dex_fee": 997,
                 "dex_fee_serialized": "04ca0f"
+            }
+        }
+    },
+    {
+        "is_Erg": False,
+        "thresholds": [200000, 2000000],
+        "liquidation_threshold": 1250,
+        "proxy_forced_liquidation": 65520,
+
+        # rsBTC MAIN ADDRESSES
+        "pool": "6ugwDBGznX32MSheEEKyK7W3iMKjQqSeDe5pstTSFftCGW8R4uvn4kUSKnh81nXTCeiRzSaTSizsSdt4PASP8NE6KW9aSirygCXhKxsA1tzP4Wpq6v2t6PpfjLhvdyRNXXXMfJsR4vLs6ZuXPLqec3mNvG99upATNmnRsGGTb4desfKN32H2myJbsQiUXLUuJG7kDKjfSdyKPiqVYwgxzn61pE7aQLcVhfbeABEiLXDskppjuR1Gq1ThvBzECY2bGo1ssB3vSZXA8um6VLAtNFCpzRzcE1YBAmcgdDz5KoW5h2j1p557Przo1HJnt9UXeFzMvkW6n9vTG1keYYdJk8TqoZLRbp7x6DvsZP2MXdVQjmgUG8mdszvZB8bNohJ4YAfhuMy8KzgjCHWqZaBn1U5UYSPSfZ6k2iwkEiBa9niz7c61LP1FRMxDBvhQsiQY2Ki8RBXkyPypsBmzDS8xzq4nimUZgPtf9XpzDPzERViA1HtdGNFnnUHXNjLhZNE5HjV3mWNyg2y9dvwLFySCkLfGEXBn9rstBcEbED15psnbN1y5he5umG8WNzHkxX7p2xWz7qAWAXs6PPJuTF3YdEDZ1xGsodaD9hV4c8wJQcXLASmskPPf6gmxBai935LtKWGsAqkacS55xV3fLmPtdGaC5E7xvMjqLs7eFNRBBRMcQcJAi6SkjRnzaNMxvprEsvpXzfrSVUUWtcHjQ8gwxmdewCXffg6G55PkcHDN6MFNBBo8pxC8H9uQVCm9uxFecFdokgk55c3u1wcf5FbKgHvcZQAHxSDgSejksdMb4vcGgaudC31CWT2aajzDVKJqmBj4VFyXzPsDwGy7rXzhc77rUXNHbhueiPg5kwMADD7mcxDN2xq1xb5yhv9NNiGf9uvKKe8rppVeyZ3Sva1T2GHy43PiJRwbdRcyJxSU5Gz32rcNE8rhbmKdZa4r5oeaK2N1fTw2HKXd9ztS1zGYn9raDfq8KXfufeBUGj1Xbi5rg2s3jDMwMCNVdhhks4h1ezegkJaUj3C62Epj7MX2dzQJw8w8rMmCWKyGhzWFG5AfvgZeXvLg4L5RMnEGt6NKDc7PBfToQnpYX6nLaVKvo3WvprLfK7VGGvCEK5mtkTP6ea7QmiuLjV572RXgULPSychZqnASvdyZSip7nmfi3298MGns7Eauk7Wy28Bkameaupm5pV3e8cD5mWHkgdGjuc4zZnkUEhdxowkex1R36jqCVk27koCFm1gsFj3GHaRoXUBsG3sGgeoazy9mAgLuLoFdTsZrYMCFCicK5Dfa7SgpBgyKA7NYJ61Yc8WwxaokSmcy6jkE8FKSjwdnLg7tR5kp2AkqXjE6kswcghuez53p8jXeCChPy3FrpkSJBiYbrAeW6qwmGNjXz2zZWB8ANLkjDiR3kA7PBQpTCJx7bL7iXr4BPRHVuTbhJJPuYmRzqXaWL6AMcfu7SYz8mQCz7vCLDYTygFK7yLUQtiaHueYX1jLQ5mXHg3Xfe2CAygG4f9EHeVBNSUNGBWAWaoJ837nH5tHB2469wBzsLFjqZYbCf1vtDmHJw2HkdVvkoVSiGreQvHJQUPKDzyN6V8PEmAnWg1JYNYBv58AtsL3X5Q1zPbhonwaEtsYNPNAnEWzKMnxLc3tzo9LcKo1jnFA1kxw9rve5q6tTS9RcoXrKRgW6oLsL7EHrStCafucVr2m4dtnoLYmGpmUfb9Kmy6p21q9xBDBK4nysGjmMoLYy295h7NCwU3isYoN5xjjS",
+        "collateral": "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",
+        "repayment": "r5zW3yf5Aas5F5rVyjZNxgPJhVCcZXeZH8tD7Nr3ninpnqxAbuYjQDRzVb9LztDxwyNYaPqjodNe1MEkiUynpo7CqQATcZX4hv3j6bF9us9NHsooko7XuzybtZhHFh8XVa2TmaafYyWgchLMPLEb88dyTnDR1g6TWAdzSt9n1uti9PUJVjV8nRhacKoQ81CPV8jADoF9sMAAC48e1cnnZEWNrXRXjbKb25hf8wvEkiEo695GzNSeoU7zzzBRqL3WTpY3TGi2jrgi14GewDzDLRQ9fzSZ85v99e4GzfT7gmyRRcCm4nC5XqGcUnysGeAxEvq1aUCNWJo5NyjnMQt",
+        "child": "67d7wq2KP495sNBtVThj4m7Xf2awfow9ZhdDqM6ypU5gqfwXq2tuXVem3pSgKrGNV4zwkvG6RVFcKrHN4BGfEiepmUdjNx2kKkUSFMCdjPuaLp9sg6LpMz61fnpxBC2doMJhAPN2iPpGPaejdrp7L4oFLmrZQdcyfCG2H4rs5cmjBwAexaQG7tQ2rXyScrHXtgciyUWMxiK1HSFBhYLZqxx8HhetH9r4DzV4PXmWgr4PWotEe45aa2kn2ge5xf8T8HkrzR1kgsVUkLhEhksaYQHYUSzmiZkzkUNrjAVFZ9TR4fkVmLiHvwMpdNDVPBUS6aTVhVuXXp2heFmWV6815NfRtVrdMMhiKt3iKRczPGCEjEN2JeF1h9L7cTEZ3Vibcfi2jRLYvd6Qd6g7UTnPJxAvJqX9UxemRFGpBnenTELiGdncW9Ljbvrcp4mZRpg87nKVVvYmBhQNA3fPYfBRU1c3Dmm1pZUhrm7hVZ4dDBZtsX4bsWLDc7K7gQtYSiSahton51L7H87qLQncRMtaZZyUcaGEtaWRM8cHE4aDSd5msihpYJapSi4znB3rb2xKsWL1TB8zHDjbtKGBjFNr1HEVL5aMLt9dmykg1LfGxr2G1CdyC5XWv4oGDiZyBFkESNnc8TNV6R27pqp4BevsoeK27Mqmy5audnTNgNJ9oXWFDsKyc85PBvb3rFyYwLbQB3cpjBWkzpMfWSnXBHmVXmEd118WXsLUTRcobxDebe5HdJkYhzabihxhewpoNvav18972bBeggq9T6HyS7igvE6Qf1NfAZXtA1WJA4dD9wDuxjKL5ZSrt6r",
+        "parent": "5s1ivH9pMoYPPX5YV8GZ71xNw14vbWYx5Bp1KbD3kFxPkmxMx3PQMPRF2pXMRcECbQ5bJ9J1Jaysmv1LmBC1yUM44pnLBjE8LT7Ld6Ym9VLyUAXuHvDFHvVek6gvrkbWJy8Rc6RRbx5v5x9QyiCfVquR8z7GFbbysvsvbBpJ4bM2kzY61DiQuZLB9JYNdEKAvRXazGZyr3MwqqZZYjfpBs3tJSo1haBLwxL5ZnP2fsyAaoZfB3n9xjiBv9u71ydbZ8z8D52bStnai8V5VSybLFNTYPuHFeEUSvNt689nchEmyygEH8BJfz6fXFtJZiKMbKZK2Q84hYm2QtoEqWzJBK4Pmmmjm1LM2MZ35iZKmezBoQKHmhfiL6Fxpy6ttTLbeKhFy7D7t1CZehnqf3phtnJFSuGdyN3LJkqsk1myrpRP3nH3oqcZhjY6HMYvvHea7fSpATmzMYuegQHgW33nC74jVnMd1CWdx7LRGCBWWCYHiQNxxVCvec6jdc1sZ6Wa18vBDhAtxyVsHxkQoE3DLxn66Qzv9ik8HC1wjCGq4ZSyfYWTtzKyxDiH4",
+
+        # rsBTC Proxy Addresses
+        "proxy_lend": "KeFZdXyRkmbbDumvWSR1sijFcEbnqF7EL3YprErvspPHs3wmQ3qcD64X5JdjYARbxF4SAYivys3FgqfDgdjQNoa5ULahXEY4SAQNPPK6VLZFMGHjBmzgo7CS5MTDxcuxLvrFUZVHthy2y5DK7Bf7TqUC5TQoVFQxEgsLNpHSd5eG7s9KoGdVY2H1s4HhiEgAzUTmTqiQSaeUr4qpn8erxg8ajR74W4bVyBzovJ8oduDiHPznnrCZnZBhU3NdjLre3MDBHqEkrHnpR9hkEgACDxDLaS8cvaLXsRdejY9qaohVs",
+        "proxy_withdraw": "3rEnDaoVvvfRygpGSe76qKfAi1AHLHH8xH28rWysgHDT1TwUEcY87z8NhN7TPjshdUXCXmSxfqH3U9VTH7PoSnfVp9J9CCKKUWWtb4SQbz4SetmN7qk2JNNrMoBUfaqY2YwyVJyvjx3hszibW8wJhc8eCECpCRGUTTmrjFRvQHUYRhP47DBAVWPVgkQeMDU46rw6jYBR2aooRtyjHZKsbc8WAoNjPpdmNYjv9JtJmrMNDnsX7rWqmWWsGuv953SipQsAsAZhxezGLHGEuPKKAFruJn1Pbus2N6qT3ZkP",
+        "proxy_borrow": "5hz4vVihRAd3zGRdVa9s4scCZwZXvdSHAZZ8SUFt4qQT7BwM28gNrGfrKEMV3NQ4P3vU8xMxFJYJYm7WmMDfY8HzHxj2bCp15RY39ysCoxi86EEgBmVWd8bMG5dpYtpZXNWmRxHcnCi3bmA8w3Ame1bWmaYEiUzEiFkvLUxFWUxoj4YxkWxzz4nVkyNK29XCS5frYMJgZj51Pk6xHUELdoTX1RJCLQ8u9maWwrUtXqnW4DY3XWLZUWZiuGe1Tc5TX4Ti7a7zUF16rFBKqrmrcmxzoVXZiZf5AAFqsFftFH1PNUUh2FjjHMnjJghxJUEeLMSGFMcimeaysurDtr1aYmL1pU8Viy7qWy7WTNotexEuaKjKyFcWa3p8QQ7GHBmxcPavjszmdr9SnbRbbp3xJtcKCqQsdZvJXrHT3ZXumGQm2PLqGU7dFhQvxfYsvoDdMG2DdfEusCirzVqn2a62FtDdF1SFFoVT1JcMcP76qg2s6rXz5tjxVSE7tWPYkZwKiks73DrSEJPUUqdfPfPbEBrjckTF4Sv91Xmh2i3NbfaMKvhJAGfae9P9mEZvqv2S6RLNca8obroCZwBBRatQMuJkr924rCDBgZarSER2qP34Wr193",
+        "proxy_repay": "2iHikbZ2nWVxpM6aQRXUBes3P7HZ2iZxqMMjVpsEZWSdRpnEbfPbq4ibzYkNDjyjVoh6wiusnLXApLog3dCdHuzgsys3EMcFD15zanqq1hiemHYEEVDwJMtkYyuNGseYb2ZyeogLT7ohtdfxmASYMc",
+        "proxy_partial_repay": "3X8eZkShyZ9u5h9Mid1Voz2RKgEQnWWgMtRJkqwjcWvGY5mBkwqUxQoPYzbFCSV5UhQTU3HnnwfjjUTfbaPQxUBt5yaRSzer9qHrFpYGn4M5XrwUkUuYaBd5i1LKwBd2teDz2j5iGS8myhd2MivCVzGBFcHkC4n4ry3VfxEnsqA4wtZEHecXmy9D6DPnK5yKaQkGSkUrgiFk5hL9HnW9Ae4NR29iKM4SgiSvxTYYi1oh6JUp5S5gBeR1LYNBL9VoxakABL9Pa9JHYBFzXW9YW16wWdLbh3t7a3KmtKGALgePWU6LszCPrZrXCgWZ9qMz4FB1arngGELjQ3jex",
+
+        # rsBTC Param Addresses
+        "parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpS9pgKCfzzq4RmjBnKYC",
+        "interest_parameter": "4FC5xSYeegVB8di7x32bsivdUmRm9NaVXchDp9haCWG33xci9EEnpTd7ZXnZz2PpPs9D9dvq",
+
+        # rsBTC Token IDs
+        "POOL_NFT": "585ab31dc331eac20a8ef2a201109b019b0758568fa0f455ddcf42d930fccc7a",
+        "CURRENCY_ID": "7a51950e5f548549ec1aa63ffdc38279505b11e7e803d01bcf8347e0123c88b0",
+        "CHILD_NFT": "4ae605efc36423c972ed2615ba04a7e35851551f26a71b9dd470aa92242bbd62",
+        "PARENT_NFT": "4fd84dd90aa0c55d49cb0c1f784b8fb6eaa97dad2a97e130829b963ffdbc0162",
+        "PARAMETER_NFT": "fcfe22b8d4655b88a8a39582f81fe2eb2c05f2e4f3eb8b627d9217af94731e22",
+        "INTEREST_PARAMETER_NFT": "eeb8907708c0a04e20bf520bcf97215a9e5ed6264a821b9192e8f28c6ee153ec",
+        "LEND_TOKEN": "9252c6339313da4fd95e30b9bf6726e9bf008dd1a5d33577351cd6ee2a2d74db",
+
+        # rsBTC Collateral
+        "collateral_supported": {
+            "erg": {
+                "dex_nft": "47a811c68e49f6bfa6629602037ee65f8d175ddbc7b64bdb65ad40599b812fd0",
+                "dex_fee": 990,
+                "dex_fee_serialized": "04bc0f"
             }
         }
     }
