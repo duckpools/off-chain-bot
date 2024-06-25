@@ -1,5 +1,5 @@
 import hashlib
-
+import re
 
 def zigzag(i):
     return (i >> 63) ^ (i << 1)
@@ -101,3 +101,35 @@ def blake2b256(bytes_value):
     h = hashlib.blake2b(person = b'', digest_size=32)
     h.update(bytes_value)
     return h.hexdigest()
+
+def encode_bigint(v):
+    # Convert integer to a bytearray in big-endian byte order and strip any leading zeros
+    bytes_array = v.to_bytes((v.bit_length() + 7) // 8, byteorder='big', signed=True) or b'\x00'
+
+    # Encode the length of the bytearray using VLQ
+    length_encoded = vlq(len(bytes_array))
+
+    # Convert all parts to hexadecimal strings
+    num_bytes_hex = ''.join(f'{byte:02x}' for byte in length_encoded)
+    bytes_hex = ''.join(f'{byte:02x}' for byte in bytes_array)
+
+    # Combine parts into the final serialized format
+    result = num_bytes_hex + bytes_hex
+    return "06" + result
+
+
+def extract_number(s):
+    """
+    Extracts the number from a string formatted as CBigInt(number).
+
+    Parameters:
+    s (str): The input string containing the number.
+
+    Returns:
+    str: The extracted number as a string, or None if no number is found.
+    """
+    match = re.search(r'CBigInt\((\d+)\)', s)
+    if match:
+        return match.group(1)
+    else:
+        return None

@@ -566,7 +566,7 @@ def generate_repayment_script(poolNFT):
     p2s = f"""{{
 	// Constants
 	val transactionFee = 1000000L 
-	val MaxBorrowTokens = 9000000000000000L // Maximum allowed borrowable tokens
+	val MaxBorrowTokens = 900000000000000000L // Maximum allowed borrowable tokens
 	val PoolNft = fromBase58("{poolNFT}") // Non-fungible token for the pool
 	
 	val initalPool = INPUTS(0)
@@ -623,7 +623,7 @@ def generate_interest_script(poolNFT, interestParamNFT):
 	val BorrowTokenDenomination = 10000000000000000L
 	val CoefficientDenomination = 100000000L
 	val InitiallyLockedLP = 9000000000000000L
-	val MaximumBorrowTokens = 9000000000000000L
+	val MaximumBorrowTokens = 900000000000000000L
 	val MaximumExecutionFee = 2000000
 	val updateFrequency = 120
 
@@ -632,10 +632,10 @@ def generate_interest_script(poolNFT, interestParamNFT):
 	val parameterBox = CONTEXT.dataInputs(1)
 
 	val recordedHeight = SELF.R4[Long].get
-	val recordedValue = SELF.R5[Long].get
+	val recordedValue = SELF.R5[BigInt].get
 	
 	val finalHeight = successor.R4[Long].get
-	val finalValue = successor.R5[Long].get
+	val finalValue = successor.R5[BigInt].get
 
 	// get coefficients
 	val coefficients = parameterBox.R4[Coll[Long]].get
@@ -651,7 +651,8 @@ def generate_interest_script(poolNFT, interestParamNFT):
 	val poolAssets = pool.tokens(3)._2
 	val validFinalHeight = finalHeight == recordedHeight + updateFrequency
 	
-	val borrowed = MaximumBorrowTokens - pool.tokens(2)._2
+	val borrowTokens = MaximumBorrowTokens - pool.tokens(2)._2
+	val borrowed = borrowTokens * recordedValue / BorrowTokenDenomination
 	val util = (InterestDenomination.toBigInt * borrowed.toBigInt / (poolAssets.toBigInt + borrowed.toBigInt))
 
 	val D = CoefficientDenomination.toBigInt

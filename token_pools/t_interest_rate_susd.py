@@ -4,12 +4,12 @@ from secrets import randbelow
 
 from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR, \
-    DOUBLE_SPENDING_ATTEMPT
+    DOUBLE_SPENDING_ATTEMPT, BorrowTokenDenomination
 from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
 from helpers.platform_functions import get_pool_box, get_pool_box_from_tx, \
     get_interest_param_box, get_interest_box
-from helpers.serializer import encode_long
+from helpers.serializer import encode_long, encode_bigint, extract_number
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -29,11 +29,12 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
             fee += 10000
         if latest_tx is None:
             erg_pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
-            borrowed = MAX_BORROW_TOKENS - int(erg_pool_box["assets"][2]["amount"])
+            borrowedTokens = MAX_BORROW_TOKENS - int(erg_pool_box["assets"][2]["amount"])
         else:
             erg_pool_box = get_pool_box_from_tx(latest_tx["txId"])
-            borrowed = latest_tx["finalBorrowed"]
+            borrowedTokens = latest_tx["finalBorrowed"]
 
+        print(borrowedTokens)
         interest_param_box = get_interest_param_box(pool["interest_parameter"], pool["INTEREST_PARAMETER_NFT"])
         coefficients = json.loads(interest_param_box["additionalRegisters"]["R4"]["renderedValue"])
         a = coefficients[0]
@@ -42,8 +43,10 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
         d = coefficients[3]
         e = coefficients[4]
         f = coefficients[5]
+        current_value = int(extract_number(box["additionalRegisters"]["R5"]["renderedValue"]))
 
         real_value = erg_pool_box["assets"][3]["amount"]
+        borrowed = borrowedTokens * current_value / BorrowTokenDenomination
         util = floor(INTEREST_MULTIPLIER * borrowed / (real_value + borrowed))
         x = util
         M = INTEREST_MULTIPLIER
@@ -63,8 +66,8 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
             {
                 "requests": [
                     {
-                        "address": pool["child"],
-                        "value": int(box["value"] - 1.9 * TX_FEE),
+                        "address": pool["interest"],
+                        "value": 2000000,
                         "assets": [
                             {
                             "tokenId": box["assets"][0]["tokenId"],
@@ -72,8 +75,12 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
                             }
                         ],
                         "registers": {
-                            "R4": encode_long(curr_height + INTEREST_FREQUENCY_POLL),
-                            "R5": encode_long(curr_height + INTEREST_FREQUENCY_POLL),
+                            "R4": encode_long(box_curr_height + INTEREST_FREQUENCY_POLL),
+                            "R5": encode_bigint(int(current_value * current_rate / M)),
+                            "R6": "0101",
+                            "R7": "0101",
+                            "R8": "0101",
+                            "R9": "0101"
                         }
                     },
                     {

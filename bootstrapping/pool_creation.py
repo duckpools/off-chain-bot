@@ -1,14 +1,14 @@
 from client_consts import node_address
 from consts import m_interest_addr, m_borrow_addr, m_lend_addr, m_pool_addr, m_param_addr, m_interest_param_addr, \
     m_currency_addr, PARAMETER_ADDRESS, SERIALIZED_SERVICE_ADDRESS, INTEREST_PARAMETER_ADDRESS, PROXY_LEND, \
-    PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY, INTEREST_MULTIPLIER
+    PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY, INTEREST_MULTIPLIER, BorrowTokenDenomination
 from contracts.quacks import generate_pool_script, generate_repayment_script, generate_collateral_script, \
     generate_interest_script
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import mint_token, box_id_to_binary, sign_tx, clean_node, address_to_tree, pay_token_to_address, \
     current_height
 from helpers.platform_functions import update_pools_in_file
-from helpers.serializer import hex_to_base58, bytesLike, blake2b256, encode_long_tuple, encode_long
+from helpers.serializer import hex_to_base58, bytesLike, blake2b256, encode_long_tuple, encode_long, encode_bigint
 from logger import set_logger
 import time
 
@@ -326,7 +326,7 @@ def bootstrap_interest_box(interest_address, interest_nft):
                     ],
                     "registers": {
                         "R4": encode_long(current_height() - 2),
-                        "R5": encode_long(INTEREST_MULTIPLIER)
+                        "R5": encode_bigint(BorrowTokenDenomination)
                     }
                 }
             ],
