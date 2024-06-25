@@ -616,8 +616,8 @@ def generate_repayment_script(poolNFT):
     return compile_script(p2s)
 
 def generate_interest_script(poolNFT, interestParamNFT):
-    return f'''{{
-	val PoolNft = fromBase58({poolNFT})
+    return compile_script(f'''{{
+	val PoolNft = fromBase58("{poolNFT}")
 	val InterestParamaterBoxNft = fromBase58("{interestParamNFT}")
 	val InterestDenomination = 100000000L
 	val BorrowTokenDenomination = 10000000000000000L
@@ -698,4 +698,4 @@ def generate_interest_script(poolNFT, interestParamNFT):
 		validParameterBox &&
 		isValidDummyRegisters
 	)
-}}'''
+}}''')

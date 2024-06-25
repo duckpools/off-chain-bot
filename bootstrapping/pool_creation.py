@@ -1,14 +1,14 @@
 from client_consts import node_address
 from consts import m_interest_addr, m_borrow_addr, m_lend_addr, m_pool_addr, m_param_addr, m_interest_param_addr, \
     m_currency_addr, PARAMETER_ADDRESS, SERIALIZED_SERVICE_ADDRESS, INTEREST_PARAMETER_ADDRESS, PROXY_LEND, \
-    PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY
+    PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY, INTEREST_MULTIPLIER
 from contracts.quacks import generate_pool_script, generate_repayment_script, generate_collateral_script, \
     generate_interest_script
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import mint_token, box_id_to_binary, sign_tx, clean_node, address_to_tree, pay_token_to_address, \
     current_height
 from helpers.platform_functions import update_pools_in_file
-from helpers.serializer import hex_to_base58, bytesLike, blake2b256, encode_long_tuple
+from helpers.serializer import hex_to_base58, bytesLike, blake2b256, encode_long_tuple, encode_long
 from logger import set_logger
 import time
 
@@ -43,7 +43,7 @@ def create_pool():
         print(active_mints)
         time.sleep(45)
         if (time.time() - start_time) > 900:
-            clean_node()
+            clean_node(3000000)
             logger.error("Waited 900 seconds, assumed failure, terminating bot.")
             return
         logger.info("Still waiting for transactions to confirm, please do not terminate the program...")
@@ -72,11 +72,13 @@ def create_pool():
     bootstrap_interest_parameter_box(interest_parameter_nft)
     logger.info("Parameter Param Contract...")
     bootstrap_parameter_box(parameter_nft)
+    logger.info("Interest box Contract...")
+    bootstrap_interest_box(interest_address, interest_nft)
     logger.info("Waiting for transactions to confirm, please do not terminate the program...")
     start_time = time.time()
-    while not (allAddressesWithBoxes([pool_address, INTEREST_PARAMETER_ADDRESS, PARAMETER_ADDRESS], startHeight)):
+    while not (allAddressesWithBoxes([pool_address, INTEREST_PARAMETER_ADDRESS, PARAMETER_ADDRESS, interest_address], startHeight)):
         if (time.time() - start_time) > 900:
-            clean_node()
+            clean_node(3000000)
             logger.error("Waited 900 seconds, assumed failure, terminating bot.")
             return
         logger.info("Still waiting for transactions to confirm, please do not terminate the program...")
@@ -91,7 +93,7 @@ def create_pool():
         "pool": pool_address,
         "collateral": collateral_address,
         "repayment": repayment_address,
-        "child": interest_address,
+        "interest": interest_address,
         "parent": "None",
 
         # SPF Proxy Addresses
@@ -108,7 +110,7 @@ def create_pool():
         # SPF Token IDs
         "POOL_NFT": pool_nft,
         "CURRENCY_ID": creation_settings["tokenId"],
-        "CHILD_NFT": interest_nft,
+        "INTEREST_NFT": interest_nft,
         "PARENT_NFT": "None",
         "PARAMETER_NFT": parameter_nft,
         "INTEREST_PARAMETER_NFT": interest_parameter_nft,
@@ -261,7 +263,7 @@ def cancel_active_creations():
         time.sleep(45)
         if (time.time() - start_time) > 900:
             logger.error("Waited 900 seconds, assumed failure, terminating bot.")
-            clean_node()
+            clean_node(3000000)
             return False
         logger.info("Still waiting for transactions to confirm, please do not terminate the program...")
     return True
@@ -307,6 +309,34 @@ def bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id):
         }
     sign_tx(transaction_to_sign)
 
+
+def bootstrap_interest_box(interest_address, interest_nft):
+    interst_nft_utxo = get_unspent_boxes_by_address(m_interest_addr)[0]
+    transaction_to_sign = \
+        {
+            "requests": [
+                {
+                    "address": interest_address,
+                    "value": 1000000,
+                    "assets": [
+                        {
+                            "tokenId": interest_nft,
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                        "R4": encode_long(current_height() - 2),
+                        "R5": encode_long(INTEREST_MULTIPLIER)
+                    }
+                }
+            ],
+            "fee": 1000000,
+            "inputsRaw":
+                [box_id_to_binary(interst_nft_utxo["boxId"])],
+            "dataInputsRaw":
+                []
+        }
+    sign_tx(transaction_to_sign)
 def bootstrap_parameter_box(parameter_token):
     parameter_token_utxo = get_unspent_boxes_by_address(m_param_addr)[0]
     r5 = "1a01010a"
@@ -339,6 +369,7 @@ def bootstrap_parameter_box(parameter_token):
             "dataInputsRaw":
                 []
         }
+    print(transaction_to_sign)
     sign_tx(transaction_to_sign)
 
 def bootstrap_interest_parameter_box(token):
@@ -366,4 +397,5 @@ def bootstrap_interest_parameter_box(token):
             "dataInputsRaw":
                 []
         }
+    print(transaction_to_sign)
     sign_tx(transaction_to_sign)

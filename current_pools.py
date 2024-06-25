@@ -1,4 +1,4 @@
-pools = [
+current_pools = [
     {
         "is_Erg": True,
         "thresholds": [20000000000, 200000000000],

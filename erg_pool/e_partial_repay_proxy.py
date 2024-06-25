@@ -4,7 +4,7 @@ from consts import TX_FEE, ERROR, NULL_TX_OBJ
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
 from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
-from helpers.platform_functions import get_parent_box, get_head_child, get_children_boxes, get_base_child, \
+from helpers.platform_functions import  get_children_boxes, get_base_child, \
     get_interest_box, get_dex_box
 from logger import set_logger
 

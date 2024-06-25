@@ -7,7 +7,7 @@ from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXE
     INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR, DOUBLE_SPENDING_ATTEMPT
 from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
-from helpers.platform_functions import get_parent_box, get_head_child, get_pool_box, get_pool_box_from_tx, \
+from helpers.platform_functions import  get_pool_box, get_pool_box_from_tx, \
     get_interest_param_box
 from helpers.serializer import encode_long_tuple, encode_int, encode_long
 from logger import set_logger

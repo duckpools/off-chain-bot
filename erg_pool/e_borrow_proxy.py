@@ -4,7 +4,7 @@ from consts import TX_FEE, MAX_BORROW_TOKENS, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_R
     DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER
 from helpers.job_helpers import job_processor, latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, \
+from helpers.platform_functions import get_dex_box, \
     get_pool_param_box
 from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
 from logger import set_logger

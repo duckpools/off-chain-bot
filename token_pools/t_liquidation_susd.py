@@ -6,7 +6,7 @@ from math import floor
 from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, DEFAULT_BUFFER
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
+from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, \
     get_children_boxes, liquidation_allowed_susd
 from helpers.serializer import encode_long_pair
 from logger import set_logger

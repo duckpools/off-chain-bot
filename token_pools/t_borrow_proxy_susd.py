@@ -3,7 +3,7 @@ import json
 from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, DEFAULT_BUFFER
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, get_pool_param_box
+from helpers.platform_functions import get_dex_box, get_pool_param_box
 from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
 from logger import set_logger
 
