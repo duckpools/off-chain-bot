@@ -4,7 +4,7 @@ from math import ceil
 from consts import MIN_BOX_VALUE, TX_FEE
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
-from helpers.platform_functions import calculate_service_fee, get_pool_param_box
+from helpers.platform_functions import calculate_service_fee, get_pool_param_box, get_interest_box
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -14,6 +14,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
     if box["assets"][0]["tokenId"] != pool["LEND_TOKEN"]:
         return latest_tx
     pool_box, borrowed = latest_pool_info(pool, latest_tx)
+    interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
 
     held_erg0 = pool_box["assets"][3]["amount"]
     held_tokens = int(pool_box["assets"][1]["amount"])
@@ -26,6 +27,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
     user_gets = total_entitled - service_fee
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
     param_box = get_pool_param_box(pool["parameter"], pool["PARAMETER_NFT"])
+    print(user_gets)
 
     transaction_to_sign = \
         {
@@ -87,7 +89,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
             "inputsRaw":
                 [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
-                [box_id_to_binary(param_box["boxId"])]
+                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(param_box["boxId"])]
         }
 
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
@@ -98,6 +100,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
     if tx_id != -1:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     else:
+        dssd
         logger.debug("Failed to submit transaction, attempting to refund")
         transaction_to_sign = \
             {

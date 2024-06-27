@@ -20,6 +20,7 @@ creation_settings = {
     "AssetDecimals": 6,
     "tokenId": "923e74c6272260623d64da6a227ed5016f4b1beded2a155775de47dd39ab6511",
     "liquidationThresholds": [1400],
+    "serviceFeeThresholds": [2000, 200000],
     "liquidationAssets": None,
     "dexNFTs": ["46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1"],
     "penalty": [300],
@@ -61,7 +62,7 @@ def create_pool():
     collateral_address = generate_collateral_script(f_repayment_address, f_interest_nft, f_currency_id)
     print(collateral_address)
     f_collateral_address = hex_to_base58(blake2b256(bytesLike(address_to_tree(collateral_address))))
-    pool_address = generate_pool_script(f_collateral_address, f_interest_nft, f_parameter_nft)
+    pool_address = generate_pool_script(f_collateral_address, f_interest_nft, f_parameter_nft, creation_settings["serviceFeeThresholds"])
     print(pool_address)
     interest_address = generate_interest_script(f_pool_nft, f_interest_parameter_nft)
     print(interest_address)
@@ -85,8 +86,8 @@ def create_pool():
 
     pool = {
         "is_Erg": False,
-        "thresholds": creation_settings["liquidationThresholds"],
-        "liquidation_threshold": creation_settings["liquidationThresholds"][0],
+        "thresholds": creation_settings["serviceFeeThresholds"],
+        "liquidation_threshold": creation_settings["liquidationThresholds"],
         "proxy_forced_liquidation": 65520,
 
         # SPF MAIN ADDRESSES
@@ -286,7 +287,7 @@ def bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id):
                         },
                         {
                             "tokenId": lend_token_id,
-                            "amount": 9000000000000010
+                            "amount": 9000000000000000
                         },
                         {
                             "tokenId": borrow_token_id,

@@ -1,7 +1,7 @@
 from helpers.node_calls import compile_script
 
 
-def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft):
+def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft, serviceFeeThresholds):
     return compile_script(f'''{{
 	// Constants
 	val CollateralContractScript = fromBase58("{collateralContractScript}")
@@ -15,8 +15,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 	val MinimumTxFee = 1000000L
 	val Slippage = 2
 	val DexFeeDenom = 1000
-	val sFeeStepOne = 2000L
-	val sFeeStepTwo = 200000L
+	val sFeeStepOne = {serviceFeeThresholds[0]}L
+	val sFeeStepTwo = {serviceFeeThresholds[1]}L
 	val sFeeDivisorOne = 160
 	val sFeeDivisorTwo = 200
 	val sFeeDivisorThree = 250

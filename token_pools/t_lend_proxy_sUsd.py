@@ -4,7 +4,7 @@ import math
 from consts import MIN_BOX_VALUE, TX_FEE
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
-from helpers.platform_functions import calculate_final_amount, get_pool_param_box
+from helpers.platform_functions import calculate_final_amount, get_pool_param_box, get_interest_box
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -14,6 +14,7 @@ def process_lend_proxy_box(pool, box, latest_tx):
     if box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
         return latest_tx
     pool_box, borrowed = latest_pool_info(pool, latest_tx)
+    interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
 
     token_amount = box["assets"][0]["amount"]
     service_fee = max(calculate_final_amount(token_amount, pool["thresholds"]), 1)
@@ -87,7 +88,7 @@ def process_lend_proxy_box(pool, box, latest_tx):
             "inputsRaw":
                 [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
-                [box_id_to_binary(param_box["boxId"])]
+                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(param_box["boxId"])]
         }
 
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
@@ -95,7 +96,7 @@ def process_lend_proxy_box(pool, box, latest_tx):
     obj = {"txId": tx_id,
            "finalBorrowed": borrowed}
 
-
+    print(transaction_to_sign)
     if tx_id != -1:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     else:
