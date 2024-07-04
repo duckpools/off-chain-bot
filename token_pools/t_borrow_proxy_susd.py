@@ -1,37 +1,30 @@
 import json
 
-from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, DEFAULT_BUFFER
+from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, DEFAULT_BUFFER, \
+    BorrowTokenDenomination
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_pool_param_box
-from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
+from helpers.platform_functions import get_dex_box, get_pool_param_box, get_interest_box
+from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair, extract_number
 from logger import set_logger
 
 logger = set_logger(__name__)
 
 
 def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
-    pool_box, borrowed = latest_pool_info(pool, latest_tx)
+    pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
 
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
     dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
-
-    if not dex_box:
-        logger.debug("No Dex Box Found")
-        return
-
-    parent_interest_box = get_parent_box(pool["parent"], pool["PARENT_NFT"])
-    head_child_interest_box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"], parent_interest_box)
-
-    if not head_child_interest_box or not parent_interest_box:
-        logger.warning("No Interest Box Found")
-        return
-
-    child_interest_length = len(json.loads(head_child_interest_box["additionalRegisters"]["R4"]["renderedValue"]))
-    parent_interest_length = len(json.loads(parent_interest_box["additionalRegisters"]["R4"]["renderedValue"]))
-    user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
+    interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     amount_to_borrow = int(box["additionalRegisters"]["R5"]["renderedValue"])
-    final_borrowed = borrowed + amount_to_borrow
+
+    borrowTokenValue = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
+    loanBorrowTokens = int(amount_to_borrow * BorrowTokenDenomination / borrowTokenValue)
+
+
+    user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
+    final_borrowed = borrowedTokens + loanBorrowTokens
     pool_param_box = get_pool_param_box(pool["parameter"], pool["PARAMETER_NFT"])
     net_height = current_height() - 20
 
@@ -39,7 +32,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         {
             "requests": [
                 {
-                    "address": pool["address"],
+                    "address": pool["pool"],
                     "value": pool_box["value"],
                     "assets": [
                         {
@@ -68,12 +61,12 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     "assets": [
                         {
                             "tokenId": pool_box["assets"][2]["tokenId"],
-                            "amount": amount_to_borrow
+                            "amount": loanBorrowTokens
                         }
                     ],
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
-                        "R5": encode_int_tuple([parent_interest_length, child_interest_length - 1]),
+                        "R5": encode_int_tuple([0, 0]),
                         "R6": box["additionalRegisters"]["R7"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R9"]["serializedValue"],
@@ -98,8 +91,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
             "inputsRaw":
                 [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"])],
             "dataInputsRaw":
-                [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(parent_interest_box["boxId"]),
-                 box_id_to_binary(head_child_interest_box["boxId"]), box_id_to_binary(pool_param_box["boxId"])]
+                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(dex_box["boxId"]), box_id_to_binary(pool_param_box["boxId"])]
         }
 
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
@@ -107,7 +99,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
 
     obj = {"txId": tx_id,
            "finalBorrowed": final_borrowed}
-
+    dsdsd
     if tx_id != ERROR and tx_id != DOUBLE_SPENDING_ATTEMPT:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:

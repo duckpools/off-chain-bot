@@ -1,10 +1,11 @@
 import json
 import math
 
-from consts import MIN_BOX_VALUE, TX_FEE
+from consts import MIN_BOX_VALUE, TX_FEE, BorrowTokenDenomination
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
 from helpers.platform_functions import calculate_final_amount, get_pool_param_box, get_interest_box
+from helpers.serializer import extract_number
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -13,8 +14,10 @@ logger = set_logger(__name__)
 def process_lend_proxy_box(pool, box, latest_tx):
     if box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
         return latest_tx
-    pool_box, borrowed = latest_pool_info(pool, latest_tx)
+    pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
+    borrowTokenValue = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
+    borrowed = borrowedTokens * borrowTokenValue / BorrowTokenDenomination
 
     token_amount = box["assets"][0]["amount"]
     service_fee = max(calculate_final_amount(token_amount, pool["thresholds"]), 1)

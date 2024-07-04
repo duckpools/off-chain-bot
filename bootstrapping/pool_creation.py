@@ -18,7 +18,7 @@ creation_settings = {
     "AssetTicker": "QUACKS",
     "VersionId": "2.0",
     "AssetDecimals": 6,
-    "tokenId": "923e74c6272260623d64da6a227ed5016f4b1beded2a155775de47dd39ab6511",
+    "tokenId": "089990451bb430f05a85f4ef3bcb6ebf852b3d6ee68d86d78658b9ccef20074f",
     "liquidationThresholds": [1400],
     "serviceFeeThresholds": [2000, 200000],
     "liquidationAssets": None,

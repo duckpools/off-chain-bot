@@ -8,7 +8,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 	val ChildBoxNft = fromBase58("{childBoxNft}")
 	val ParamaterBoxNft = fromBase58("{parameterBoxNft}")
 	val MaxLendTokens = 9000000000000010L // Set 1,000,000 higher than true maximum so that genesis lend token value is 1.
-	val MaxBorrowTokens = 9000000000000000L
+	val MaxBorrowTokens = 900000000000000000L
 	val BorrowTokenDenomination = 10000000000000000L.toBigInt
 	val LiquidationThresholdDenomination = 1000
 	val MinimumBoxValue = 1000000 // Absolute minimum value allowed for pool box.

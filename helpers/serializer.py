@@ -130,6 +130,6 @@ def extract_number(s):
     """
     match = re.search(r'CBigInt\((\d+)\)', s)
     if match:
-        return match.group(1)
+        return int(match.group(1))
     else:
         return None
