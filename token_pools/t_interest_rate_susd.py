@@ -43,10 +43,10 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
         d = coefficients[3]
         e = coefficients[4]
         f = coefficients[5]
-        current_value = int(extract_number(box["additionalRegisters"]["R5"]["renderedValue"]))
+        current_value = floor(extract_number(box["additionalRegisters"]["R5"]["renderedValue"]))
 
         real_value = erg_pool_box["assets"][3]["amount"]
-        borrowed = borrowedTokens * current_value / BorrowTokenDenomination
+        borrowed = floor(borrowedTokens * current_value / BorrowTokenDenomination)
         util = floor(INTEREST_MULTIPLIER * borrowed / (real_value + borrowed))
         x = util
         M = INTEREST_MULTIPLIER
@@ -67,7 +67,7 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
                 "requests": [
                     {
                         "address": pool["interest"],
-                        "value": 2000000,
+                        "value": int(box["value"]) - (1.9 * MIN_BOX_VALUE),
                         "assets": [
                             {
                             "tokenId": box["assets"][0]["tokenId"],
@@ -76,7 +76,7 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
                         ],
                         "registers": {
                             "R4": encode_long(box_curr_height + INTEREST_FREQUENCY_POLL),
-                            "R5": encode_bigint(int(current_value * current_rate / M)),
+                            "R5": encode_bigint(floor(current_value * current_rate // M)),
                             "R6": "0101",
                             "R7": "0101",
                             "R8": "0101",
