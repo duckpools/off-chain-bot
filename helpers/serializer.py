@@ -103,8 +103,10 @@ def blake2b256(bytes_value):
     return h.hexdigest()
 
 def encode_bigint(v):
-    # Convert integer to a bytearray in big-endian byte order and strip any leading zeros
-    bytes_array = v.to_bytes((v.bit_length() + 7) // 8, byteorder='big', signed=True) or b'\x00'
+    # Determine the minimum number of bytes needed to represent the integer
+    num_bytes = (v.bit_length() + 8) // 8  # add an extra bit for signed representation if needed
+    # Convert integer to a bytearray in big-endian byte order
+    bytes_array = v.to_bytes(num_bytes, byteorder='big', signed=True)
 
     # Encode the length of the bytearray using VLQ
     length_encoded = vlq(len(bytes_array))
