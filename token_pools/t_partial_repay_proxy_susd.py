@@ -56,13 +56,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
         refund_repay_proxy_box(box)
         return
 
-    parent_box = get_parent_box(pool["parent"], pool["PARENT_NFT"])
-    head_child = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
-    children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
-    loan_indexes = json.loads(whole_collateral_box["additionalRegisters"]["R5"]["renderedValue"])
-    loan_parent_index = loan_indexes[0]
-    base_child = get_base_child(children, loan_parent_index)
-    interest_box = get_interest_box(pool["child"], pool["CHILD_NFT"])
+    interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     dex_nft = whole_collateral_box["additionalRegisters"]["R7"]["renderedValue"]
     dex_box = get_dex_box(dex_nft)
 
@@ -113,8 +107,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
             "inputsRaw":
                 [box_id_to_binary(box["boxId"]), box_id_to_binary(collateral_box)],
             "dataInputsRaw":
-                [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
-                  box_id_to_binary(head_child["boxId"]), box_id_to_binary(dex_box["boxId"])]
+                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(dex_box["boxId"])]
         }
 
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))

@@ -17,10 +17,12 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
     dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
-    amount_to_borrow = int(box["additionalRegisters"]["R5"]["renderedValue"])
+    request_amounts = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
+    amount_to_borrow = request_amounts[0]
+    loanBorrowTokens = request_amounts[1]
 
-    borrowTokenValue = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
-    loanBorrowTokens = int(amount_to_borrow * BorrowTokenDenomination / borrowTokenValue)
+    print(amount_to_borrow)
+    print(loanBorrowTokens)
 
 
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
