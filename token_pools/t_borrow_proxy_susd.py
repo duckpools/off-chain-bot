@@ -4,16 +4,16 @@ from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATT
     BorrowTokenDenomination
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_pool_param_box, get_interest_box
-from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair, extract_number
+from helpers.platform_functions import get_dex_box, get_pool_param_box, get_interest_box, get_logic_box
+from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair, extract_number, encode_long_tuple
 from logger import set_logger
+from math import floor
 
 logger = set_logger(__name__)
 
 
 def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
-
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
     dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
@@ -28,7 +28,16 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
     final_borrowed = borrowedTokens + loanBorrowTokens
     pool_param_box = get_pool_param_box(pool["parameter"], pool["PARAMETER_NFT"])
+    logic_box = get_logic_box(pool["logic"], pool["LOGIC_NFT"])
     net_height = current_height() - 20
+
+    dex_initial_val = dex_box["value"]
+    dex_tokens = dex_box["assets"][2]["amount"]
+    tokens_to_liquidate = box["value"] - 5000000
+    dex_fee = pool["collateral_supported"]["erg"]["dex_fee"]
+    liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
+                              ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
+                               (tokens_to_liquidate * dex_fee)))
 
     transaction_to_sign = \
         {
@@ -68,11 +77,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     ],
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
-                        "R5": encode_int_tuple([0, 0]),
-                        "R6": box["additionalRegisters"]["R7"]["serializedValue"],
-                        "R7": box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R8": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R9": encode_long_pair(net_height + pool["proxy_forced_liquidation"], DEFAULT_BUFFER)
+                        "R5": box["additionalRegisters"]["R9"]["serializedValue"],
+                        "R6": encode_long_tuple([2000, 200000, 1400, 300]),
+                        "R7": box["additionalRegisters"]["R8"]["serializedValue"]
                     }
                 },
                 {
@@ -87,11 +94,26 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     "registers": {
                         "R4": "0e20" + box["boxId"]
                     }
+                },
+                {
+                    "address": pool["logic"],
+                    "value": MIN_BOX_VALUE,
+                    "assets": [
+                        {
+                            "tokenId": logic_box["assets"][0]["tokenId"],
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                        "R4": encode_long(liquidation_value),
+                        "R5": "0402",
+                        "R6": "0101"
+                    }
                 }
             ],
             "fee": fee,
             "inputsRaw":
-                [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"])],
+                [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(logic_box["boxId"])],
             "dataInputsRaw":
                 [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(dex_box["boxId"]), box_id_to_binary(pool_param_box["boxId"])]
         }

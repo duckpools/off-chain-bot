@@ -116,6 +116,14 @@ def get_pool_param_box(param_address, param_nft):
     logger.warning("Could not find pool box")
     return None
 
+def get_logic_box(address, nft):
+    potential_boxes = get_unspent_boxes_by_address(address)
+    for box in potential_boxes:
+        if len(box["assets"]) > 0 and box["assets"][0]["tokenId"] == nft:
+            return box
+    logger.warning("Could not find pool box")
+    return None
+
 
 def get_dex_box_from_tx(tx):
     return first_output_from_mempool_tx(tx)

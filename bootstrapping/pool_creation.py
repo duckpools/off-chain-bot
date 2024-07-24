@@ -1,9 +1,9 @@
 from client_consts import node_address
 from consts import m_interest_addr, m_borrow_addr, m_lend_addr, m_pool_addr, m_param_addr, m_interest_param_addr, \
-    m_currency_addr, PARAMETER_ADDRESS, SERIALIZED_SERVICE_ADDRESS, INTEREST_PARAMETER_ADDRESS, PROXY_LEND, \
+    m_currency_addr, m_logic_addr, PARAMETER_ADDRESS, SERIALIZED_SERVICE_ADDRESS, INTEREST_PARAMETER_ADDRESS, PROXY_LEND, \
     PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY, INTEREST_MULTIPLIER, BorrowTokenDenomination
 from contracts.quacks import generate_pool_script, generate_repayment_script, generate_collateral_script, \
-    generate_interest_script
+    generate_interest_script, generate_logic_script
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import mint_token, box_id_to_binary, sign_tx, clean_node, address_to_tree, pay_token_to_address, \
     current_height
@@ -24,7 +24,8 @@ creation_settings = {
     "liquidationAssets": None,
     "dexNFTs": ["46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1"],
     "penalty": [300],
-    "interestParams": [490,4000,0,0,23000,9840]
+    "interestParams": [490,4000,0,0,23000,9840],
+    "feeSettings": [2000, 200000, 160, 200, 250],
 }
 
 
@@ -40,7 +41,7 @@ def create_pool():
     logger.info("Waiting for transactions to confirm, please do not terminate the program...")
     start_time = time.time()
     active_mints = count_mint_active()
-    while len(active_mints) < 7:
+    while len(active_mints) < 8:
         print(active_mints)
         time.sleep(45)
         if (time.time() - start_time) > 900:
@@ -49,7 +50,7 @@ def create_pool():
             return
         logger.info("Still waiting for transactions to confirm, please do not terminate the program...")
         active_mints = count_mint_active()
-    lend_token_id, pool_nft, borrow_token_id, interest_nft, parameter_nft, interest_parameter_nft, _ = active_mints
+    lend_token_id, pool_nft, borrow_token_id, interest_nft, parameter_nft, interest_parameter_nft, logic_nft, _ = active_mints
     print(active_mints)
     f_pool_nft = hex_to_base58(pool_nft)
     f_interest_nft = hex_to_base58(interest_nft)
@@ -57,6 +58,7 @@ def create_pool():
     f_interest_parameter_nft = hex_to_base58(interest_parameter_nft)
     f_currency_id = hex_to_base58(creation_settings["tokenId"])
     repayment_address = generate_repayment_script(f_pool_nft)
+    dex_nft = hex_to_base58(creation_settings["dexNFTs"][0])
     print(repayment_address)
     f_repayment_address = hex_to_base58(blake2b256(bytesLike(address_to_tree(repayment_address))))
     collateral_address = generate_collateral_script(f_repayment_address, f_interest_nft, f_currency_id)
@@ -66,15 +68,18 @@ def create_pool():
     print(pool_address)
     interest_address = generate_interest_script(f_pool_nft, f_interest_parameter_nft)
     print(interest_address)
+    logic_address = generate_logic_script(dex_nft)
     logger.info("Attempting to bootstrap contracts...")
     logger.info("Pool contract...")
     bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id)
     logger.info("Interest Param Contract...")
     bootstrap_interest_parameter_box(interest_parameter_nft)
     logger.info("Parameter Param Contract...")
-    bootstrap_parameter_box(parameter_nft)
+    bootstrap_parameter_box(parameter_nft, logic_nft)
     logger.info("Interest box Contract...")
     bootstrap_interest_box(interest_address, interest_nft)
+    logger.info("Logic box Contract...")
+    bootstrap_logic_box(logic_address, logic_nft)
     logger.info("Waiting for transactions to confirm, please do not terminate the program...")
     start_time = time.time()
     while not (allAddressesWithBoxes([pool_address, INTEREST_PARAMETER_ADDRESS, PARAMETER_ADDRESS, interest_address], startHeight)):
@@ -96,6 +101,7 @@ def create_pool():
         "repayment": repayment_address,
         "interest": interest_address,
         "parent": "None",
+        "logic": logic_address,
 
         # SPF Proxy Addresses
         "proxy_lend": PROXY_LEND,
@@ -116,6 +122,7 @@ def create_pool():
         "PARAMETER_NFT": parameter_nft,
         "INTEREST_PARAMETER_NFT": interest_parameter_nft,
         "LEND_TOKEN": lend_token_id,
+        "LOGIC_NFT": logic_nft,
 
         # SPF Collateral
         "collateral_supported": {
@@ -159,6 +166,12 @@ def mint_interest_param_token(assetTicker, VersionId):
     name = f"Interest Parameter NFT {assetTicker}-{VersionId}"
     description = f"duckpools v2 Interest Parameter for {assetTicker} pool"
     mint_token(m_interest_param_addr, name, description, 0, 1)
+
+def mint_logic_nft(assetTicker, VersionId):
+    name = f"Logic NFT {assetTicker}-{VersionId}"
+    description = f"duckpools v2 Logic NFT for {assetTicker} pool"
+    mint_token(m_logic_addr, name, description, 0, 1)
+
 def mint_all_tokens(creation_settings):
     assetTicker = creation_settings["AssetTicker"]
     VersionId = creation_settings["VersionId"]
@@ -174,6 +187,8 @@ def mint_all_tokens(creation_settings):
     mint_param_token(assetTicker, VersionId)
     time.sleep(5)
     mint_interest_param_token(assetTicker, VersionId)
+    time.sleep(5)
+    mint_logic_nft(assetTicker, VersionId)
     time.sleep(5)
     pay_token_to_address(m_currency_addr, creation_settings["tokenId"], 10)
 
@@ -193,6 +208,8 @@ def get_mint_boxes():
     time.sleep(2)
     boxes.append(get_unspent_boxes_by_address(m_interest_param_addr))
     time.sleep(2)
+    boxes.append(get_unspent_boxes_by_address(m_logic_addr))
+    time.sleep(2)
     boxes.append(get_unspent_boxes_by_address(m_currency_addr))
     return boxes
 
@@ -207,7 +224,7 @@ def allAddressesWithBoxes(addrList, cutoff=0):
 
 
 def count_mint_active():
-    boxes= get_mint_boxes()
+    boxes = get_mint_boxes()
     token_ids = []
     for resp in boxes:
         if len(resp) != 0:
@@ -338,7 +355,35 @@ def bootstrap_interest_box(interest_address, interest_nft):
                 []
         }
     sign_tx(transaction_to_sign)
-def bootstrap_parameter_box(parameter_token):
+
+def bootstrap_logic_box(address, nft):
+    logic_nft_utxo = get_unspent_boxes_by_address(m_logic_addr)[0]
+    transaction_to_sign = \
+        {
+            "requests": [
+                {
+                    "address": address,
+                    "value": 1000000,
+                    "assets": [
+                        {
+                            "tokenId": nft,
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                    }
+                }
+            ],
+            "fee": 1000000,
+            "inputsRaw":
+                [box_id_to_binary(logic_nft_utxo["boxId"])],
+            "dataInputsRaw":
+                []
+        }
+    sign_tx(transaction_to_sign)
+
+
+def bootstrap_parameter_box(parameter_token, logic_nft):
     parameter_token_utxo = get_unspent_boxes_by_address(m_param_addr)[0]
     r5 = "1a01010a"
     if creation_settings["liquidationAssets"]:
@@ -356,11 +401,9 @@ def bootstrap_parameter_box(parameter_token):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple(creation_settings["liquidationThresholds"]),
-                        "R5": r5,
-                        "R6": "1a0120" + creation_settings["dexNFTs"][0],
-                        "R7": encode_long_tuple(creation_settings["penalty"]),
-                        "R8": SERIALIZED_SERVICE_ADDRESS
+                        "R4": "1a0120" + logic_nft,
+                        "R5": SERIALIZED_SERVICE_ADDRESS,
+                        "R6": encode_long_tuple(creation_settings["feeSettings"])
                     }
                 }
             ],
