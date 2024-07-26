@@ -58,7 +58,8 @@ def create_pool():
     f_interest_parameter_nft = hex_to_base58(interest_parameter_nft)
     f_currency_id = hex_to_base58(creation_settings["tokenId"])
     repayment_address = generate_repayment_script(f_pool_nft)
-    dex_nft = hex_to_base58(creation_settings["dexNFTs"][0])
+    f_dex_nft = hex_to_base58(creation_settings["dexNFTs"][0])
+    f_borrow_token = hex_to_base58(borrow_token_id)
     print(repayment_address)
     f_repayment_address = hex_to_base58(blake2b256(bytesLike(address_to_tree(repayment_address))))
     collateral_address = generate_collateral_script(f_repayment_address, f_interest_nft, f_currency_id)
@@ -68,7 +69,9 @@ def create_pool():
     print(pool_address)
     interest_address = generate_interest_script(f_pool_nft, f_interest_parameter_nft)
     print(interest_address)
-    logic_address = generate_logic_script(dex_nft)
+    logic_address = generate_logic_script(f_dex_nft)
+    proxy_borrow_address = generate_proxy_borrow_script(f_collateral_address, f_pool_nft, f_borrow_token, f_currency_id)
+    print(proxy_borrow_address)
     logger.info("Attempting to bootstrap contracts...")
     logger.info("Pool contract...")
     bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id)
@@ -100,13 +103,11 @@ def create_pool():
         "collateral": collateral_address,
         "repayment": repayment_address,
         "interest": interest_address,
-        "parent": "None",
-        "logic": logic_address,
 
         # SPF Proxy Addresses
         "proxy_lend": PROXY_LEND,
         "proxy_withdraw": PROXY_WITHDRAW,
-        "proxy_borrow": PROXY_BORROW,
+        "proxy_borrow": proxy_borrow_address,
         "proxy_repay": PROXY_REPAY,
         "proxy_partial_repay": PROXY_PARTIAL_REPAY,
 
@@ -118,19 +119,17 @@ def create_pool():
         "POOL_NFT": pool_nft,
         "CURRENCY_ID": creation_settings["tokenId"],
         "INTEREST_NFT": interest_nft,
-        "PARENT_NFT": "None",
         "PARAMETER_NFT": parameter_nft,
         "INTEREST_PARAMETER_NFT": interest_parameter_nft,
         "LEND_TOKEN": lend_token_id,
-        "LOGIC_NFT": logic_nft,
 
-        # SPF Collateral
-        "collateral_supported": {
-            "erg": {
-                "dex_nft": creation_settings["dexNFTs"][0],
-                "dex_fee": 997,
-                "dex_fee_serialized": "04ca0f"
-            }
+        #Logic Settings
+        "logic_settings": {
+            "address": logic_address,
+            "nft": logic_nft,
+            "dex_nft": creation_settings["dexNFTs"][0],
+            "dex_fee": 997,
+            "dex_fee_serialized": "04ca0f"
         }
     }
     update_pools_in_file(pool)
