@@ -15,7 +15,7 @@ logger = set_logger(__name__)
 def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
-    dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
+    dex_box = get_dex_box(pool["collateral_supported"]["erg"]["dex_nft"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     request_amounts = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     amount_to_borrow = request_amounts[0]
@@ -33,7 +33,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
 
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
-    tokens_to_liquidate = box["value"] - 5000000
+    tokens_to_liquidate =collateral_supplied - 5000000
     dex_fee = pool["collateral_supported"]["erg"]["dex_fee"]
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
                               ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +

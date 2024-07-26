@@ -158,7 +158,38 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 	}}
 	
 	val isValidBorrow = if (plausibleCollateralBoxes.size > 0) {{
-		true
+		val collateralBox = plausibleCollateralBoxes(0)
+		val collateralValue = collateralBox.value
+		val collateralBorrowTokens = collateralBox.tokens(0)
+		val collateralBorrower = collateralBox.R4[Coll[Byte]].get
+		val collateralUserPk = collateralBox.R5[GroupElement].get
+		val collateralSettings = collateralBox.R6[Coll[Long]].get // (Forced Liquidation, Buffer, Threshold...)
+		val forcedLiquidation = collateralSettings(0)
+		val bufferLiquidation = collateralSettings(1)
+		val threshold = collateralSettings(2)
+		val collateralQuoteNFT = collateralBox.R7[Coll[Byte]].get
+		val loanAmount = collateralBorrowTokens._2.toBigInt * borrowTokenValue / BorrowTokenDenomination
+	
+		val fQuote = OUTPUTS.filter{{
+		(b: Box) => b.tokens.size > 0 && customLogicNFTs.exists{{
+			(NFT: Coll[Byte]) => b.tokens(0)._1 == NFT && NFT == collateralQuoteNFT
+			}}
+		}}(0)
+		val quotePrice = fQuote.R4[Long].get
+		val quoteSettings = fQuote.R5[Coll[Long]].get 
+		
+		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
+		val isCorrectCollateralSettings = collateralSettings == quoteSettings
+		
+		val isCollateralTokensPreserved = collateralBorrowTokens._2 + currentBorrowTokens._2 == successorBorrowTokens._2
+		
+		val isAssetsInPoolDecreasing = deltaAssetsInPool < 0
+		val isAssetAmountValid = deltaAssetsInPool * -1 == loanAmount
+		val isTotalBorrowedValid = deltaTotalBorrowed == collateralBorrowTokens._2
+
+		(
+			commonConditions
+		)	
 	}} else {{
 		false
 	}}
@@ -572,7 +603,7 @@ def generate_interest_script(poolNFT, interestParamNFT):
 
 def generate_logic_script(dexNFT):
 	return compile_script(f'''{{
-	val DexNFT = fromBase58("abc")
+	val DexNFT = fromBase58("{dexNFT}")
 	val Slippage = 2.toBigInt
 	val SlippageDenom = 100.toBigInt
 	val DexFeeDenom = 1000.toBigInt
@@ -611,4 +642,95 @@ def generate_logic_script(dexNFT):
 
 
 
+def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, currencyId):
+	return compile_script(f'''{{
+	val collateralBoxScript  = fromBase58("{collateralScript}")
+	val minTxFee      = 1000000L
+	val minBoxValue   = 1000000L
+	val poolNFT       = fromBase58("{poolNFT}")
+ 	val BorrowTokenId = fromBase58("{borrowTokenId}")
+	val PoolNativeCurrency = fromBase58("{currencyId}")
+	
+	val user          = SELF.R4[Coll[Byte]].get
+	val requestedAmounts = SELF.R5[Coll[Long]].get
+	val requestAmount = requestedAmounts(0)
+	val borrowTokensRequest = requestedAmounts(1)
+	val publicRefund  = SELF.R6[Int].get
+	val userThresholdPenalty = SELF.R7[(Long, Long)].get
+	val userDexNft = SELF.R8[Coll[Byte]].get
+	val userPk = SELF.R9[GroupElement].get
+	
+	val operation = if (OUTPUTS.size < 3) {{
+		val refundBox = OUTPUTS(0)
+		val deltaErg = SELF.value - refundBox.value
+
+		val validRefundRecipient = refundBox.propositionBytes == user
+		val multiBoxSpendRefund = refundBox.R4[Coll[Byte]].get == SELF.id
+		val validDeltaErg = deltaErg <= minTxFee
+		val validHeight   = HEIGHT >= publicRefund
+
+		val refund = (
+			validRefundRecipient  &&
+			validDeltaErg &&
+			multiBoxSpendRefund &&
+			validHeight
+		)
+		refund
+	}} else {{
+		val poolBox       = OUTPUTS(0)
+		val collateralBox = OUTPUTS(1)
+		val userBox       = OUTPUTS(2)
+
+		val collateralTokens = collateralBox.tokens
+		val collateral = collateralBox.value
+		val collateralBorrowTokens = collateralBox.tokens(0)
+		val recordedBorrower = collateralBox.R4[Coll[Byte]].get
+		val collateralUserPk = collateralBox.R5[GroupElement].get
+		val currentSettings = collateralBox.R6[Coll[Long]].get // (Forced Liquidation, Buffer, iThreshold, Penalty, Automated Actions, More....)
+		val forcedLiquidation = currentSettings(0)
+		val bufferLiquidation = currentSettings(1)
+		val threshold = currentSettings(2)
+		val penalty = currentSettings(3)
+		val currentQuoteNFT = collateralBox.R7[Coll[Byte]].get
+
+		val loanAmount = collateralBorrowTokens._2
+
+		val validCollateralBoxScript = blake2b256(collateralBox.propositionBytes) == collateralBoxScript
+		val validCollateralTokens = collateral == SELF.value - minBoxValue - minTxFee
+		val validLoanAmount = (
+			borrowTokensRequest == collateralBox.tokens(0)._2 &&
+			collateralBorrowTokens._1 == BorrowTokenId &&
+			userBox.tokens(0)._1 == PoolNativeCurrency
+			)
+
+		val validBorrower = collateralBox.R4[Coll[Byte]].get == user
+		val validThresholdPenalty = userThresholdPenalty == (threshold, penalty)
+		val validDexNFT = userDexNft == currentQuoteNFT
+		val validUserPk = userPk == collateralUserPk
+		val validForcedLiquidation = forcedLiquidation > HEIGHT + 65020
+
+		val validInterestIndex = INPUTS(0).tokens(0)._1 == poolNFT // enforced by pool contract
+
+		val validUserScript = userBox.propositionBytes == user
+		val validUserLoanAmount = userBox.tokens(0)._2 == requestAmount
+		val multiBoxSpendSafety = userBox.R4[Coll[Byte]].get == SELF.id
+
+		val exchange = (
+			validCollateralBoxScript &&
+			validUserScript &&
+			validCollateralTokens &&
+			validLoanAmount &&
+			validBorrower &&
+			validThresholdPenalty &&
+			validDexNFT &&
+			validUserPk &&
+			validForcedLiquidation &&
+			validInterestIndex &&
+			validUserLoanAmount &&
+			multiBoxSpendSafety
+		)
+		exchange
+	}}
+	operation || proveDlog(userPk)
+}}''')
 

@@ -1,9 +1,9 @@
 from time import sleep
 
-from bootstrapping.pool_creation import create_pool, allAddressesWithBoxes
+from bootstrapping.pool_creation import create_pool, allAddressesWithBoxes, bootstrap_logic_box
 from consts import BorrowTokenDenomination
 from contracts.quacks import generate_repayment_script, generate_collateral_script, generate_pool_script, \
-    generate_interest_script
+    generate_interest_script, generate_logic_script
 from helpers.platform_functions import update_pools_in_file
 from helpers.serializer import bytesLike, blake2b256, encode_bigint, encode_long, hex_to_base58
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
@@ -14,7 +14,8 @@ from erg_pool.e_interest_rate import e_update_interest_rate
 from erg_pool.e_lend_proxy import e_lend_proxy_job
 from erg_pool.e_liquidation import e_liquidation_job
 from erg_pool.e_partial_repay_proxy import e_partial_repay_proxy_job
-from helpers.node_calls import unlock_wallet, current_height, generate_dummy_script, address_to_tree, mint_token
+from helpers.node_calls import unlock_wallet, current_height, generate_dummy_script, address_to_tree, mint_token, \
+    compile_script
 from token_pools.t_interest_rate_susd import t_update_interest_rate
 from token_pools.t_lend_proxy_sUsd import t_lend_proxy_job
 from token_pools.t_liquidation_susd import t_liquidation_job
@@ -70,6 +71,7 @@ if __name__ == "__main__":
                             curr_tx_obj = t_lend_proxy_job(pool)
                             curr_tx_obj = t_withdraw_proxy_job(pool, curr_tx_obj)
                             curr_tx_obj = t_borrow_proxy_job(pool, curr_tx_obj)
+                            t_repay_proxy_job(pool)
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")
