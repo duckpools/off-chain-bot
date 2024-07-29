@@ -69,9 +69,11 @@ if __name__ == "__main__":
                             e_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                         else:
                             curr_tx_obj = t_lend_proxy_job(pool)
+                            curr_tx_obj = t_repay_to_pool_job(pool, curr_tx_obj)
                             curr_tx_obj = t_withdraw_proxy_job(pool, curr_tx_obj)
                             curr_tx_obj = t_borrow_proxy_job(pool, curr_tx_obj)
                             t_repay_proxy_job(pool)
+                            t_partial_repay_proxy_job(pool)
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")

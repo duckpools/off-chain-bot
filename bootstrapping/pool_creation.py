@@ -3,7 +3,7 @@ from consts import m_interest_addr, m_borrow_addr, m_lend_addr, m_pool_addr, m_p
     m_currency_addr, m_logic_addr, PARAMETER_ADDRESS, SERIALIZED_SERVICE_ADDRESS, INTEREST_PARAMETER_ADDRESS, PROXY_LEND, \
     PROXY_WITHDRAW, PROXY_BORROW, PROXY_REPAY, PROXY_PARTIAL_REPAY, INTEREST_MULTIPLIER, BorrowTokenDenomination
 from contracts.quacks import generate_pool_script, generate_repayment_script, generate_collateral_script, \
-    generate_interest_script, generate_logic_script
+    generate_interest_script, generate_logic_script, generate_proxy_borrow_script
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import mint_token, box_id_to_binary, sign_tx, clean_node, address_to_tree, pay_token_to_address, \
     current_height
@@ -124,13 +124,14 @@ def create_pool():
         "LEND_TOKEN": lend_token_id,
 
         #Logic Settings
-        "logic_settings": {
+        "logic_settings": [{
             "address": logic_address,
             "nft": logic_nft,
             "dex_nft": creation_settings["dexNFTs"][0],
             "dex_fee": 997,
             "dex_fee_serialized": "04ca0f"
         }
+        ]
     }
     update_pools_in_file(pool)
     print(active_mints, repayment_address, collateral_address, pool_address)

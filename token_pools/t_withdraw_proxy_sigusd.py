@@ -60,7 +60,7 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
                     }
                 },
                 {
-                    "address": tree_to_address(param_box["additionalRegisters"]["R8"]["renderedValue"]),
+                    "address": tree_to_address(param_box["additionalRegisters"]["R5"]["renderedValue"]),
                     "value": MIN_BOX_VALUE,
                     "assets": [
                         {
