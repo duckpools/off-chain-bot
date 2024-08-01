@@ -78,7 +78,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
                         "R5": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R6": encode_long_tuple([2000, 200000, 1400, 300]),
+                        "R6": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"]
                     }
                 },
@@ -106,8 +106,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     ],
                     "registers": {
                         "R4": encode_long(liquidation_value),
-                        "R5": "0402",
-                        "R6": "0101"
+                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
+                        "R6": "0402",
+                        "R7": "0101"
                     }
                 }
             ],
@@ -123,7 +124,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
 
     obj = {"txId": tx_id,
            "finalBorrowed": final_borrowed}
-    dsdsd
+    dsdsdsd
     if tx_id != ERROR and tx_id != DOUBLE_SPENDING_ATTEMPT:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:
@@ -148,7 +149,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                 "inputsRaw":
                     [box_id_to_binary(box["boxId"])],
                 "dataInputsRaw":
-                    [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(head_child_interest_box["boxId"])]
+                    [box_id_to_binary(dex_box["boxId"])]
             }
 
         logger.debug("Signing Transaction: %s",  json.dumps(transaction_to_sign))

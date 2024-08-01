@@ -308,7 +308,7 @@ def bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id):
                         },
                         {
                             "tokenId": borrow_token_id,
-                            "amount": 900000000000000000
+                            "amount": 9000000000000000
                         },
                         {
                             "tokenId": creation_settings["tokenId"],
@@ -371,6 +371,8 @@ def bootstrap_logic_box(address, nft):
                         }
                     ],
                     "registers": {
+                        "R4": "0500",
+                        "R5": encode_long_tuple([100000000, 100000000, creation_settings["liquidationThresholds"][0], creation_settings["penalty"][0]])
                     }
                 }
             ],

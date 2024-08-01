@@ -624,8 +624,8 @@ def generate_logic_script(dexNFT):
 		(b : Box) => b.tokens.size > 0 && b.tokens(0) == SELF.tokens(0)
 	}}(0)
 
-	val boxIndex = outLogic.R5[Int].get
-	val isIndexOutput = outLogic.R6[Boolean].get
+	val boxIndex = outLogic.R6[Int].get
+	val isIndexOutput = outLogic.R7[Boolean].get
 	val boxToQuote = if (isIndexOutput) {{
 		OUTPUTS(boxIndex)
 	}} else {{
@@ -641,7 +641,8 @@ def generate_logic_script(dexNFT):
 	sigmaProp(
 		outLogic.propositionBytes == SELF.propositionBytes &&
 		outLogic.value >= SELF.value &&
-		outLogic.R4[Long].get == quotePrice
+		outLogic.R4[Long].get == quotePrice &&
+		outLogic.R5[Coll[Long]].get == SELF.R5[Coll[Long]].get
 	)
 }}''')
 

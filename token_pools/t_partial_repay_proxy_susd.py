@@ -5,8 +5,7 @@ from consts import MIN_BOX_VALUE, TX_FEE, NULL_TX_OBJ, ERROR
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
 from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
-from helpers.platform_functions import get_children_boxes, get_base_child, \
-    get_interest_box, get_dex_box, get_logic_box
+from helpers.platform_functions import get_interest_box, get_dex_box, get_logic_box
 from helpers.serializer import encode_long
 from logger import set_logger
 
@@ -122,8 +121,9 @@ def process_repay_partial_proxy_box(pool, box, empty):
                     ],
                     "registers": {
                         "R4": encode_long(liquidation_value),
-                        "R5": "0400",
-                        "R6": "0101"
+                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
+                        "R6": "0400",
+                        "R7": "0101"
                     }
                 }
             ],
