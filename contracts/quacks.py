@@ -192,9 +192,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 			successorLendTokens == currentLendTokens &&
 			isAssetsInPoolDecreasing &&
 			isAssetAmountValid &&
-			isTotalBorrowedValid &&
-			isCollateralTokensPreserved
-		)	
+			isTotalBorrowedValid
+			)	
 	}} else {{
 		false
 	}}
@@ -469,7 +468,7 @@ def generate_repayment_script(poolNFT):
 	p2s = f"""{{
 	// Constants
 	val transactionFee = 1000000L 
-	val MaxBorrowTokens = 900000000000000000L // Maximum allowed borrowable tokens
+	val MaxBorrowTokens = 9000000000000000L // Maximum allowed borrowable tokens
 	val PoolNft = fromBase58("{poolNFT}") // Non-fungible token for the pool
 
 	val initalPool = INPUTS(0)
@@ -527,7 +526,7 @@ def generate_interest_script(poolNFT, interestParamNFT):
 	val BorrowTokenDenomination = 10000000000000000L
 	val CoefficientDenomination = 100000000L
 	val InitiallyLockedLP = 9000000000000000L
-	val MaximumBorrowTokens = 900000000000000000L
+	val MaximumBorrowTokens = 9000000000000000L
 	val MaximumExecutionFee = 2000000
 	val updateFrequency = 120
 
