@@ -3,7 +3,7 @@ import json
 from consts import TX_FEE, MIN_BOX_VALUE, NULL_TX_OBJ
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
-from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
+from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_parent_box, get_head_child, get_children_boxes, get_base_child, \
     get_interest_box
 from logger import set_logger
@@ -123,4 +123,4 @@ def process_repay_proxy_box(pool, box, empty):
 
 
 def t_repay_proxy_job(pool):
-    job_processor(pool, pool["proxy_repay"], NULL_TX_OBJ, process_repay_proxy_box, "SUSD", 1047423)
+    job_processor(pool, pool["proxy_repay"], NULL_TX_OBJ, process_repay_proxy_box, "SUSD", current_height() - 50)

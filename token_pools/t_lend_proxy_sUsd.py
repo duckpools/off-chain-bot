@@ -3,7 +3,7 @@ import math
 
 from consts import MIN_BOX_VALUE, TX_FEE
 from helpers.job_helpers import latest_pool_info, job_processor
-from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
+from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import calculate_final_amount, get_pool_param_box
 from logger import set_logger
 
@@ -137,4 +137,4 @@ def process_lend_proxy_box(pool, box, latest_tx):
 
 
 def t_lend_proxy_job(pool):
-    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box, "lend", 1290000)
+    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box, "lend", current_height() - 50)
