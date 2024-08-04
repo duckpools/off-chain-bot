@@ -192,7 +192,9 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 			successorLendTokens == currentLendTokens &&
 			isAssetsInPoolDecreasing &&
 			isAssetAmountValid &&
-			isTotalBorrowedValid
+			isTotalBorrowedValid &&
+			isCorrectCollateralSettings &&
+			isCorrectCollateralAmount
 			)	
 	}} else {{
 		false
@@ -320,7 +322,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			validRecordOfLoan &&
 			isValidInterestBox
 		)
-		val collateralRecreationPaths = if (OUTPUTS(0).tokens.size >= 1 && INPUTS(0).tokens.size < 4) {{
+		val collateralRecreationPaths = if (OUTPUTS(0).tokens.size >= 1 && INPUTS(0).tokens.size < 3) {{
 			// Partial Repay
 			// Extract values form successor
 			val successor = OUTPUTS(0)
