@@ -216,13 +216,12 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
         }
         if client_amount != 0:
             transaction_to_sign["requests"][2]["assets"][0]["amount"] = str(borrower_share + 1)
-        if liquidation_box and client_amount != 1:
-            transaction_to_sign["inputsRaw"].append(box_id_to_binary(liquidation_box["boxId"]))
+        if client_amount != 1:
             transaction_to_sign["fee"] += 1000000
             transaction_to_sign["requests"].append(
                 {
                     "address": node_address,
-                    "value": liquidation_box["value"] - 1000000,
+                    "value": 1000000,
                     "assets": [
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
