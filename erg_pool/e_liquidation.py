@@ -4,7 +4,7 @@ import time
 from math import floor
 
 from consts import TX_FEE, PENALTY_DENOMINATION, MIN_BOX_VALUE, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, DEFAULT_BUFFER
+    ERG_RSV_DEX_NFT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT
 from client_consts import node_address
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
@@ -240,9 +240,10 @@ def get_dex_box_and_tokens(transaction, nft):
 def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children, dummy_script):
     if box["assets"][0]['tokenId'] == SIG_USD_ID:
         dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, ERG_USD_DEX_NFT)
-
     if box["assets"][0]['tokenId'] == SIG_RSV_ID:
         dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_rsv_tx, ERG_RSV_DEX_NFT)
+    if box["assets"][0]['tokenId'] == RSN_ID:
+        dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(None, ERG_RSN_DEX_NFT)
 
     dex_initial_val = int(dex_box["value"])
     dex_tokens = int(dex_box["assets"][2]["amount"])

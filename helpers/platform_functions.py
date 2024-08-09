@@ -3,7 +3,7 @@ import time
 from math import floor
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID
+    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, RSN_ID, ERG_RSN_DEX_NFT
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_unspent_by_tokenId
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
@@ -252,6 +252,8 @@ def liquidation_allowed(box, parent_box, head_child, children, height):
             dex_box = get_dex_box(ERG_USD_DEX_NFT)
         elif asset_token_id == SIG_RSV_ID:
             dex_box = get_dex_box(ERG_RSV_DEX_NFT)
+        elif asset_token_id == RSN_ID:
+            dex_box = get_dex_box(ERG_RSN_DEX_NFT)
         else:
             return False
 
