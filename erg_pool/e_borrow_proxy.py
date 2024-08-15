@@ -1,7 +1,7 @@
 import json
 
 from consts import TX_FEE, MAX_BORROW_TOKENS, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, ERG_RSV_DEX_NFT, MIN_BOX_VALUE, \
-    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT
+    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT, rsADA_ID, ERG_rsADA_DEX_NFT
 from helpers.job_helpers import job_processor, latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, \
@@ -22,6 +22,8 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         dex_box = get_dex_box(ERG_RSV_DEX_NFT)
     elif (held_token_in_proxy["tokenId"]) == RSN_ID:
         dex_box = get_dex_box(ERG_RSN_DEX_NFT)
+    elif (held_token_in_proxy["tokenId"]) == rsADA_ID:
+        dex_box = get_dex_box(ERG_rsADA_DEX_NFT)
     else:
         dex_box = None
 
