@@ -3,8 +3,8 @@ import requests
 import time
 
 from consts import MIN_BOX_VALUE, TX_FEE
-from client_consts import node_url, headers, node_address
-from helpers.node_calls import sign_tx, box_id_to_binary, generate_dummy_script
+from client_consts import node_url, headers, node_address, setup_on, add_liquidation_boxes_on
+from helpers.node_calls import sign_tx, box_id_to_binary, generate_dummy_script, generate_dummy_script_liquidations
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -135,9 +135,41 @@ def create_dummy_boxes(input_boxes, dummy_script):
         logger.error("Failed to submit transaction")
 
 
-dummy_script = generate_dummy_script(node_address)
-split_utxos()
-input_boxes = mint_dummy_tokens()
-if input_boxes:
-    create_dummy_boxes(input_boxes, dummy_script)
+def add_liquidation_boxes(dummy_script):
+    logger.info("Setting up option liquidation boxes...")
+    transaction_to_sign = \
+        {
+            "requests": [
+            ],
+            "fee": TX_FEE,
+            "inputsRaw":
+                [],
+            "dataInputsRaw":
+                []
+        }
+    for _ in range(5):
+        transaction_to_sign["requests"].append({
+            "address": dummy_script,
+            "value": 3 * MIN_BOX_VALUE,
+            "assets": [
+            ],
+            "registers": {
+            }
+        })
+    logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
+    tx_id = sign_tx(transaction_to_sign)
+    if tx_id != -1:
+        logger.info("Successfully submitted transaction with ID: %s", tx_id)
+    else:
+        logger.error("Failed to submit transaction")
+
+
+if setup_on:
+    dummy_script = generate_dummy_script(node_address)
+    split_utxos()
+    input_boxes = mint_dummy_tokens()
+    if input_boxes:
+        create_dummy_boxes(input_boxes, dummy_script)
+if add_liquidation_boxes_on:
+    add_liquidation_boxes(generate_dummy_script_liquidations(node_address))
 

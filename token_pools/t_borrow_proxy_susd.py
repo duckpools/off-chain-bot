@@ -14,7 +14,10 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
-    dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
+    try:
+        dex_box = get_dex_box(box["additionalRegisters"]["R8"]["renderedValue"])
+    except Exception:
+        return
 
     if not dex_box:
         logger.debug("No Dex Box Found")
