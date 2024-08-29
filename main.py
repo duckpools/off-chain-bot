@@ -1,8 +1,9 @@
 from time import sleep
 
+from arbitrage.arbitrage_flow import arb_flow
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
-from client_consts import node_address
+from client_consts import node_address, arbitrage_on
 from erg_pool.e_borrow_proxy import e_borrow_proxy_job
 from erg_pool.e_interest_rate import e_update_interest_rate
 from erg_pool.e_lend_proxy import e_lend_proxy_job
@@ -59,6 +60,8 @@ if __name__ == "__main__":
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")
+                if arbitrage_on:
+                    arb_flow()
         except KeyboardInterrupt:
             raise
         except Exception:
