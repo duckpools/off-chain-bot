@@ -45,7 +45,7 @@ def refund_repay_proxy_box(box):
 
 
 def process_repay_proxy_box(pool, box, empty):
-    if box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
+    if len(box["assets"]) == 0 or box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
         return
     borrower = box["additionalRegisters"]["R5"]["renderedValue"]
     collateral_box = box["additionalRegisters"]["R7"]["renderedValue"]

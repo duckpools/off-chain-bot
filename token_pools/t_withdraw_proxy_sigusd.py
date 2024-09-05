@@ -12,7 +12,7 @@ logger = set_logger(__name__)
 
 
 def process_withdraw_proxy_box(pool, box, latest_tx):
-    if box["assets"][0]["tokenId"] != pool["LEND_TOKEN"]:
+    if len(box["assets"]) == 0 or box["assets"][0]["tokenId"] != pool["LEND_TOKEN"]:
         return latest_tx
     pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
