@@ -182,7 +182,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                 },
                 {
                     "address": user,
-                    "value": MIN_BOX_VALUE / 2,
+                    "value": MIN_BOX_VALUE / 4,
                     "assets": [
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
@@ -217,11 +217,10 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
         if client_amount != 0:
             transaction_to_sign["requests"][2]["assets"][0]["amount"] = str(borrower_share + 1)
         if client_amount != 1:
-            transaction_to_sign["fee"] += 1000000
             transaction_to_sign["requests"].append(
                 {
                     "address": node_address,
-                    "value": 1000000,
+                    "value": 500000,
                     "assets": [
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
