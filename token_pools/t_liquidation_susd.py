@@ -7,26 +7,26 @@ from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, DEFAULT_BUFFER
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, \
-    get_children_boxes, liquidation_allowed_susd
-from helpers.serializer import encode_long_pair
+    get_children_boxes, liquidation_allowed_susd, get_interest_box, get_logic_box
+from helpers.serializer import encode_long_pair, encode_long
 from logger import set_logger
 
 logger = set_logger(__name__)
 
 
 def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate, liquidation_value, client_amount,
-                               lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child, dummy_script):
+                               lp_tokens, dex_box_address, total_due, interest_box, dummy_script):
     """
     Create a transaction to sign for liquidation.
     """
     collateral_value = liquidation_value
-    liquidation_penalty = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[1]
+    liquidation_penalty = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[3]
     borrower_share = math.floor(((collateral_value - total_due) * (PENALTY_DENOMINATION - liquidation_penalty)) / PENALTY_DENOMINATION)
     user = tree_to_address(box["additionalRegisters"]["R4"]["renderedValue"])
 
-
-    liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
-    liquidation_buffer = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[1]
+    logic_box = get_logic_box(pool["logic_settings"][0]["address"], pool["logic_settings"][0]["nft"])
+    liquidation_forced = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0]
+    liquidation_buffer = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[1]
     dummy_box = get_dummy_box(dummy_script)
     curr_height = current_height()
     if ((curr_height < liquidation_forced) and liquidation_buffer == DEFAULT_BUFFER):
@@ -96,7 +96,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": pool["collateral_supported"]["erg"]["dex_fee_serialized"]
+                        "R4": pool["logic_settings"][0]["dex_fee_serialized"]
                     }
                 },
                 {
@@ -130,12 +130,28 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     ],
                     "registers": {
                     }
+                },
+                {
+                    "address": pool["logic_settings"][0]["address"],
+                    "value": MIN_BOX_VALUE,
+                    "assets": [
+                        {
+                            "tokenId": logic_box["assets"][0]["tokenId"],
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                        "R4": encode_long(liquidation_value),
+                        "R5": "0501",
+                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": "0402",
+                        "R8": "0100"
+                    }
                 }
             ],
             "fee": TX_FEE,
-            "inputsRaw": [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"])],
-            "dataInputsRaw": [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
-                  box_id_to_binary(head_child["boxId"])]
+            "inputsRaw": [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"]), box_id_to_binary(logic_box["boxId"])],
+            "dataInputsRaw": [box_id_to_binary(interest_box["boxId"])]
         }
     elif ((curr_height > liquidation_forced or curr_height > liquidation_buffer)):
         transaction_to_sign = {
@@ -158,7 +174,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": pool["collateral_supported"]["erg"]["dex_fee_serialized"]
+                        "R4": pool["logic_settings"][0]["dex_fee_serialized"]
                     }
                 },
                 {
@@ -204,13 +220,30 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     ],
                     "registers": {
                     }
+                },
+                {
+                    "address": pool["logic_settings"][0]["address"],
+                    "value": MIN_BOX_VALUE,
+                    "assets": [
+                        {
+                            "tokenId": logic_box["assets"][0]["tokenId"],
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                        "R4": encode_long(liquidation_value),
+                        "R5": "0501",
+                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": "0402",
+                        "R8": "0100"
+                    }
                 }
             ],
             "fee": TX_FEE,
-            "inputsRaw": [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"])],
-            "dataInputsRaw": [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
-                  box_id_to_binary(head_child["boxId"])]
+            "inputsRaw": [box_id_to_binary(dex_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(dummy_box["boxId"]), box_id_to_binary(logic_box["boxId"])],
+            "dataInputsRaw": [box_id_to_binary(interest_box["boxId"])]
         }
+        print(transaction_to_sign)
     else:
         print("Waiting for buffer")
         return None
@@ -234,25 +267,21 @@ def get_dex_box_and_tokens(transaction, nft):
     return dex_box, lp_tokens, dex_box_address
 
 
-def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children, dummy_script):
-    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["collateral_supported"]["erg"]["dex_nft"])
-
+def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, interest_box, dummy_script):
+    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["logic_settings"][0]["dex_nft"])
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = box["value"] - MIN_BOX_VALUE - 3 * TX_FEE
-    dex_fee = pool["collateral_supported"]["erg"]["dex_fee"]
+    dex_fee = pool["logic_settings"][0]["dex_fee"]
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
 			((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
 			(tokens_to_liquidate * dex_fee)))
     client_amount = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
                               ((dex_initial_val + floor((dex_initial_val * 1 / 100))) * 1000 +
                                (tokens_to_liquidate * dex_fee))) - liquidation_value
-    loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
-    loan_parent_index = loan_indexes[0]
-    base_child = get_base_child(children, loan_parent_index)
 
     transaction_to_sign = create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, tokens_to_liquidate, liquidation_value, client_amount,
-                                                     lp_tokens, dex_box_address, total_due, head_child, parent_box, base_child, dummy_script)
+                                                     lp_tokens, dex_box_address, total_due, interest_box, dummy_script)
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
     if transaction_to_sign is None:
         return [sig_usd_tx, sig_rsv_tx]
@@ -275,17 +304,15 @@ def t_liquidation_job(pool, dummy_script, height):
     logger.info(f"Found: {num_unspent_proxy_boxes} boxes")
 
     tx = [None, None]
-    parent_box = get_parent_box(pool["parent"], pool["PARENT_NFT"])
-    head_child = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
-    children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
+    interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"], height)
+            liquidation_response = liquidation_allowed_susd(box, interest_box, pool["logic_settings"][0]["dex_nft"], pool["liquidation_threshold"][0], height)
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")
                 try:
-                    tx = process_liquidation(pool, box, tx[0], tx[1], liquidation_response[1], head_child, parent_box, children, dummy_script)
+                    tx = process_liquidation(pool, box, tx[0], tx[1], liquidation_response[1], interest_box, dummy_script)
                 except Exception as e:
                     logger.exception(
                         f"Failed to process liquidation box for transaction id: {transaction_id}. Exception: {e}")

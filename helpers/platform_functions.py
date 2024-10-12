@@ -7,6 +7,7 @@ from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
+from helpers.serializer import extract_number
 
 
 def get_dex_box(token, start_limit=5, max_limit=200):
@@ -176,7 +177,7 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
             return apply_interest(parent_interest_rates, loan_parent_index + 1, compounded_interest) * principal / INTEREST_MULTIPLIER
 
 
-def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold, height):
+def liquidation_allowed_susd(box, interest_box, nft, liquidation_threshold, height):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -190,10 +191,10 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
     try:
         dex_box = get_dex_box(nft)
         loan_amount = int(box["assets"][0]["amount"])
-        loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
-        liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
-        total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
-        total_due += 2
+        liquidation_forced = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0]
+        borrow_token_value = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
+        total_due = loan_amount * borrow_token_value / 10000000000000000
+        # total_due += 2
         collateral_amount = int(box["value"] - 4000000)
         collateral_value = ((int(dex_box["assets"][2]["amount"]) * collateral_amount * int(
             dex_box["additionalRegisters"]["R4"]["renderedValue"])) /
