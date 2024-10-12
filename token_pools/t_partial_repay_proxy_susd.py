@@ -121,9 +121,10 @@ def process_repay_partial_proxy_box(pool, box, empty):
                     ],
                     "registers": {
                         "R4": encode_long(liquidation_value),
-                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": "0400",
-                        "R7": "0101"
+                        "R5": "0501",
+                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": "0400",
+                        "R8": "0101"
                     }
                 }
             ],
