@@ -176,7 +176,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 			}}
 		}}(0)
 		val quotePrice = fQuote.R4[Long].get
-		val quoteSettings = fQuote.R5[Coll[Long]].get 
+		val quoteSettings = fQuote.R6[Coll[Long]].get 
 		
 		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
 		val isCorrectCollateralSettings = collateralSettings.slice(0, quoteSettings.size) == quoteSettings
@@ -213,7 +213,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val BorrowTokenDenomination = 10000000000000000L.toBigInt
 	val InterestRateDenom = 100000000L
 	val MaximumNetworkFee = 5000000
-	val DexLpTaxDenomination = 1000
+	val DexLpTaxDenomination = 1000 
 	val LiquidationThresholdDenom = 1000
 	val PenaltyDenom = 1000
 	val MinimumTransactionFee = 1000000L
@@ -237,7 +237,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val iPersistAutomatedAction = currentSettings(6)
 	val currentQuoteNFT = SELF.R7[Coll[Byte]].get
 	val loanAmount = currentBorrowTokens._2
-
+	
 	// Extract values from interest box
 	val interestBox = CONTEXT.dataInputs(0)
 	val interestBoxNFT = interestBox.tokens(0)._1
@@ -245,28 +245,28 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val borrowTokenValue = interestBox.R5[BigInt].get
 
 	val totalOwed = loanAmount.toBigInt * borrowTokenValue / BorrowTokenDenomination
-
+	
 	// Fetch Collateral Quote Box
 	val fQuotes = OUTPUTS.filter{{
 		(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == currentQuoteNFT
 	}}
-
+	
 	if (fQuotes.size > 0) {{
 		val fQuote = fQuotes.getOrElse(0, SELF)
 		val quotePrice = fQuote.R4[Long].get
 		val quotePriceSecondary = fQuote.R5[Long].get
-
+		
 		val fCollaterals = OUTPUTS.filter{{
 			(b: Box) => b.propositionBytes == SELF.propositionBytes
 		}}
-
+		
 		val fRepayments = OUTPUTS.filter{{
 			(b: Box) => blake2b256(b.propositionBytes) == RepaymentContractScript
 		}}
-
+		
 		if (fCollaterals.size > 0) {{
 			val fCollateral = fCollaterals.getOrElse(0, SELF)
-
+		
 			val fCollateralValue = fCollateral.value
 			val fCollateralBorrowTokens = fCollateral.tokens(0)
 			val fCollateralBorrower = fCollateral.R4[Coll[Byte]].get
@@ -289,25 +289,27 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			)
 			if (fRepayments.size > 0) {{
 				// Partial Repay and Automated Actions
-				val fRepayment = fRepayments.getOrElse(0, SELF)
-
+				val fRepayment = fRepayments.getOrElse(0, SELF)		
+				
+				
 				val fRepaymentValue = fRepayment.value
 				val fRepaymentBorrowTokens = fRepayment.tokens(0)
 				val fRepaymentLoanTokens = fRepayment.tokens(1)
 				val repaymentMade = fRepaymentLoanTokens._2
-
+				
+				val expectedBorrowTokens = currentBorrowTokens._2.toBigInt - (repaymentMade.toBigInt * BorrowTokenDenomination.toBigInt / borrowTokenValue.toBigInt)
+				val validBorrowTokens = fCollateralBorrowTokens._2.toBigInt >= expectedBorrowTokens
+				
 				val fRepaymentCommon = (
 					fRepaymentValue >= MinimumBoxValue + MinimumTransactionFee &&
 					fRepaymentBorrowTokens._1 == currentBorrowTokens._1 &&
 					fRepaymentLoanTokens._1 == PoolCurrencyId
-				)
-
-				// Specific Partial Repay Conditions
-				val expectedBorrowTokens = currentBorrowTokens._2.toBigInt - (repaymentMade.toBigInt * BorrowTokenDenomination.toBigInt / borrowTokenValue.toBigInt)
-				val validBorrowTokens = fCollateralBorrowTokens._2.toBigInt >= expectedBorrowTokens
+				)	
+				
+				// Specific Partial Repay Conditions				
 				val finalTotalOwed = fCollateralBorrowTokens._2 * borrowTokenValue / BorrowTokenDenomination
 				val isSufficientCollateral = quotePrice >= finalTotalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
-
+				
 				val partialRepayment = sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
@@ -320,16 +322,40 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					isValidInterestBox &&
 					isSufficientCollateral
 				)
+				
+				val actionsAllowed = iPersistAutomatedAction > 0
+				val isBelowAutomatedThreshold = quotePrice <= totalOwed.toBigInt * iAutomatedThreshold.toBigInt / LiquidationThresholdDenom.toBigInt 
+				val cannotLiquidate = quotePrice <= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
+				val isFinalCollateralValid = fCollateralValue.toBigInt + MaximumNetworkFee >= currentValue.toBigInt * fAutomatedPercentrage.toBigInt / LiquidationThresholdDenom.toBigInt
+				val isValidRepaymentAmount = repaymentMade >= quotePriceSecondary
 
+				val automatedActions = sigmaProp(
+					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
+					fCollateralCommon &&
+					isFinalCollateralValid &&
+					validBorrowTokens &&
+					fCollateralSettings.slice(0,6) == currentSettings.slice(0,6) &&
+					fPersistAutomatedAction == iPersistAutomatedAction - 1 &&
+					// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
+					fRepaymentCommon &&
+					fRepaymentBorrowTokens._2 == currentBorrowTokens._2 - fCollateralBorrowTokens._2 &&
+					isValidRepaymentAmount &&
+					isValidInterestBox &&
+					actionsAllowed &&
+					isBelowAutomatedThreshold && 
+					cannotLiquidate &&
+					isFinalCollateralValid
+				)
+				
 				// Specific Automated Action Conditions
-				partialRepayment || sigmaProp(false)
+				partialRepayment || automatedActions
 			}} else {{
 				// Prep Liquidation and Adjust Collateteral
 				// Specific Ready to liquidate conditions
 				val adjustBuffer = fBufferLiquidation > HEIGHT && fBufferLiquidation < HEIGHT + 5
 				val finalTotalOwed = fCollateralBorrowTokens._2 * borrowTokenValue / BorrowTokenDenomination
 				val isSufficientCollateral = quotePrice >= finalTotalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
-
+				
 				val readyToLiquidate = sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
@@ -343,13 +369,13 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					fAutomatedThreshold == iAutomatedThreshold &&
 					fPersistAutomatedAction == iPersistAutomatedAction &&
 					!isSufficientCollateral &&
-					isValidInterestBox
+					isValidInterestBox					
 				)
-
-
+				
+				
 				val isValidCollateral = quotePrice >= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
 
-				val adjustCollateral = proveDlog(currentUserPk) &&
+				val adjustCollateral = proveDlog(currentUserPk) && 
 				sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
@@ -361,31 +387,31 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				)
 				readyToLiquidate || adjustCollateral
 			}}
-
+			
 		}} else {{
 			val fRepayment = fRepayments.getOrElse(0, SELF)
-
+				
 			val fRepaymentValue = fRepayment.value
 			val fRepaymentBorrowTokens = fRepayment.tokens(0)
 			val fRepaymentLoanTokens = fRepayment.tokens(1)
 			val repaymentMade = fRepaymentLoanTokens._2
-
+			
 			val fRepaymentCommon = (
 				fRepaymentValue >= MinimumBoxValue + MinimumTransactionFee &&
 				fRepaymentBorrowTokens._1 == currentBorrowTokens._1 &&
 				fRepaymentLoanTokens._1 == PoolCurrencyId
-			)
-
+			)	
+		
 			val liquidationAllowed = (
 				(
 					quotePrice <= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt &&
 					HEIGHT >= iBufferLiquidation
-				) ||
+				) || 
 				HEIGHT > iForcedLiquidation
 			)
-
+			
 			val repaymentAmount = fRepaymentLoanTokens._2
-
+			
 			// Apply penalty on repayment and borrower share
 			val borrowerShare = ((quotePrice - totalOwed.toBigInt) * (PenaltyDenom.toBigInt - iPenalty.toBigInt)) / PenaltyDenom.toBigInt
 			val applyPenalty = if (borrowerShare < 1.toBigInt) {{
@@ -398,8 +424,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val validBorrowerShare = borrowBox.tokens(0)._2.toBigInt >= borrowerShare
 				val validBorrowerShareId = borrowBox.tokens(0)._1 == PoolCurrencyId
 				validRepayment && validBorrowerShare && validBorrowerShareId
-			}}
-
+			}}   
+			
 			val liquidate = sigmaProp(
 				liquidationAllowed &&
 				// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
@@ -414,26 +440,26 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		val fRepayment = OUTPUTS.filter{{
 			(b: Box) => blake2b256(b.propositionBytes) == RepaymentContractScript
 		}}.getOrElse(0, SELF)
-
+				
 		val fRepaymentValue = fRepayment.value
 		val fRepaymentBorrowTokens = fRepayment.tokens(0)
 		val fRepaymentLoanTokens = fRepayment.tokens(1)
 		val repaymentMade = fRepaymentLoanTokens._2
-
+		
 		val fRepaymentCommon = (
 			fRepaymentValue >= MinimumBoxValue + MinimumTransactionFee &&
 			fRepaymentBorrowTokens._1 == currentBorrowTokens._1 &&
 			fRepaymentLoanTokens._1 == PoolCurrencyId
-		)
-
+		)	
+		
 		// Extract values from borrowerBox
 		val borrowBox = OUTPUTS.filter{{
 			(b: Box) => b.propositionBytes == currentBorrower
-		}}.getOrElse(0, SELF)
+		}}.getOrElse(0, SELF)	
 		val borrowerValue = borrowBox.value
-
+		
 		val validBorrowerCollateral = borrowerValue >= currentValue - MinimumTransactionFee
-
+		
 		val repayment = sigmaProp(
 			// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
 			fRepaymentCommon &&
@@ -445,7 +471,6 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		repayment
 	}}
 }}''')
-
 
 def generate_repayment_script(poolNFT):
 	p2s = f"""{{
@@ -606,8 +631,8 @@ def generate_logic_script(dexNFT):
 		(b : Box) => b.tokens.size > 0 && b.tokens(0) == SELF.tokens(0)
 	}}(0)
 
-	val boxIndex = outLogic.R6[Int].get
-	val isIndexOutput = outLogic.R7[Boolean].get
+	val boxIndex = outLogic.R7[Int].get
+	val isIndexOutput = outLogic.R8[Boolean].get
 	val boxToQuote = if (isIndexOutput) {{
 		OUTPUTS(boxIndex)
 	}} else {{
@@ -619,12 +644,23 @@ def generate_logic_script(dexNFT):
 	val quotePrice = (yAssets * inputAmount * dexFee) /
 	((xAssets + (xAssets * Slippage / SlippageDenom)) * DexFeeDenom +
 	(inputAmount * dexFee)) 
-
+	
+	val validR5 = if (outLogic.R9[Long].isDefined) {{
+		val inputAmountSecondary = outLogic.R9[Long].get.toBigInt
+		val quotePriceSecondary = (yAssets * inputAmountSecondary * dexFee) /
+		((xAssets + (xAssets * Slippage / SlippageDenom)) * DexFeeDenom +
+		(inputAmount * dexFee)) 
+		outLogic.R5[Long].get == quotePriceSecondary
+	}} else {{
+		outLogic.R5[Long].get == -1
+	}}
+	
 	sigmaProp(
 		outLogic.propositionBytes == SELF.propositionBytes &&
 		outLogic.value >= SELF.value &&
 		outLogic.R4[Long].get == quotePrice &&
-		outLogic.R5[Coll[Long]].get == SELF.R5[Coll[Long]].get
+		validR5 &&
+		outLogic.R6[Coll[Long]].get == SELF.R6[Coll[Long]].get 
 	)
 }}''')
 
