@@ -6,14 +6,25 @@ from consts import oracle_nft, bank_addr, MAX_BORROW_TOKENS
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_unspent_by_tokenId
 from helpers.generic_calls import get_request
 from helpers.platform_functions import get_dex_box
-
+import requests
 
 def get_tx_from_mempool(tx_id):
-    response = json.loads(get_request(f"{node_url}/transactions/unconfirmed").text)
-    for item in response:
-        if item["id"] == tx_id:
-            return item
-
+    # Check the main API for the transaction
+    try:
+        response = requests.get(f"https://api.ergoplatform.com/api/v1/transactions/{tx_id}")
+        if response.status_code == 200:
+            return json.loads(response.text)  # Transaction found in the main API
+        elif response.status_code == 404:
+            # Transaction not found in the main API, check the mempool
+            mempool_response = json.loads(requests.get(f"{node_url}/transactions/unconfirmed").text)
+            for item in mempool_response:
+                if item["id"] == tx_id:
+                    return item
+        else:
+            # Handle other potential error statuses
+            return f"Error: Received status code {response.status_code} from API"
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
 def check_n2t_sell_token(amount, pool):
     dex_box = get_dex_box(pool["collateral_supported"]["erg"]["dex_nft"])
     dex_initial_val = int(dex_box["value"])
