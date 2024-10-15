@@ -7,11 +7,6 @@ import concurrent.futures
 from queue import Queue
 import requests
 
-# Maximum number of concurrent threads
-MAX_WORKERS = 3
-
-# Thread pool executor
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # Queue to keep track of pending sell transactions
 pending_sells = Queue()
@@ -40,19 +35,38 @@ def wait_for_confirmation(tx_id, timeout=900, retry_interval=30):
     return False
 
 def handle_sell_transaction(tokens_received, fee, max_fee, fund_box, low_earnings):
-    sell_tx_id = bank_sell_token(tokens_received, fee, max_fee, fund_box=fund_box, low_earnings=low_earnings)
-    if not wait_for_confirmation(sell_tx_id):
-        print(f"Transaction {sell_tx_id} not confirmed after 15 minutes. Resubmitting...")
+    # Step 2 must always be attempted until successful
+    sell_tx_id = None
+    while not sell_tx_id or not wait_for_confirmation(sell_tx_id):
         sell_tx_id = bank_sell_token(tokens_received, fee, max_fee, fund_box=fund_box, low_earnings=low_earnings)
-    print(f"Sell transaction {sell_tx_id} confirmed or resubmitted.")
+        print(f"Attempting sell transaction {sell_tx_id}.")
+    print(f"Sell transaction {sell_tx_id} confirmed.")
     pending_sells.get()  # Remove this transaction from the queue
 
-def execute_trade(susd_sell_price, amount, fee, max_fee=None, low_earnings=False):
-    tx_id, tokens_received = n2t_buy_token(susd_sell_price * amount, pools[1], fee, max_fee, low_earnings=low_earnings)
-    box = get_tx_from_mempool(tx_id)["outputs"][1]
+
+def execute_trade(susd_sell_price, amount, fee, max_fee=None, low_earnings=False, buy_timeout=900, max_buy_retries=5):
+    buy_tx_id = None
+    tokens_received = None
+    retries = 0
+    buy_success = False
+
+    while retries < max_buy_retries and not buy_success:
+        buy_tx_id, tokens_received = n2t_buy_token(susd_sell_price * amount, pools[1], fee, max_fee,
+                                                   low_earnings=low_earnings)
+        print(f"Attempting buy transaction {buy_tx_id}, attempt {retries + 1}.")
+        if wait_for_confirmation(buy_tx_id, timeout=buy_timeout):
+            buy_success = True
+            print(f"Buy transaction {buy_tx_id} confirmed.")
+        else:
+            retries += 1
+            print(f"Buy transaction {buy_tx_id} failed to confirm. Retrying ({retries}/{max_buy_retries})...")
+
+    # Regardless of buy transaction success, always proceed with sell
+    box = get_tx_from_mempool(buy_tx_id)["outputs"][1] if buy_success else None
     pending_sells.put(1)
-    executor.submit(handle_sell_transaction, tokens_received, fee, max_fee, box, low_earnings)
-    return tx_id
+    handle_sell_transaction(tokens_received, fee, max_fee, box, low_earnings)
+
+    return buy_tx_id
 
 def arb_flow():
     bank_stats = get_bank_stats()
@@ -74,6 +88,3 @@ def arb_flow():
 
     while not pending_sells.empty():
         time.sleep(1)
-
-def cleanup():
-    executor.shutdown(wait=True)
