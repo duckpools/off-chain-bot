@@ -1,9 +1,9 @@
 import json
 
 from consts import TX_FEE, MAX_BORROW_TOKENS, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, ERG_RSV_DEX_NFT, MIN_BOX_VALUE, \
-    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER
+    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT, rsADA_ID, ERG_rsADA_DEX_NFT
 from helpers.job_helpers import job_processor, latest_pool_info
-from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
+from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, \
     get_pool_param_box
 from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
@@ -20,6 +20,10 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         dex_box = get_dex_box(ERG_USD_DEX_NFT)
     elif (held_token_in_proxy["tokenId"]) == SIG_RSV_ID:
         dex_box = get_dex_box(ERG_RSV_DEX_NFT)
+    elif (held_token_in_proxy["tokenId"]) == RSN_ID:
+        dex_box = get_dex_box(ERG_RSN_DEX_NFT)
+    elif (held_token_in_proxy["tokenId"]) == rsADA_ID:
+        dex_box = get_dex_box(ERG_rsADA_DEX_NFT)
     else:
         dex_box = None
 
@@ -40,6 +44,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     amount_to_borrow = int(box["additionalRegisters"]["R5"]["renderedValue"])
     final_borrowed = borrowed + amount_to_borrow
     pool_param_box = get_pool_param_box(pool["parameter"], pool["PARAMETER_NFT"])
+    net_height = current_height() - 20
 
     transaction_to_sign = \
         {
@@ -83,7 +88,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R6": box["additionalRegisters"]["R7"]["serializedValue"],
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R9": encode_long_pair(int(box["additionalRegisters"]["R6"]["renderedValue"]) + pool["proxy_forced_liquidation"], DEFAULT_BUFFER)
+                        "R9": encode_long_pair(net_height + pool["proxy_forced_liquidation"], DEFAULT_BUFFER)
                     }
                 },
                 {
@@ -113,9 +118,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     if tx_id != -1 and tx_id != DOUBLE_SPENDING_ATTEMPT:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:
-        logger.info("Double spending attempt, trying again with fee: %s", str(fee + 12))
+        logger.info("Double spending attempt, trying again with fee: %s", str(fee + 120))
         print("Double spending attempt, trying again with higher fee")
-        process_borrow_proxy_box(pool, box, latest_tx, fee=fee + 2000)
+        process_borrow_proxy_box(pool, box, latest_tx, fee=fee + 120)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")
         transaction_to_sign = \

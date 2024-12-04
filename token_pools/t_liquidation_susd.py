@@ -3,9 +3,11 @@ import math
 import time
 from math import floor
 
+from client_consts import node_address
 from consts import PENALTY_DENOMINATION, MIN_BOX_VALUE, TX_FEE, DEFAULT_BUFFER
-from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
-from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
+from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box, get_liquidation_box
+from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height, \
+    generate_dummy_script_liquidations
 from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
     get_children_boxes, liquidation_allowed_susd
 from helpers.serializer import encode_long_pair
@@ -28,6 +30,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
     liquidation_buffer = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[1]
     dummy_box = get_dummy_box(dummy_script)
+    liquidation_box = get_liquidation_box(generate_dummy_script_liquidations(node_address))
     curr_height = current_height()
     if ((curr_height < liquidation_forced) and liquidation_buffer == DEFAULT_BUFFER):
         transaction_to_sign = \
@@ -171,7 +174,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         },
                         {
                             "tokenId": dex_box["assets"][2]["tokenId"],
-                            "amount": str(liquidation_value - borrower_share + client_amount)
+                            "amount": str(liquidation_value - borrower_share)
                         }
                     ],
                     "registers": {
@@ -211,6 +214,24 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
             "dataInputsRaw": [box_id_to_binary(base_child["boxId"]),box_id_to_binary(parent_box["boxId"]),
                   box_id_to_binary(head_child["boxId"])]
         }
+        if client_amount != 0:
+            transaction_to_sign["requests"][2]["assets"][0]["amount"] = str(borrower_share + 1)
+        if client_amount != 1:
+            transaction_to_sign["fee"] += 1000000
+            transaction_to_sign["requests"].append(
+                {
+                    "address": node_address,
+                    "value": 1000000,
+                    "assets": [
+                        {
+                            "tokenId": dex_box["assets"][2]["tokenId"],
+                            "amount": client_amount - 1
+                        }
+                    ],
+                    "registers": {
+                    }
+                }
+            )
     else:
         print("Waiting for buffer")
         return None
@@ -266,7 +287,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
         return [sig_usd_tx, sig_rsv_tx]
 
 
-def t_liquidation_job(pool, dummy_script):
+def t_liquidation_job(pool, dummy_script, height):
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
@@ -280,7 +301,7 @@ def t_liquidation_job(pool, dummy_script):
     children = get_children_boxes(pool["child"], pool["CHILD_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"])
+            liquidation_response = liquidation_allowed_susd(box, parent_box, head_child, children, pool["collateral_supported"]["erg"]["dex_nft"], pool["liquidation_threshold"], height)
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")

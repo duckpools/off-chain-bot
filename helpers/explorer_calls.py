@@ -2,13 +2,27 @@ import json
 import secrets
 import requests
 
-from consts import HTTP_NOT_FOUND
+from consts import HTTP_NOT_FOUND, MIN_BOX_VALUE
 from client_consts import explorer_url
 from helpers.generic_calls import logger, get_request
 
 
-def get_unspent_boxes_by_address(addr, limit=50, offset=0):
-    return json.loads(get_request(f"{explorer_url}/boxes/unspent/byAddress/{addr}?limit={limit}&offset={offset}").text)['items']
+def get_unspent_boxes_by_address(addr, total_items=1000, limit=70):
+    results = []
+
+    for offset in range(0, total_items, limit):
+        response = get_request(f"{explorer_url}/boxes/unspent/byAddress/{addr}?limit={limit}&offset={offset}")
+        data = json.loads(response.text).get('items', [])
+        results.extend(data)
+
+        if len(data) < limit:
+            break
+
+    return results
+
+
+def get_unspent_by_tokenId(tokenId):
+    return json.loads(get_request(f"{explorer_url}/boxes/unspent/byTokenId/{tokenId}").text)['items']
 
 
 def get_box_from_id_explorer(box_id):
@@ -44,4 +58,11 @@ def get_dummy_box(dummy_script):
         raise ValueError("No boxes found.")
 
     return secrets.choice(boxes_json)
+
+def get_liquidation_box(dummy_script):
+    boxes_json = get_unspent_boxes_by_address(dummy_script, 300)
+    for box in boxes_json:
+        if int(box["value"]) == 3 * MIN_BOX_VALUE:
+            return box
+    return None
 

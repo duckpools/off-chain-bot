@@ -1,5 +1,6 @@
 import json
 from math import floor
+from secrets import randbelow
 
 from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXECUTION_FEE, MAX_INTEREST_SIZE, \
@@ -84,7 +85,7 @@ def create_new_child(pool, head_child):
     return
 
 
-def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*TX_FEE):
+def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randbelow(1300001 - 1100000) + 1100000):
     dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
@@ -92,11 +93,11 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*T
     if len(json.loads(box["additionalRegisters"]["R4"]["renderedValue"])) == MAX_INTEREST_SIZE:
         create_new_child(pool, box)
     elif box_curr_height + INTEREST_FREQUENCY_POLL < curr_height:
-        if box_curr_height + INTEREST_FREQUENCY_POLL + 70 < curr_height:
+        if box_curr_height + INTEREST_FREQUENCY_POLL + 40 < curr_height:
             fee += 90000
-        elif box_curr_height + INTEREST_FREQUENCY_POLL + 35 < curr_height:
+        elif box_curr_height + INTEREST_FREQUENCY_POLL + 25 < curr_height:
             fee += 60000
-        elif box_curr_height + INTEREST_FREQUENCY_POLL + 20 < curr_height:
+        elif box_curr_height + INTEREST_FREQUENCY_POLL + 15 < curr_height:
             fee += 10000
         if latest_tx is None:
             erg_pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])

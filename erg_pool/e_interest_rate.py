@@ -1,5 +1,6 @@
 import json
 from math import floor
+from secrets import randbelow
 
 from client_consts import node_address
 from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXECUTION_FEE, MAX_INTEREST_SIZE, \
@@ -84,7 +85,7 @@ def create_new_child(head_child, pool):
     return
 
 
-def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=1.2*TX_FEE):
+def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randbelow(1300001 - 1100000) + 1100000):
     dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])

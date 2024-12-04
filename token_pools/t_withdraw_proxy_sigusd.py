@@ -3,7 +3,7 @@ from math import ceil
 
 from consts import MIN_BOX_VALUE, TX_FEE
 from helpers.job_helpers import latest_pool_info, job_processor
-from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx
+from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import calculate_service_fee, get_pool_param_box
 from logger import set_logger
 
@@ -135,4 +135,4 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
 
 
 def t_withdraw_proxy_job(pool, curr_tx_obj):
-    return job_processor(pool, pool["proxy_withdraw"], curr_tx_obj, process_withdraw_proxy_box, "withdrawal", 1047423)
+    return job_processor(pool, pool["proxy_withdraw"], curr_tx_obj, process_withdraw_proxy_box, "withdrawal", current_height() - 50)

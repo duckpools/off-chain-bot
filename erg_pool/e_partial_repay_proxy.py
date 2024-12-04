@@ -46,7 +46,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
     whole_collateral_box = get_box_from_id_explorer(collateral_box)
     logger.debug("Whole collateral box: ", whole_collateral_box)
 
-    if not whole_collateral_box:
+    if not whole_collateral_box or whole_collateral_box["spentTransactionId"] is not None:
         refund_repay_proxy_box(box)
         return
 

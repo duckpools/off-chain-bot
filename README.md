@@ -28,21 +28,77 @@ Please ensure all the above requirements are met before proceeding with the setu
 
 ### Step 1: Configure Constants
 
-1. Open the file `client_consts.py` in a text editor of your choice.
-2. Locate and fill in the following parameters:
-    - `node_url`: The URL of your node.
-    - `explorer_url`: The explorer API URL you wish to use.
-    - `api_key`: Your node's API key.
-    - `node_pass`: Your node's wallet password.
-    - `node_address`: Your node's wallet address.
-### Step 2: Execute `setup.py`
+ **Edit Client Constants**
+   - Open `client_consts.py` in your text editor or nano.
+   - Update the following parameters:
+     - `node_url`: The URL of your Ergo node (e.g., `http://localhost:9053/`). 
+     - `node_address`: Your node's main wallet address (e.g., `9fz...b32`).
+   - Parameters that do not require updates:
+     - `explorer_url`: Defaults to the standard explorer API URL.
+     - `api_key`: Pre-configured and should not be changed.
+     - `node_pass`: Pre-configured and should not be changed.
+### Step 2: Setup & Execute `setup.py`
 
-1. Open your terminal and navigate to the folder where `setup.py` is located.
-2. Run the following command:
-    ```bash
-    python3 setup.py
-    ```
-    **Note**: Running this setup file will spend 0.074 ERG to create boxes that are spendable only by your node. These boxes are necessary for executing liquidation transactions. If you choose to stop running the off-chain bot in the future, you can collect these boxes.
+#### Secure Handling of Environment Variables
+
+It's crucial to manage sensitive information such as API keys and passwords securely. One recommended approach is to use a `.duck_secrets` file in your home directory and source it when necessary. Below are the steps to set this up securely:
+
+1. **Create the .duck_secrets File**
+
+Create a `.duck_secrets` file in your home directory.
+Ensure the file is readable only by your user to prevent unauthorized access:
+
+```bash
+cd
+touch ~/.duck_secrets
+chmod 600 ~/.duck_secrets
+```
+
+2. **Add Environment Variables to the `.duck_secrets` File**
+Edit the `.duck_secrets` file and add your environment variables:
+
+```bash
+nano .duck_secrets
+```
+copy and paste the following into `.duck_secrets` file, update the strings inside the quotes.
+```bash
+export API_KEY="your_api_key_value"
+export WALLET_PASS="your_wallet_pass_value"
+```
+Save and close the file.
+
+3. **Source the `.duck_secrets` File When Needed**
+
+Source the `.duck_secrets` file in your terminal session to load the environment variables:
+
+```bash
+source ~/.duck_secrets
+```
+
+4. **Automatically Source .duck_secrets in Your Session**
+
+For automatic loading upon session start, add this snippet to your ~/.bashrc, ~/.bash_profile, or ~/.profile:
+
+```bash
+if [ -f ~/.duck_secrets ]; then
+  source ~/.duck_secrets
+fi
+```
+
+**Note:** Caution with Version Control
+Ensure .duck_secrets is in your `.gitignore` file to prevent it from being tracked by version control systems. If the file doesn't exist, create it, and add `.duck_secrets` to the file.
+
+
+5. **Run setup.py**
+Finally, go to the directory with ~/off-chain-bot/setup.py and run it
+
+Open your terminal and navigate to the folder where `setup.py` is located.
+
+```bash
+python3 setup.py
+```
+
+**Note**: Running this setup file will spend 0.074 ERG to create boxes that are spendable only by your node. These boxes are necessary for executing liquidation transactions. If you choose to stop running the off-chain bot in the future, you can collect these boxes.
 
 ### Step 3: Run `main.py`
 

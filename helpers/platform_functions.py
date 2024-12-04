@@ -3,10 +3,13 @@ import time
 from math import floor
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID
-from helpers.explorer_calls import get_unspent_boxes_by_address
+    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, RSN_ID, ERG_RSN_DEX_NFT, rsADA_ID, ERG_rsADA_DEX_NFT
+from helpers.explorer_calls import get_unspent_boxes_by_address, get_unspent_by_tokenId
 from helpers.generic_calls import logger
 from helpers.node_calls import first_output_from_mempool_tx
+
+
+
 
 
 def get_dex_box(token, start_limit=5, max_limit=200):
@@ -18,19 +21,26 @@ def get_dex_box(token, start_limit=5, max_limit=200):
     :param max_limit: The maximum number of boxes to search.
     :return: The dex box containing the specified token, or None if not found.
     """
-    limit = start_limit
+    try:
+        return get_unspent_by_tokenId(token)[0]
+    except Exception:
+        limit = start_limit
 
-    while limit <= max_limit:
-        unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
-        for box in unspent_boxes:
-            if box["assets"][0]["tokenId"] == token:
-                return box
+        while limit <= max_limit:
+            unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
-        limit *= 2  # Double the limit for the next iteration
+            for box in unspent_boxes:
+                try:
+                    if box["assets"][0]["tokenId"] == token:
+                        return box
+                except Exception as e:
+                    logger.info(e)
 
-    logger.warning("Could not find dex_box")
-    return None
+            limit *= 2  # Double the limit for the next iteration
+
+        logger.warning("Could not find dex_box")
+        return None
 
 def get_pool_box_from_tx(tx):
     return first_output_from_mempool_tx(tx)
@@ -178,10 +188,10 @@ def total_owed(principal, loan_indexes, parent_box, head_child, children):
         if num_children == loan_parent_index + 1:
             return principal * compounded_interest / INTEREST_MULTIPLIER
         else:
-            return apply_interest(parent_interest_rates, loan_parent_index, compounded_interest) * principal / INTEREST_MULTIPLIER
+            return apply_interest(parent_interest_rates, loan_parent_index + 1, compounded_interest) * principal / INTEREST_MULTIPLIER
 
 
-def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold):
+def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquidation_threshold, height):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -196,6 +206,7 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
         dex_box = get_dex_box(nft)
         loan_amount = int(box["assets"][0]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
+        liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
         total_due += 2
         collateral_amount = int(box["value"] - 4000000)
@@ -206,6 +217,8 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
                              1000 +
                              collateral_amount *
                              int(dex_box["additionalRegisters"]["R4"]["renderedValue"])))
+        if int(liquidation_forced) < int(height):
+            return [True, total_due]
         return [collateral_value <= ((total_due * liquidation_threshold) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
@@ -221,7 +234,7 @@ def get_children_boxes(address, nft):
     return res
 
 
-def liquidation_allowed(box, parent_box, head_child, children):
+def liquidation_allowed(box, parent_box, head_child, children, height):
     """
     Check if liquidation is allowed for a given box and interest box.
 
@@ -239,6 +252,10 @@ def liquidation_allowed(box, parent_box, head_child, children):
             dex_box = get_dex_box(ERG_USD_DEX_NFT)
         elif asset_token_id == SIG_RSV_ID:
             dex_box = get_dex_box(ERG_RSV_DEX_NFT)
+        elif asset_token_id == RSN_ID:
+            dex_box = get_dex_box(ERG_RSN_DEX_NFT)
+        elif asset_token_id == rsADA_ID:
+            dex_box = get_dex_box(ERG_rsADA_DEX_NFT)
         else:
             return False
 
@@ -248,10 +265,12 @@ def liquidation_allowed(box, parent_box, head_child, children):
          1000 +
          int(box["assets"][0]["amount"]) *
          int(dex_box["additionalRegisters"]["R4"]["renderedValue"])) - 4000000)
-
+        liquidation_forced = json.loads(box["additionalRegisters"]["R9"]["renderedValue"])[0]
         loan_amount = int(box["assets"][1]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
+        if int(liquidation_forced) < int(height):
+            return [True, total_due]
         return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000)
             and box["assets"][1]["tokenId"] == BORROW_TOKEN_ID, total_due]
     except (KeyError, IndexError, ValueError, TypeError):
