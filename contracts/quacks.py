@@ -220,6 +220,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val MinimumBoxValue = 1000000
 	val Slippage = 2 // Divided by 100 to represent 2%
 	val defaultBuffer = 100000000L
+	val storageRentLength = 980000L // Slightly less than full storage rent length for sanity
+	val storageRentMinValue = 8715000000L // Calculated using box size 3486 Bytes, storage rent cost 2.5M nanoErg per Byte
 
 	// Current Collateral Box
 	val currentScript = SELF.propositionBytes
@@ -228,7 +230,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val currentBorrower = SELF.R4[Coll[Byte]].get
 	val currentUserPk = SELF.R5[GroupElement].get
 	val currentSettings = SELF.R6[Coll[Long]].get // (Forced Liquidation, Buffer, iThreshold, Penalty, Automated Actions, More....)
-	val iForcedLiquidation = currentSettings(0)
+	val iForcedLiquidation = currentSettings(0) // TODO: DELETE AND SHIFT ARRAY
 	val iBufferLiquidation = currentSettings(1)
 	val iThreshold = currentSettings(2)
 	val iPenalty = currentSettings(3)
@@ -361,7 +363,6 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					fCollateralCommon &&
 					fCollateralValue >= currentValue - MinimumTransactionFee &&
 					fCollateral.tokens == SELF.tokens &&
-					fForcedLiquidation == iForcedLiquidation &&
 					fBufferLiquidation > HEIGHT && fBufferLiquidation < HEIGHT + 5 &&
 					fThreshold == iThreshold &&
 					fPenalty == iPenalty &&
@@ -407,7 +408,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					quotePrice <= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt &&
 					HEIGHT >= iBufferLiquidation
 				) || 
-				HEIGHT > iForcedLiquidation
+				HEIGHT > CONTEXT.creationInfo._1 + storageRentLength && SELF.value <= storageRentMinValue
 			)
 			
 			val repaymentAmount = fRepaymentLoanTokens._2
