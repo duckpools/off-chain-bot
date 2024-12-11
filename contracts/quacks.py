@@ -177,16 +177,19 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 		}}(0)
 		val quotePrice = fQuote.R4[Long].get
 		val quoteSettings = fQuote.R6[Coll[Long]].get 
+		val borrowLimit = quoteSettings(0)
+		val finalBorrowedFromPool = successorBorrowTokensCirculating * borrowTokenValue / BorrowTokenDenomination
+		val isUnderBorrowLimit = finalBorrowedFromPool < borrowLimit
 		
 		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
-		val isCorrectCollateralSettings = collateralSettings.slice(0, quoteSettings.size) == quoteSettings
+		val isCorrectCollateralSettings = collateralSettings == quoteSettings
 		
 		val isCollateralTokensPreserved = collateralBorrowTokens._2 + currentBorrowTokens._2 == successorBorrowTokens._2
 		
 		val isAssetsInPoolDecreasing = deltaAssetsInPool < 0
 		val isAssetAmountValid = deltaAssetsInPool * -1 == loanAmount
 		val isTotalBorrowedValid = deltaTotalBorrowed == collateralBorrowTokens._2
-
+		// TODO: Ensure boxes cannot be bloated by unnecessary data for storage rent risk
 		(
 			commonConditions &&
 			successorLendTokens == currentLendTokens &&
@@ -194,7 +197,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 			isAssetAmountValid &&
 			isTotalBorrowedValid &&
 			isCorrectCollateralSettings &&
-			isCorrectCollateralAmount
+			isCorrectCollateralAmount &&
+			isUnderBorrowLimit
 			)	
 	}} else {{
 		false
