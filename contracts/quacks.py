@@ -232,17 +232,12 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val currentScript = SELF.propositionBytes
 	val currentValue = SELF.value
 	val currentBorrowTokens = SELF.tokens(0)
+	val iCollateralTokens = SELF.tokens.slice(1, SELF.tokens.size)
 	val currentBorrower = SELF.R4[Coll[Byte]].get
 	val currentUserPk = SELF.R5[GroupElement].get
-	val currentSettings = SELF.R6[Coll[Long]].get // (Forced Liquidation, Buffer, iThreshold, Penalty, Automated Actions, More....)
-	val iForcedLiquidation = currentSettings(0) // TODO: DELETE AND SHIFT ARRAY
-	val iBufferLiquidation = currentSettings(1)
-	val iThreshold = currentSettings(2)
-	val iPenalty = currentSettings(3)
-	val iAutomatedThreshold = currentSettings(4)
-	val iAutomatedPercentrage = currentSettings(5)
-	val iPersistAutomatedAction = currentSettings(6)
+	val iBufferLiquidation = SELF.R6[Long].get
 	val currentQuoteNFT = SELF.R7[Coll[Byte]].get
+	val iSpendingNFT = SELF.R8[Coll[Byte]].get
 	val loanAmount = currentBorrowTokens._2
 	
 	// Extract values from interest box
@@ -260,8 +255,10 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	
 	if (fQuotes.size > 0) {{
 		val fQuote = fQuotes.getOrElse(0, SELF)
-		val quotePrice = fQuote.R4[Long].get
-		val quotePriceSecondary = fQuote.R5[Long].get
+		val quoteReport = fQuote.R4[Coll[Long]].get
+		val quotePrice = quoteReport(0)
+		val iThreshold = quoteReport(1)
+		val iPenalty = quoteReport(2)
 		
 		val fCollaterals = OUTPUTS.filter{{
 			(b: Box) => b.propositionBytes == SELF.propositionBytes
@@ -276,23 +273,21 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		
 			val fCollateralValue = fCollateral.value
 			val fCollateralBorrowTokens = fCollateral.tokens(0)
+			val fCollateralTokens = fCollateral.tokens.slice(1, fCollateral.tokens.size)
 			val fCollateralBorrower = fCollateral.R4[Coll[Byte]].get
 			val fCollateralUserPk = fCollateral.R5[GroupElement].get
-			val fCollateralSettings = fCollateral.R6[Coll[Long]].get
-			val fForcedLiquidation = fCollateralSettings(0)
-			val fBufferLiquidation = fCollateralSettings(1)
-			val fThreshold = fCollateralSettings(2)
-			val fPenalty = fCollateralSettings(3)
-			val fAutomatedThreshold = fCollateralSettings(4)
-			val fAutomatedPercentrage = fCollateralSettings(5)
-			val fPersistAutomatedAction = currentSettings(6)
+			val fBufferLiquidation = fCollateral.R6[Long].get
 			val fCollateralQuoteNFT = fCollateral.R7[Coll[Byte]].get
-
+			val fSpendingNFT = fCollateral.R8[Coll[Byte]].get
+			
+			val bufferLiquidationSame = fBufferLiquidation == iBufferLiquidation
+			
 			val fCollateralCommon = (
 				fCollateralBorrowTokens._1 == currentBorrowTokens._1 &&
 				fCollateralBorrower == currentBorrower &&
 				fCollateralUserPk == currentUserPk &&
-				fCollateralQuoteNFT == currentQuoteNFT
+				fCollateralQuoteNFT == currentQuoteNFT &&
+				iSpendingNFT == fSpendingNFT
 			)
 			if (fRepayments.size > 0) {{
 				// Partial Repay and Automated Actions
@@ -316,46 +311,22 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				// Specific Partial Repay Conditions				
 				val finalTotalOwed = fCollateralBorrowTokens._2 * borrowTokenValue / BorrowTokenDenomination
 				val isSufficientCollateral = quotePrice >= finalTotalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
+				val isTokensUntouched = fCollateralTokens == iCollateralTokens
 				
 				val partialRepayment = sigmaProp(
-					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
+					// Complete Collateral Checks (Value, Borrow Token Amount, Tokens, Buffer)
 					fCollateralCommon &&
 					fCollateralValue >= currentValue &&
 					validBorrowTokens &&
-					fCollateralSettings == currentSettings &&
+					isTokensUntouched &&
+					bufferLiquidationSame &&
 					// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
 					fRepaymentCommon &&
 					fRepaymentBorrowTokens._2 == currentBorrowTokens._2 - fCollateralBorrowTokens._2 &&
 					isValidInterestBox &&
 					isSufficientCollateral
 				)
-				
-				val actionsAllowed = iPersistAutomatedAction > 0
-				val isBelowAutomatedThreshold = quotePrice <= totalOwed.toBigInt * iAutomatedThreshold.toBigInt / LiquidationThresholdDenom.toBigInt 
-				val cannotLiquidate = quotePrice <= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
-				val isFinalCollateralValid = fCollateralValue.toBigInt + MaximumNetworkFee >= currentValue.toBigInt * fAutomatedPercentrage.toBigInt / LiquidationThresholdDenom.toBigInt
-				val isValidRepaymentAmount = repaymentMade >= quotePriceSecondary
-
-				val automatedActions = sigmaProp(
-					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
-					fCollateralCommon &&
-					isFinalCollateralValid &&
-					validBorrowTokens &&
-					fCollateralSettings.slice(0,6) == currentSettings.slice(0,6) &&
-					fPersistAutomatedAction == iPersistAutomatedAction - 1 &&
-					// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
-					fRepaymentCommon &&
-					fRepaymentBorrowTokens._2 == currentBorrowTokens._2 - fCollateralBorrowTokens._2 &&
-					isValidRepaymentAmount &&
-					isValidInterestBox &&
-					actionsAllowed &&
-					isBelowAutomatedThreshold && 
-					cannotLiquidate &&
-					isFinalCollateralValid
-				)
-				
-				// Specific Automated Action Conditions
-				partialRepayment || automatedActions
+				partialRepayment
 			}} else {{
 				// Prep Liquidation and Adjust Collateteral
 				// Specific Ready to liquidate conditions
@@ -369,26 +340,22 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					fCollateralValue >= currentValue - MinimumTransactionFee &&
 					fCollateral.tokens == SELF.tokens &&
 					fBufferLiquidation > HEIGHT && fBufferLiquidation < HEIGHT + 5 &&
-					fThreshold == iThreshold &&
-					fPenalty == iPenalty &&
-					fAutomatedPercentrage == iAutomatedPercentrage &&
-					fAutomatedThreshold == iAutomatedThreshold &&
-					fPersistAutomatedAction == iPersistAutomatedAction &&
 					!isSufficientCollateral &&
 					isValidInterestBox					
 				)
 				
 				
 				val isValidCollateral = quotePrice >= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt
-
-				val adjustCollateral = proveDlog(currentUserPk) && 
+				val nftProofGiven = INPUTS.filter{{
+					(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == fSpendingNFT
+				}}.size > 0
+				val adjustCollateral = (sigmaProp(nftProofGiven) || proveDlog(currentUserPk)) && 
 				sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
 					fCollateralValue >= 3 * MinimumBoxValue + MinimumTransactionFee &&
 					isValidCollateral &&
-					fCollateral.tokens == SELF.tokens &&
-					fCollateralSettings == currentSettings &&
+					fCollateralBorrowTokens == iCollateralBorrowTokens &&
 					isValidInterestBox
 				)
 				readyToLiquidate || adjustCollateral
@@ -620,56 +587,136 @@ def generate_interest_script(poolNFT, interestParamNFT):
 
 
 def generate_logic_script(dexNFT):
-	return compile_script(f'''{{
-	val DexNFT = fromBase58("{dexNFT}")
+	return compile_script(f'''{{	
 	val Slippage = 2.toBigInt
 	val SlippageDenom = 100.toBigInt
 	val DexFeeDenom = 1000.toBigInt
 	val MaximumNetworkFee = 5000000
-
-	val dexBox = CONTEXT.dataInputs.filter {{
-		(b : Box) => b.tokens.size > 0 && b.tokens(0)._1 == DexNFT
-	}}(0)
-	val xAssets = dexBox.value.toBigInt
-	val yAssets = dexBox.tokens(2)._2.toBigInt
+	val LargeMultiplier = 1000000000000L
 
 	val outLogic = OUTPUTS.filter {{
 		(b : Box) => b.tokens.size > 0 && b.tokens(0) == SELF.tokens(0)
 	}}(0)
 
-	val boxIndex = outLogic.R7[Int].get
-	val isIndexOutput = outLogic.R8[Boolean].get
-	val boxToQuote = if (isIndexOutput) {{
-		OUTPUTS(boxIndex)
-	}} else {{
-		INPUTS(boxIndex)
-	}}		
+	val iDexNfts = SELF.R5[Coll[Coll[Byte]]].get
+	val iAssetThresholds = SELF.R6[Coll[Long]].get
+	
+	val fReport = outLogic.R4[Coll[Long]].get
+	val fQuotePrice = fReport(0)
+	val fAggregateThreshold = fReport(1)
+	val fAggregatePenalty = fReport(2) 
+	val fDexNfts = outLogic.R5[Coll[Coll[Byte]]].get
+	val primaryDexNft = fDexNfts(0)
+	val secondaryDexNfts = fDexNfts.slice(1, fDexNfts.size)
+	val fAssetThresholds = outLogic.R6[Coll[Long]].get
+	val fOrderedAssetAmounts = outLogic.R7[Coll[Long]].get
+	val fOrderedQuotedAssetIds = outLogic.R8[Coll[Coll[Byte]]].get
+	val fHelperIndices = outLogic.R9[Coll[Int]].get
+	val fBoxIndex = fHelperIndices(0)
+	val fDexStartIndex = fHelperIndices(1)
 
-	val inputAmount = boxToQuote.value.toBigInt - MaximumNetworkFee.toBigInt 
-	val dexFee = dexBox.R4[Int].get.toBigInt
+	// 1 -> 0, 2 -> 1, 3 -> 2, 4 -> 3 For OUTPUTS
+	// -1 -> 0, -2 -> 1, -3 -> 2, -4 -> 3 For INPUTS
+	val boxToQuote = if (fBoxIndex > 0) {{
+		OUTPUTS(fBoxIndex - 1)
+	}} else {{
+		INPUTS(fBoxIndex * -1 - 1)
+	}}	
+
+	val primaryDexBox = CONTEXT.dataInputs(fDexStartIndex)
+	val dexDIns = CONTEXT.dataInputs.slice(fDexStartIndex + 1, CONTEXT.dataInputs.size) // Primary DEX Box at fDexStartIndex
+	val dInsMatchesAssetsSize = dexDIns.size == fOrderedAssetAmounts.size && dexDIns.size == secondaryDexNfts.size
+	val collateralValueInErgs = dexDIns.zip(fOrderedAssetAmounts).fold(0L.toBigInt, {{(z:BigInt, p: (Box, Long)) => (
+	{{
+		if (p._2 > 0) {{
+			val dexBox = p._1
+			val dexReservesErg = dexBox.value
+			val dexReservesToken = dexBox.tokens(2)
+			val dexFee = dexBox.R4[Int].get
+			val inputAmount = p._2
+			val collateralMarketValue = (dexReservesErg.toBigInt * inputAmount.toBigInt * dexFee.toBigInt) /
+			  ((dexReservesToken._2.toBigInt + (dexReservesToken._2.toBigInt * Slippage.toBigInt / 100.toBigInt)) * DexFeeDenom.toBigInt +
+			  (inputAmount.toBigInt * dexFee.toBigInt)) - MaximumNetworkFee.toBigInt // Formula from spectrum dex
+	
+			z + collateralMarketValue
+		}} else {{
+			z
+		}}
+	}}
+	)}})
+	val aggregateThreshold = fOrderedAssetAmounts.indices.fold(0L.toBigInt, {{(z:BigInt, index: Int) => (
+	{{
+		val inputAmount = fOrderedAssetAmounts(index)
+		if (inputAmount > 0) {{
+			val dexBox = dexDIns(index)
+			val dexReservesErg = dexBox.value
+			val dexReservesToken = dexBox.tokens(2)
+			val dexFee = dexBox.R4[Int].get
+			
+			val collateralMarketValue = (dexReservesErg.toBigInt * inputAmount.toBigInt * dexFee.toBigInt) /
+				((dexReservesToken._2.toBigInt + (dexReservesToken._2.toBigInt * Slippage.toBigInt / 100.toBigInt)) * DexFeeDenom.toBigInt +
+				(inputAmount.toBigInt * dexFee.toBigInt)) - MaximumNetworkFee.toBigInt // Formula from spectrum dex 
+				// TODO: Check implications of continually adding dex fee when aggregating totals (does this reduce threshold by rounding?)
+			val threshold = fAssetThresholds(index)
+	
+			z + (collateralMarketValue * LargeMultiplier * threshold) / collateralValueInErgs
+		}} else {{
+			z
+		}}
+	}}
+	)}})
+	val zippedOrderedAssetsList = fOrderedQuotedAssetIds.zip(fOrderedAssetAmounts)
+	val matchingOrderedListSize = fOrderedAssetAmounts.size == fOrderedQuotedAssetIds.size
+	val allAssetsCounted = boxToQuote.tokens.slice(1,boxToQuote.tokens.size).forall{{
+		(token: (Coll[Byte], Long)) => zippedOrderedAssetsList.exists {{
+			(reportedToken: (Coll[Byte], Long)) => reportedToken == token
+		}}
+	}}
+
+	val missingAssetsSize = fOrderedAssetAmounts.size - boxToQuote.tokens.size - 1 // Ignores the borrow tokens
+	val correctNumberOfZeroes = fOrderedAssetAmounts.filter{{
+		(Amount: Long) => {{
+		Amount == 0L
+		}}
+	}}.size == missingAssetsSize
+
+	val assetsOrderedCorrectly = secondaryDexNfts.indices.forall{{
+		(index: Int) =>
+		val dexBox = dexDIns(index)
+		val dexNFT = secondaryDexNfts(index)
+		val dexTokenId = dexBox.tokens(2)._1
+		val reportedAssetId = fOrderedQuotedAssetIds(index)
+		(
+			dexNFT == dexBox.tokens(0)._1 &&
+			reportedAssetId == dexTokenId
+		)
+	}}
+
+	val validAggregateThreshold = aggregateThreshold == fAggregateThreshold * LargeMultiplier
+	val validPenalty = fAggregatePenalty == 30L // Static Penalty as an example
+
+	val xAssets = primaryDexBox.value.toBigInt
+	val yAssets = primaryDexBox.tokens(2)._2.toBigInt
+
+	val inputAmount = boxToQuote.value.toBigInt + collateralValueInErgs.toBigInt - MaximumNetworkFee.toBigInt 
+	val dexFee = primaryDexBox.R4[Int].get.toBigInt
 	val quotePrice = (yAssets * inputAmount * dexFee) /
 	((xAssets + (xAssets * Slippage / SlippageDenom)) * DexFeeDenom +
-	(inputAmount * dexFee)) 
-	
-	val validR5 = if (outLogic.R9[Long].isDefined) {{
-		val inputAmountSecondary = outLogic.R9[Long].get.toBigInt
-		val quotePriceSecondary = (yAssets * inputAmountSecondary * dexFee) /
-		((xAssets + (xAssets * Slippage / SlippageDenom)) * DexFeeDenom +
-		(inputAmount * dexFee)) 
-		outLogic.R5[Long].get == quotePriceSecondary
-	}} else {{
-		outLogic.R5[Long].get == -1
-	}}
-	
+	(inputAmount * dexFee))
+
+	val validQuote = quotePrice == fQuotePrice
+
 	sigmaProp(
-		outLogic.propositionBytes == SELF.propositionBytes &&
-		outLogic.value >= SELF.value &&
-		outLogic.R4[Long].get == quotePrice &&
-		validR5 &&
-		outLogic.R6[Coll[Long]].get == SELF.R6[Coll[Long]].get 
+		validQuote &&
+		validAggregateThreshold &&
+		validPenalty &&
+		allAssetsCounted &&
+		assetsOrderedCorrectly &&
+		dInsMatchesAssetsSize &&
+		matchingOrderedListSize &&
+		correctNumberOfZeroes
 	)
 }}''')
-
 
 
 def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, currencyId):
