@@ -1,7 +1,7 @@
 from helpers.node_calls import compile_script
 
 
-def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft, serviceFeeThresholds):
+def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft):
     return compile_script(f'''{{
 	// Constants
 	val InterestNFT = fromBase58("{childBoxNft}")
@@ -163,9 +163,6 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 		val collateralBorrower = collateralBox.R4[Coll[Byte]].get
 		val collateralUserPk = collateralBox.R5[GroupElement].get
 		val bufferLiquidationHeight = collateralBox.R6[Long].get
-		val forcedLiquidation = collateralSettings(0)
-		val bufferLiquidation = collateralSettings(1)
-		val threshold = collateralSettings(2)
 		val collateralQuoteNFT = collateralBox.R7[Coll[Byte]].get
 		val verifiedSpendingNFT = collateralBox.R8[Coll[Byte]].get
 		val loanAmount = collateralBorrowTokens._2.toBigInt * borrowTokenValue / BorrowTokenDenomination
@@ -175,9 +172,10 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft,
 			(NFT: Coll[Byte]) => b.tokens(0)._1 == NFT && NFT == collateralQuoteNFT
 			}}
 		}}(0)
-		val quotePrice = fQuote.R4[Long].get
-		val quoteSettings = fQuote.R6[Coll[Long]].get 
-		val borrowLimit = quoteSettings(0)
+		val quoteReport = fQuote.R4[Coll[Long]].get 
+		val borrowLimit = quoteReport(0)
+		val quotePrice = quoteReport(1)
+		val threshold = quoteReport(2)
 		val finalBorrowedFromPool = successorBorrowTokensCirculating * borrowTokenValue / BorrowTokenDenomination
 		val isUnderBorrowLimit = finalBorrowedFromPool < borrowLimit
 		
@@ -256,9 +254,9 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	if (fQuotes.size > 0) {{
 		val fQuote = fQuotes.getOrElse(0, SELF)
 		val quoteReport = fQuote.R4[Coll[Long]].get
-		val quotePrice = quoteReport(0)
-		val iThreshold = quoteReport(1)
-		val iPenalty = quoteReport(2)
+		val quotePrice = quoteReport(1)
+		val iThreshold = quoteReport(2)
+		val iPenalty = quoteReport(3)
 		
 		val fCollaterals = OUTPUTS.filter{{
 			(b: Box) => b.propositionBytes == SELF.propositionBytes
@@ -355,7 +353,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					fCollateralCommon &&
 					fCollateralValue >= 3 * MinimumBoxValue + MinimumTransactionFee &&
 					isValidCollateral &&
-					fCollateralBorrowTokens == iCollateralBorrowTokens &&
+					fCollateralBorrowTokens == currentBorrowTokens &&
 					isValidInterestBox
 				)
 				readyToLiquidate || adjustCollateral
@@ -380,7 +378,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					quotePrice <= totalOwed.toBigInt * iThreshold.toBigInt / LiquidationThresholdDenom.toBigInt &&
 					HEIGHT >= iBufferLiquidation
 				) || 
-				HEIGHT > CONTEXT.creationInfo._1 + storageRentLength && SELF.value <= storageRentMinValue
+				HEIGHT > SELF.creationInfo._1 + storageRentLength && SELF.value <= storageRentMinValue
 			)
 			
 			val repaymentAmount = fRepaymentLoanTokens._2
@@ -586,7 +584,7 @@ def generate_interest_script(poolNFT, interestParamNFT):
 }}''')
 
 
-def generate_logic_script(dexNFT):
+def generate_logic_script():
 	return compile_script(f'''{{	
 	val Slippage = 2.toBigInt
 	val SlippageDenom = 100.toBigInt
@@ -598,13 +596,16 @@ def generate_logic_script(dexNFT):
 		(b : Box) => b.tokens.size > 0 && b.tokens(0) == SELF.tokens(0)
 	}}(0)
 
+	val iReport = outLogic.R4[Coll[Long]].get
+	val iBorrowLimit = iReport(0)
 	val iDexNfts = SELF.R5[Coll[Coll[Byte]]].get
 	val iAssetThresholds = SELF.R6[Coll[Long]].get
 	
 	val fReport = outLogic.R4[Coll[Long]].get
-	val fQuotePrice = fReport(0)
-	val fAggregateThreshold = fReport(1)
-	val fAggregatePenalty = fReport(2) 
+	val fBorrowLimit = fReport(0)
+	val fQuotePrice = fReport(1)
+	val fAggregateThreshold = fReport(2)
+	val fAggregatePenalty = fReport(3) 
 	val fDexNfts = outLogic.R5[Coll[Coll[Byte]]].get
 	val primaryDexNft = fDexNfts(0)
 	val secondaryDexNfts = fDexNfts.slice(1, fDexNfts.size)
@@ -714,7 +715,8 @@ def generate_logic_script(dexNFT):
 		assetsOrderedCorrectly &&
 		dInsMatchesAssetsSize &&
 		matchingOrderedListSize &&
-		correctNumberOfZeroes
+		correctNumberOfZeroes &&
+		iBorrowLimit == fBorrowLimit
 	)
 }}''')
 

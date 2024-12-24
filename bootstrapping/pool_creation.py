@@ -65,11 +65,11 @@ def create_pool():
     collateral_address = generate_collateral_script(f_repayment_address, f_interest_nft, f_currency_id)
     print(collateral_address)
     f_collateral_address = hex_to_base58(blake2b256(bytesLike(address_to_tree(collateral_address))))
-    pool_address = generate_pool_script(f_collateral_address, f_interest_nft, f_parameter_nft, creation_settings["serviceFeeThresholds"])
+    pool_address = generate_pool_script(f_collateral_address, f_interest_nft, f_parameter_nft)
     print(pool_address)
     interest_address = generate_interest_script(f_pool_nft, f_interest_parameter_nft)
     print(interest_address)
-    logic_address = generate_logic_script(f_dex_nft)
+    logic_address = generate_logic_script()
     proxy_borrow_address = generate_proxy_borrow_script(f_collateral_address, f_pool_nft, f_borrow_token, f_currency_id)
     print(proxy_borrow_address)
     logger.info("Attempting to bootstrap contracts...")
@@ -371,9 +371,9 @@ def bootstrap_logic_box(address, nft):
                         }
                     ],
                     "registers": {
-                        "R4": "0500",
-                        "R5": "0500",
-                        "R6": encode_long_tuple([100000000, 100000000, creation_settings["liquidationThresholds"][0], creation_settings["penalty"][0]])
+                        "R4": encode_long_tuple([1000000000]),
+                        "R5": "1a0120" + creation_settings["dexNFTs"][0],
+                        "R6": encode_long_tuple([creation_settings["liquidationThresholds"][0]])
                     }
                 }
             ],
