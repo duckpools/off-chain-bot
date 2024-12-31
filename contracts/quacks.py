@@ -161,10 +161,13 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 	
 	val plausibleCollateralBoxes = OUTPUTS.filter{{
 		(b: Box) => blake2b256(b.propositionBytes) == CollateralContractScript
-	}}
-	
+	}}	
+
 	val isValidBorrow = if (plausibleCollateralBoxes.size > 0) {{
 		val collateralBox = plausibleCollateralBoxes(0)
+		val collateralIndex = OUTPUTS.map{{
+			(b: Box) => b.id
+		}}.indexOf(collateralIndex.id, 0)
 		val collateralValue = collateralBox.value
 		val collateralBorrowTokens = collateralBox.tokens(0)
 		val collateralBorrower = collateralBox.R4[Coll[Byte]].get
@@ -185,6 +188,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		val threshold = quoteReport(2)
 		val finalBorrowedFromPool = successorBorrowTokensCirculating * borrowTokenValue / BorrowTokenDenomination
 		val isUnderBorrowLimit = finalBorrowedFromPool < borrowLimit
+		val isQuotedBoxValid = collateralIndex == fQuote.R9[Coll[Int]].get(0)
 		
 		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
 		val isCorrectBufferHeight = bufferLiquidationHeight == defaultBufferHeight
@@ -194,7 +198,6 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		val isAssetsInPoolDecreasing = deltaAssetsInPool < 0
 		val isAssetAmountValid = deltaAssetsInPool * -1 == loanAmount
 		val isTotalBorrowedValid = deltaTotalBorrowed == collateralBorrowTokens._2
-		// TODO: Ensure boxes cannot be bloated by unnecessary data for storage rent risk
 		(
 			commonConditions &&
 			successorLendTokens == currentLendTokens &&
@@ -204,7 +207,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 			isTotalBorrowedValid &&
 			isCorrectBufferHeight &&
 			isCorrectCollateralAmount &&
-			isUnderBorrowLimit
+			isUnderBorrowLimit &&
+			isQuotedBoxValid
 			)	
 	}} else {{
 		false
@@ -617,11 +621,16 @@ def generate_logic_script():
 	val primaryDexNft = fDexNfts(0)
 	val secondaryDexNfts = fDexNfts.slice(1, fDexNfts.size)
 	val fAssetThresholds = outLogic.R6[Coll[Long]].get
+	val primaryThreshold = fAssetThresholds(0)
+	val secondaryThresholds = fAssetThresholds.slice(1, fAssetThresholds.size)
 	val fOrderedAssetAmounts = outLogic.R7[Coll[Long]].get
 	val fOrderedQuotedAssetIds = outLogic.R8[Coll[Coll[Byte]]].get
 	val fHelperIndices = outLogic.R9[Coll[Int]].get
 	val fBoxIndex = fHelperIndices(0)
 	val fDexStartIndex = fHelperIndices(1)
+
+	val scriptRetained = outLogic.propositionBytes == SELF.propositionBytes
+	val quoteSettingsRetained = fDexNfts == iDexNfts && fAssetThresholds == iAssetThresholds
 
 	// 1 -> 0, 2 -> 1, 3 -> 2, 4 -> 3 For OUTPUTS
 	// -1 -> 0, -2 -> 1, -3 -> 2, -4 -> 3 For INPUTS
@@ -644,7 +653,7 @@ def generate_logic_script():
 			val inputAmount = p._2
 			val collateralMarketValue = (dexReservesErg.toBigInt * inputAmount.toBigInt * dexFee.toBigInt) /
 			  ((dexReservesToken._2.toBigInt + (dexReservesToken._2.toBigInt * Slippage.toBigInt / 100.toBigInt)) * DexFeeDenom.toBigInt +
-			  (inputAmount.toBigInt * dexFee.toBigInt)) - MaximumNetworkFee.toBigInt // Formula from spectrum dex
+			  (inputAmount.toBigInt * dexFee.toBigInt))
 	
 			z + collateralMarketValue
 		}} else {{
@@ -652,7 +661,11 @@ def generate_logic_script():
 		}}
 	}}
 	)}})
-	val aggregateThreshold = fOrderedAssetAmounts.indices.fold(0L.toBigInt, {{(z:BigInt, index: Int) => (
+
+	val totalBoxValue = boxToQuote.value.toBigInt + collateralValueInErgs.toBigInt - MaximumNetworkFee.toBigInt 
+
+	val aggregateThresholdPrimarySum = (boxToQuote.value.toBigInt * LargeMultiplier * primaryThreshold) / totalBoxValue
+	val aggregateThresholdSecondarySum = fOrderedAssetAmounts.indices.fold(0L.toBigInt, {{(z:BigInt, index: Int) => (
 	{{
 		val inputAmount = fOrderedAssetAmounts(index)
 		if (inputAmount > 0) {{
@@ -663,16 +676,16 @@ def generate_logic_script():
 			
 			val collateralMarketValue = (dexReservesErg.toBigInt * inputAmount.toBigInt * dexFee.toBigInt) /
 				((dexReservesToken._2.toBigInt + (dexReservesToken._2.toBigInt * Slippage.toBigInt / 100.toBigInt)) * DexFeeDenom.toBigInt +
-				(inputAmount.toBigInt * dexFee.toBigInt)) - MaximumNetworkFee.toBigInt // Formula from spectrum dex 
-				// TODO: Check implications of continually adding dex fee when aggregating totals (does this reduce threshold by rounding?)
-			val threshold = fAssetThresholds(index)
+				(inputAmount.toBigInt * dexFee.toBigInt))
+			val threshold = secondaryThresholds(index)
 	
-			z + (collateralMarketValue * LargeMultiplier * threshold) / collateralValueInErgs
+			z + (collateralMarketValue * LargeMultiplier * threshold) / totalBoxValue
 		}} else {{
 			z
 		}}
 	}}
 	)}})
+	val aggregateThreshold = aggregateThresholdPrimarySum + aggregateThresholdSecondarySum
 	val zippedOrderedAssetsList = fOrderedQuotedAssetIds.zip(fOrderedAssetAmounts)
 	val matchingOrderedListSize = fOrderedAssetAmounts.size == fOrderedQuotedAssetIds.size
 	val allAssetsCounted = boxToQuote.tokens.slice(1,boxToQuote.tokens.size).forall{{
@@ -688,6 +701,7 @@ def generate_logic_script():
 		}}
 	}}.size == missingAssetsSize
 
+	// Also validates the dexNFTs match the settings
 	val assetsOrderedCorrectly = secondaryDexNfts.indices.forall{{
 		(index: Int) =>
 		val dexBox = dexDIns(index)
@@ -706,15 +720,18 @@ def generate_logic_script():
 	val xAssets = primaryDexBox.value.toBigInt
 	val yAssets = primaryDexBox.tokens(2)._2.toBigInt
 
-	val inputAmount = boxToQuote.value.toBigInt + collateralValueInErgs.toBigInt - MaximumNetworkFee.toBigInt 
 	val dexFee = primaryDexBox.R4[Int].get.toBigInt
-	val quotePrice = (yAssets * inputAmount * dexFee) /
+	val quotePrice = (yAssets * totalBoxValue * dexFee) /
 	((xAssets + (xAssets * Slippage / SlippageDenom)) * DexFeeDenom +
-	(inputAmount * dexFee))
+	(totalBoxValue * dexFee))
+
+	val isValidPrimaryDexBox = primaryDexBox.tokens(0)._1 == primaryDexNft
 
 	val validQuote = quotePrice == fQuotePrice
 
 	sigmaProp(
+		scriptRetained &&
+		quoteSettingsRetained &&
 		validQuote &&
 		validAggregateThreshold &&
 		validPenalty &&
@@ -723,7 +740,8 @@ def generate_logic_script():
 		dInsMatchesAssetsSize &&
 		matchingOrderedListSize &&
 		correctNumberOfZeroes &&
-		iBorrowLimit == fBorrowLimit
+		iBorrowLimit == fBorrowLimit &&
+		isValidPrimaryDexBox
 	)
 }}''')
 
