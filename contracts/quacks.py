@@ -11,7 +11,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 	val MaxLendTokens = 9000000000000010L // Set 1,000,000 higher than true maximum so that genesis lend token value is 1.
 	val MaxBorrowTokens = 9000000000000000L
 	val BorrowTokenDenomination = 10000000000000000L.toBigInt
-	val MinimumBoxValue = 1000000
+	val MinimumBoxValue = 1000000L
 	val LendTokenMultipler = 1000000000000000L.toBigInt
 	val LiquidationThresholdDenomination = 1000
 	val defaultBufferHeight = 100000000L
@@ -47,7 +47,14 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		successorLendTokens._1 == currentLendTokens._1 &&
 		successorBorrowTokens._1 == currentBorrowTokens._1 &&
 		successorPoolValue >= MinimumBoxValue &&
-		successorPooledTokens._1 == currentPooledTokens._1
+		successorPooledTokens._1 == currentPooledTokens._1 &&
+		successor.tokens.size == SELF.tokens.size &&
+		successor.R4[Boolean].get &&
+		successor.R5[Boolean].get &&
+		successor.R6[Boolean].get &&
+		successor.R7[Boolean].get &&
+		successor.R8[Boolean].get &&
+		successor.R9[Boolean].get
 	)
 	
 	// Extract Values from Interest Box
@@ -98,6 +105,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		val sFeeDivisorOne = feeSettings(2)
 		val sFeeDivisorTwo = feeSettings(3)
 		val sFeeDivisorThree = feeSettings(4)
+		val minFee = feeSettings(5)
 		
 		// Calculate total service fee owed
 		val totalServiceFee = if (absDeltaAssetsInPool <= sFeeStepOne) {{
@@ -116,9 +124,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		// Validate service fee box
 		val validServiceScript = serviceFeeScript == paramServiceFeeScript
 		val validServiceFeeValue = serviceFeeValue >= MinimumBoxValue
-		val validServiceTokens = serviceFeeAssets >= max(totalServiceFee, 1L) && serviceFeeTokens._1 == currentPooledTokens._1
+		val validServiceTokens = serviceFeeAssets >= max(totalServiceFee, minFee) && serviceFeeTokens._1 == currentPooledTokens._1
 	
-		
 		// Apply validation conditions
 		(
 			validServiceScript &&
