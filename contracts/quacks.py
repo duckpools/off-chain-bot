@@ -249,10 +249,9 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val loanAmount = currentBorrowTokens._2
 	
 	// Extract values from interest box
-	val interestBox = CONTEXT.dataInputs(0)
 	val interestBox = CONTEXT.dataInputs.filter{{
 		(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == InterestNFT
-	}}
+	}}(0)
 	val borrowTokenValue = interestBox.R5[BigInt].get
 
 	val totalOwed = loanAmount.toBigInt * borrowTokenValue / BorrowTokenDenomination
