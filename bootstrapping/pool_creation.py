@@ -25,7 +25,7 @@ creation_settings = {
     "dexNFTs": ["46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1"],
     "penalty": [300],
     "interestParams": [490,4000,0,0,23000,9840],
-    "feeSettings": [2000, 200000, 160, 200, 250],
+    "feeSettings": [2000, 200000, 160, 200, 250, 1],
 }
 
 
