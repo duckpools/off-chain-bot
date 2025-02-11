@@ -1,13 +1,12 @@
 import json
+from math import floor
 
-from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, DEFAULT_BUFFER, \
-    BorrowTokenDenomination
+from consts import TX_FEE, MIN_BOX_VALUE, MAX_BORROW_TOKENS, DOUBLE_SPENDING_ATTEMPT, ERROR, LargeMultiplier
 from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_pool_param_box, get_interest_box, get_logic_box
-from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair, extract_number, encode_long_tuple
+from helpers.serializer import encode_long, encode_long_tuple
 from logger import set_logger
-from math import floor
 
 logger = set_logger(__name__)
 
@@ -39,6 +38,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                               ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
                                (tokens_to_liquidate * dex_fee)))
 
+    aggregateThreshold = floor(floor(collateral_supplied * LargeMultiplier * 1400 / tokens_to_liquidate) / LargeMultiplier)
     transaction_to_sign = \
         {
             "requests": [
@@ -64,6 +64,12 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         },
                     ],
                     "registers": {
+                        "R4": "0101",
+                        "R5": "0101",
+                        "R6": "0101",
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
                 {
@@ -78,8 +84,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
                         "R5": box["additionalRegisters"]["R9"]["serializedValue"],
-                        "R6": logic_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R7": box["additionalRegisters"]["R8"]["serializedValue"]
+                        "R6": encode_long(100000000),
+                        "R7": box["additionalRegisters"]["R8"]["serializedValue"],
+                        "R8": "0e010a"
                     }
                 },
                 {
@@ -105,10 +112,12 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long(liquidation_value),
+                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, 30]),
                         "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": "0402",
-                        "R7": "0101"
+                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": "1100",
+                        "R8": "1a00",
+                        "R9": "10020404"
                     }
                 }
             ],
@@ -116,15 +125,13 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
             "inputsRaw":
                 [box_id_to_binary(pool_box["boxId"]), box_id_to_binary(box["boxId"]), box_id_to_binary(logic_box["boxId"])],
             "dataInputsRaw":
-                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(dex_box["boxId"]), box_id_to_binary(pool_param_box["boxId"])]
+                [box_id_to_binary(interest_box["boxId"]), box_id_to_binary(pool_param_box["boxId"]), box_id_to_binary(dex_box["boxId"])]
         }
-
     logger.debug("Signing Transaction: %s", json.dumps(transaction_to_sign))
     tx_id = sign_tx(transaction_to_sign)
 
     obj = {"txId": tx_id,
            "finalBorrowed": final_borrowed}
-    dsdsdsd
     if tx_id != ERROR and tx_id != DOUBLE_SPENDING_ATTEMPT:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:

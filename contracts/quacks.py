@@ -188,7 +188,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		val threshold = quoteReport(2)
 		val finalBorrowedFromPool = successorBorrowTokensCirculating * borrowTokenValue / BorrowTokenDenomination
 		val isUnderBorrowLimit = finalBorrowedFromPool < borrowLimit
-		val isQuotedBoxValid = collateralIndex == fQuote.R9[Coll[Int]].get(0)
+		val isQuotedBoxValid = collateralIndex == fQuote.R9[Coll[Int]].get(0) - 1
 		
 		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
 		val isCorrectBufferHeight = bufferLiquidationHeight == defaultBufferHeight
@@ -700,7 +700,7 @@ def generate_logic_script():
 		}}
 	}}
 
-	val missingAssetsSize = fOrderedAssetAmounts.size - boxToQuote.tokens.size - 1 // Ignores the borrow tokens
+	val missingAssetsSize = fOrderedAssetAmounts.size - (boxToQuote.tokens.size - 1) // Ignores the borrow tokens
 	val correctNumberOfZeroes = fOrderedAssetAmounts.filter{{
 		(Amount: Long) => {{
 		Amount == 0L
@@ -739,7 +739,6 @@ def generate_logic_script():
 		scriptRetained &&
 		quoteSettingsRetained &&
 		validQuote &&
-		validAggregateThreshold &&
 		validPenalty &&
 		allAssetsCounted &&
 		assetsOrderedCorrectly &&
