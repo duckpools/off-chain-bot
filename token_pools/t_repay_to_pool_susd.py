@@ -43,6 +43,12 @@ def process_repay_to_pool_box(pool, box, latest_tx):
                         }
                     ],
                     "registers": {
+                        "R4": "0101",
+                        "R5": "0101",
+                        "R6": "0101",
+                        "R7": "0101",
+                        "R8": "0101",
+                        "R9": "0101"
                     }
                 },
             ],

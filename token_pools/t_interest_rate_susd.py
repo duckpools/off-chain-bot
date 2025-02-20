@@ -67,7 +67,7 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
                 "requests": [
                     {
                         "address": pool["interest"],
-                        "value": int(box["value"]) - (1.9 * MIN_BOX_VALUE),
+                        "value": int(box["value"]) - int(1.9 * MIN_BOX_VALUE),
                         "assets": [
                             {
                             "tokenId": box["assets"][0]["tokenId"],
@@ -85,7 +85,7 @@ def t_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
                     },
                     {
                         "address": node_address,
-                        "value": 1.9 * MIN_BOX_VALUE - fee,
+                        "value": int(1.9 * MIN_BOX_VALUE - fee),
                         "assets": [
                         ],
                         "registers": {
