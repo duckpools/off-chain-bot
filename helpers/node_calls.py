@@ -207,12 +207,20 @@ def clean_node(fee):
         box_response = requests.get(box_info_url)
         if box["assets"]:
             for asset in box["assets"]:
-                tokens_held.append(
-                    {
-                        "tokenId": asset["tokenId"],
-                        "amount": asset["amount"]
-                    }
-                )
+                token_id = asset["tokenId"]
+                amount = asset["amount"]
+
+                # Check if the tokenId is already in tokens_held
+                exists = False
+                for token in tokens_held:
+                    if token["tokenId"] == token_id:
+                        token["amount"] += amount  # Increment the amount
+                        exists = True
+                        break  # Stop searching once found
+
+                # If tokenId was not found, append it
+                if not exists:
+                    tokens_held.append({"tokenId": token_id, "amount": amount})
         if box_response.status_code != 200:
             raise Exception(f"Failed to get box info for {box_id}: {box_response.text}")
 
