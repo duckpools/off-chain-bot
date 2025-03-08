@@ -1,12 +1,12 @@
 import json
 from math import floor
 
-from consts import MIN_BOX_VALUE, TX_FEE, NULL_TX_OBJ, ERROR
+from consts import MIN_BOX_VALUE, TX_FEE, NULL_TX_OBJ, ERROR, LargeMultiplier
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
 from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
 from helpers.platform_functions import get_interest_box, get_dex_box, get_logic_box
-from helpers.serializer import encode_long
+from helpers.serializer import encode_long_tuple
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -69,6 +69,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
                               ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
                                (tokens_to_liquidate * dex_fee)))
+    aggregateThreshold = floor(floor(whole_collateral_box["value"] * LargeMultiplier * 1400 / tokens_to_liquidate) / LargeMultiplier)
 
     if not interest_box:
         logger.debug("No Interest Box Found")
@@ -90,7 +91,9 @@ def process_repay_partial_proxy_box(pool, box, empty):
                         "R4": whole_collateral_box["additionalRegisters"]["R4"]["serializedValue"],
                         "R5": whole_collateral_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": whole_collateral_box["additionalRegisters"]["R6"]["serializedValue"],
-                        "R7": whole_collateral_box["additionalRegisters"]["R7"]["serializedValue"]
+                        "R7": whole_collateral_box["additionalRegisters"]["R7"]["serializedValue"],
+                        "R8": whole_collateral_box["additionalRegisters"]["R8"]["serializedValue"]
+
                     }
                 },
                 {
@@ -120,11 +123,12 @@ def process_repay_partial_proxy_box(pool, box, empty):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long(liquidation_value),
-                        "R5": "0501",
+                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, 30]),
+                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
-                        "R7": "0400",
-                        "R8": "0101"
+                        "R7": "1100",
+                        "R8": "1a00",
+                        "R9": "10020202"
                     }
                 }
             ],

@@ -16,7 +16,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
     dex_box = get_dex_box(pool["logic_settings"][0]["dex_nft"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
-    request_amounts = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
+    request_amounts = json.loads(box["additionalRegisters"]["R7"]["renderedValue"])
     amount_to_borrow = request_amounts[0]
     loanBorrowTokens = request_amounts[1]
 
@@ -83,10 +83,10 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     ],
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
-                        "R5": box["additionalRegisters"]["R9"]["serializedValue"],
+                        "R5": box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": encode_long(100000000),
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R8": "0e010a"
+                        "R8": box["additionalRegisters"]["R9"]["serializedValue"]
                     }
                 },
                 {
@@ -171,4 +171,4 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
 
 
 def t_borrow_proxy_job(pool, curr_tx_obj):
-    return job_processor(pool, pool["proxy_borrow"], curr_tx_obj, process_borrow_proxy_box, "borrow", 920000)
+    return job_processor(pool, pool["proxy_borrow"], curr_tx_obj, process_borrow_proxy_box, "borrow", 1459925)
