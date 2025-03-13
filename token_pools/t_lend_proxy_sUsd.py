@@ -18,7 +18,7 @@ def process_lend_proxy_box(pool, box, latest_tx):
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     print(interest_box)
     borrowTokenValue = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
-    borrowed = borrowedTokens * borrowTokenValue / BorrowTokenDenomination
+    borrowed = math.floor(borrowedTokens * borrowTokenValue / BorrowTokenDenomination)
 
     token_amount = box["assets"][0]["amount"]
     service_fee = max(calculate_final_amount(token_amount, pool["thresholds"]), 1)
