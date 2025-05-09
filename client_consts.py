@@ -8,4 +8,4 @@ headers = {
 }
 node_pass = os.environ["WALLET_PASS"]
 node_address = "9i9RhfdHQA2bHA8GqWKkYevp3nozASRjJfFkh29utjNL9gqE7Q7"
-wallet_details = "false" # Set to true if you want to see Transaction count and wallet balance
+report_wallet_balance = True

@@ -1,5 +1,6 @@
 from time import sleep
 
+from helpers.custom_routines import custom_routine
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from consts import pools
 from client_consts import node_address
@@ -32,6 +33,7 @@ if __name__ == "__main__":
 
     while not sleep(SLEEP_TIME):
         try:
+            custom_routine()
             new_height = current_height()
             if new_height > curr_height:
                 unlock_wallet()
