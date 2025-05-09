@@ -137,3 +137,26 @@ def generate_dummy_script(node_address):
     except requests.RequestException as e:
         print(f"An error occurred while making the request: {e}")
         return None
+
+def generate_dummy_script_liquidations(node_address):
+    script_payload = {
+        "source": f"PK(\"{node_address}\") && HEIGHT >= -1055"
+    }
+    try:
+        # Making the POST request
+        response = requests.post(f"{node_url}/script/p2sAddress", json=script_payload, headers=headers)
+
+        # Checking if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON response
+            parsed_response = json.loads(response.text)
+            return parsed_response["address"]
+
+        else:
+            print(f"Error: Received status code {response.status_code}")
+            print(f"Message: {response.text}")
+            return None
+
+    except requests.RequestException as e:
+        print(f"An error occurred while making the request: {e}")
+        return None
