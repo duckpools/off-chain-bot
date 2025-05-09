@@ -250,8 +250,7 @@ def liquidation_allowed(box, parent_box, head_child, children):
         loan_amount = int(box["assets"][1]["amount"])
         loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = total_owed(loan_amount, loan_indexes, parent_box, head_child, children)
-        return [collateral_value <= ((total_due * LIQUIDATION_THRESHOLD) / 1000)
-            and box["assets"][1]["tokenId"] == BORROW_TOKEN_ID, total_due]
+        return [collateral_value <= ((total_due * int(json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0])) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
         return [False, False]
