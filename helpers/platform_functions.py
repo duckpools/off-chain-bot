@@ -219,7 +219,7 @@ def liquidation_allowed_susd(box, parent_box, head_child, children, nft, liquida
                              int(dex_box["additionalRegisters"]["R4"]["renderedValue"])))
         if int(liquidation_forced) < int(height):
             return [True, total_due]
-        return [collateral_value <= ((total_due * liquidation_threshold) / 1000), total_due]
+        return [collateral_value <= ((total_due * int(json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0])) / 1000), total_due]
     except (KeyError, IndexError, ValueError, TypeError):
         logger.exception("Error captured when calculating liquidation_allowed for box %s", json.dumps(box))
         return [False, False]
