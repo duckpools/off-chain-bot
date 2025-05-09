@@ -23,7 +23,6 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     """
     collateral_value = liquidation_value
     liquidation_penalty = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[1]
-    print(liquidation_penalty)
     borrower_share = math.floor(((collateral_value - total_due) * (PENALTY_DENOMINATION - liquidation_penalty)) / PENALTY_DENOMINATION)
     user = tree_to_address(box["additionalRegisters"]["R4"]["renderedValue"])
 
@@ -34,7 +33,6 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     liquidation_box = get_liquidation_box(generate_dummy_script_liquidations(node_address))
     curr_height = current_height()
     if ((curr_height < liquidation_forced) and liquidation_buffer == DEFAULT_BUFFER):
-        print("Running this one")
         transaction_to_sign = \
             {
                 "requests": [
