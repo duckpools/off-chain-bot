@@ -10,3 +10,4 @@ node_pass = os.environ["WALLET_PASS"]
 node_address = "9i9RhfdHQA2bHA8GqWKkYevp3nozASRjJfFkh29utjNL9gqE7Q7"
 setup_on = False
 add_liquidation_boxes_on = False
+report_wallet_balance = True

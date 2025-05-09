@@ -59,6 +59,30 @@ def get_dummy_box(dummy_script):
 
     return secrets.choice(boxes_json)
 
+
+def log_node_balance(node_address):
+    url = f"https://api.ergoplatform.com/api/v1/addresses/{node_address}/balance/total"
+    response = requests.get(url)
+    if response.status_code == 200:
+        balance = response.json()["confirmed"]["nanoErgs"] / 1e9
+        logger.info(f"The balance of {node_address} is {balance} ERG")
+        return balance
+    else:
+        logger.info(f"Failed to retrieve balance for {node_address}")
+        return None
+
+
+def log_node_transaction_count(node_address):
+    url = f"https://api.ergoplatform.com/api/v1/addresses/{node_address}/transactions"
+    response = requests.get(url)
+    if response.status_code == 200:
+        tx_count = response.json()["total"]
+        logger.info(f"The total transaction count for {node_address} is {tx_count}")
+        return tx_count
+    else:
+        logger.info(f"Failed to retrieve transactions for {node_address}")
+        return None
+
 def get_liquidation_box(dummy_script):
     boxes_json = get_unspent_boxes_by_address(dummy_script, 300)
     for box in boxes_json:
