@@ -190,7 +190,7 @@ def mint_all_tokens(creation_settings):
     time.sleep(5)
     mint_logic_nft(assetTicker, VersionId)
     time.sleep(5)
-    pay_token_to_address(m_currency_addr, creation_settings["tokenId"], 10)
+    pay_token_to_address(m_currency_addr, creation_settings["tokenId"], 12000010)
 
 
 
@@ -312,7 +312,7 @@ def bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id):
                         },
                         {
                             "tokenId": creation_settings["tokenId"],
-                            "amount": 10
+                            "amount": 12000010
                         }
                     ],
                     "registers": {
