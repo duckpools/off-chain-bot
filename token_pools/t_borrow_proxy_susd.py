@@ -86,7 +86,8 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R5": box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": encode_long(100000000),
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R8": box["additionalRegisters"]["R9"]["serializedValue"]
+                        "R8": box["additionalRegisters"]["R9"]["serializedValue"],
+                        "R9": encode_long_tuple([aggregateThreshold, 30])
                     }
                 },
                 {

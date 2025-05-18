@@ -92,8 +92,8 @@ def process_repay_partial_proxy_box(pool, box, empty):
                         "R5": whole_collateral_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": whole_collateral_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": whole_collateral_box["additionalRegisters"]["R7"]["serializedValue"],
-                        "R8": whole_collateral_box["additionalRegisters"]["R8"]["serializedValue"]
-
+                        "R8": whole_collateral_box["additionalRegisters"]["R8"]["serializedValue"],
+                        "R9": encode_long_tuple([aggregateThreshold, 30])
                     }
                 },
                 {
