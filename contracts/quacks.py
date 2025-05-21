@@ -629,7 +629,7 @@ def generate_logic_script():
 		(b : Box) => b.tokens.size > 0 && b.tokens(0) == SELF.tokens(0)
 	}}(0)
 
-	val iReport = outLogic.R4[Coll[Long]].get
+	val iReport = SELF.R4[Coll[Long]].get
 	val iBorrowLimit = iReport(0)
 	val iDexNfts = SELF.R5[Coll[Coll[Byte]]].get
 	val iAssetThresholds = SELF.R6[Coll[Long]].get
@@ -736,7 +736,7 @@ def generate_logic_script():
 		)
 	}}
 
-	val validAggregateThreshold = aggregateThreshold == fAggregateThreshold * LargeMultiplier
+	val validAggregateThreshold = aggregateThreshold / LargeMultiplier == fAggregateThreshold 
 	val validPenalty = fAggregatePenalty == 30L // Static Penalty as an example
 
 	val xAssets = primaryDexBox.value.toBigInt
@@ -756,6 +756,7 @@ def generate_logic_script():
 		quoteSettingsRetained &&
 		validQuote &&
 		validPenalty &&
+		validAggregateThreshold &&
 		allAssetsCounted &&
 		assetsOrderedCorrectly &&
 		dInsMatchesAssetsSize &&
