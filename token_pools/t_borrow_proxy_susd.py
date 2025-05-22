@@ -16,7 +16,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
     dex_box = get_dex_box(pool["logic_settings"][0]["dex_nft"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
-    request_amounts = json.loads(box["additionalRegisters"]["R7"]["renderedValue"])
+    request_amounts = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     amount_to_borrow = request_amounts[0]
     loanBorrowTokens = request_amounts[1]
 
@@ -86,10 +86,10 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                     ],
                     "registers": {
                         "R4": box["additionalRegisters"]["R4"]["serializedValue"],
-                        "R5": box["additionalRegisters"]["R5"]["serializedValue"],
+                        "R5": box["additionalRegisters"]["R9"]["serializedValue"],
                         "R6": encode_long(100000000),
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R8": box["additionalRegisters"]["R9"]["serializedValue"],
+                        "R8": "0e00",
                         "R9": encode_long_tuple([aggregateThreshold, penalty])
                     }
                 },
@@ -116,7 +116,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([borrowLimit, liquidation_value, aggregateThreshold, penalty]),
+                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, penalty]),
                         "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": "1100",

@@ -371,7 +371,7 @@ def bootstrap_logic_box(address, nft):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([1000000000]),
+                        "R4": encode_long_tuple([1000000000, 0, 0, 30]),
                         "R5": "1a0120" + creation_settings["dexNFTs"][0],
                         "R6": encode_long_tuple([creation_settings["liquidationThresholds"][0]])
                     }
