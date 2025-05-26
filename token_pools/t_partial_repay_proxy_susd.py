@@ -61,6 +61,8 @@ def process_repay_partial_proxy_box(pool, box, empty):
     dex_nft = pool["logic_settings"][0]["dex_nft"]
     dex_box = get_dex_box(dex_nft)
     logic_box = get_logic_box(pool["logic_settings"][0]["address"], pool["logic_settings"][0]["nft"])
+    iReport = json.loads(logic_box["additionalRegisters"]["R4"]["renderedValue"])
+
 
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
@@ -93,7 +95,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
                         "R6": whole_collateral_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": whole_collateral_box["additionalRegisters"]["R7"]["serializedValue"],
                         "R8": whole_collateral_box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R9": encode_long_tuple([aggregateThreshold, 30])
+                        "R9": whole_collateral_box["additionalRegisters"]["R9"]["serializedValue"]
                     }
                 },
                 {
@@ -123,7 +125,7 @@ def process_repay_partial_proxy_box(pool, box, empty):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, 30]),
+                        "R4": encode_long_tuple([iReport[0], liquidation_value, aggregateThreshold, iReport[3], iReport[4], iReport[5]]),
                         "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": "1100",

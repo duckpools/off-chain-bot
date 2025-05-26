@@ -41,6 +41,8 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     iReport = json.loads(logic_box["additionalRegisters"]["R4"]["renderedValue"])
     borrowLimit = iReport[0]
     penalty = iReport[3]
+    bufferGap = iReport[4]
+    minimumValue = iReport[5]
     aggregateThreshold = floor(floor(collateral_supplied * LargeMultiplier * 1400 / tokens_to_liquidate) / LargeMultiplier)
     transaction_to_sign = \
         {
@@ -90,7 +92,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         "R6": encode_long(100000000),
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": "0e00",
-                        "R9": encode_long_tuple([aggregateThreshold, penalty])
+                        "R9": encode_long_tuple([aggregateThreshold, penalty, bufferGap, minimumValue])
                     }
                 },
                 {
@@ -116,7 +118,7 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, penalty]),
+                        "R4": encode_long_tuple([1000000000, liquidation_value, aggregateThreshold, penalty, 15000000, 8]),
                         "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": "1100",
