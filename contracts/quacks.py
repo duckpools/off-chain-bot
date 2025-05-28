@@ -814,16 +814,17 @@ def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, curre
     val minTxFee      = 1000000L
     val minBoxValue   = 1000000L
     val poolNFT       = fromBase58("{poolNFT}")
-     val BorrowTokenId = fromBase58("{borrowTokenId}")
+    val BorrowTokenId = fromBase58("{borrowTokenId}")
     val PoolNativeCurrency = fromBase58("{currencyId}")
 
-    val user          = SELF.R4[Coll[Byte]].get
+    val user = SELF.R4[Coll[Byte]].get
     val requestedAmounts = SELF.R5[Coll[Long]].get
     val requestAmount = requestedAmounts(0)
     val borrowTokensRequest = requestedAmounts(1)
+    val userLoanSettings = requestedAmounts.slice(2, requestedAmounts.size)
     val publicRefund  = SELF.R6[Int].get
-    val userThresholdPenalty = SELF.R7[Coll[Long]].get
-    val userDexNft = SELF.R8[Coll[Byte]].get
+    val userSpendingNFT = SELF.R7[Coll[Byte]].get
+    val userQuoteNft = SELF.R8[Coll[Byte]].get
     val userPk = SELF.R9[GroupElement].get
 
     val operation = if (OUTPUTS.size < 3) {{
@@ -852,29 +853,28 @@ def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, curre
         val collateralBorrowTokens = collateralBox.tokens(0)
         val recordedBorrower = collateralBox.R4[Coll[Byte]].get
         val collateralUserPk = collateralBox.R5[GroupElement].get
-        val currentSettings = collateralBox.R6[Coll[Long]].get // (Forced Liquidation, Buffer, iThreshold, Penalty, Automated Actions, More....)
-        val forcedLiquidation = currentSettings(0)
-        val bufferLiquidation = currentSettings(1)
-        val threshold = currentSettings(2)
-        val penalty = currentSettings(3)
         val currentQuoteNFT = collateralBox.R7[Coll[Byte]].get
+        val spendingNFT = collateralBox.R8[Coll[Byte]].get
+        val collateralLoanSettings = collateralBox.R9[Coll[Long]].get
 
         val loanAmount = collateralBorrowTokens._2
 
         val validCollateralBoxScript = blake2b256(collateralBox.propositionBytes) == collateralBoxScript
-        val validCollateralTokens = collateral == SELF.value - minBoxValue - minTxFee
+        val validCollateralTokens = (
+        	collateral == SELF.value - minBoxValue - minTxFee &&
+        	collateralBox.tokens.slice(1, collateralBox.tokens.size) == SELF.tokens
+        )
         val validLoanAmount = (
-            borrowTokensRequest == collateralBox.tokens(0)._2 &&
+            borrowTokensRequest >= collateralBox.tokens(0)._2 &&
             collateralBorrowTokens._1 == BorrowTokenId &&
             userBox.tokens(0)._1 == PoolNativeCurrency
-            )
+        )
 
         val validBorrower = collateralBox.R4[Coll[Byte]].get == user
-        val validThresholdPenalty = userThresholdPenalty(0) == threshold && userThresholdPenalty(1) == penalty
-        val validDexNFT = userDexNft == currentQuoteNFT
+        val validLoanSettings = userLoanSettings == collateralLoanSettings
+        val validQuoteNFT = userQuoteNft == currentQuoteNFT
         val validUserPk = userPk == collateralUserPk
-        val validForcedLiquidation = forcedLiquidation > HEIGHT + 65020
-
+		val validSpendingNFT = spendingNFT == userSpendingNFT
         val validInterestIndex = INPUTS(0).tokens(0)._1 == poolNFT // enforced by pool contract
 
         val validUserScript = userBox.propositionBytes == user
@@ -887,10 +887,10 @@ def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, curre
             validCollateralTokens &&
             validLoanAmount &&
             validBorrower &&
-            validThresholdPenalty &&
-            validDexNFT &&
+            validSpendingNFT &&
+            validLoanSettings &&
+            validQuoteNFT &&
             validUserPk &&
-            validForcedLiquidation &&
             validInterestIndex &&
             validUserLoanAmount &&
             multiBoxSpendSafety
