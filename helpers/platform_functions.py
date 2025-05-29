@@ -3,9 +3,9 @@ import time
 from math import floor
 
 from consts import DEX_ADDRESS, INTEREST_MULTIPLIER, LIQUIDATION_THRESHOLD, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID
+    ERG_RSV_DEX_NFT, BORROW_TOKEN_ID, REQUEST_DELAY
 from helpers.explorer_calls import get_unspent_boxes_by_address
-from helpers.generic_calls import logger
+from helpers.generic_calls import logger, get_request
 from helpers.node_calls import first_output_from_mempool_tx
 from helpers.serializer import extract_number
 
@@ -353,3 +353,119 @@ def get_head_child(child_address, child_nft, parent_address, parent_nft, parent_
         if box["assets"] and box["assets"][0]["tokenId"] == child_nft:
             if int(box["additionalRegisters"]["R6"]["renderedValue"]) == len(json.loads(parent_box["additionalRegisters"]["R4"]["renderedValue"])):
                 return box
+
+
+def get_all_boxes_by_token_id(
+        token_id,
+        limit=100,
+        max_retries=5,
+        delay=REQUEST_DELAY,
+        progress_interval=10,
+        headers=None
+):
+    """
+    Fetch all boxes for a given token ID from the Ergo Platform API.
+
+    :param token_id: The token ID to search for
+    :param limit: Number of items per request (default: 100)
+    :param max_retries: Maximum number of retries per request (default: 5)
+    :param delay: Delay between retries in seconds (default: REQUEST_DELAY)
+    :param progress_interval: Print progress every N requests (default: 10)
+    :param headers: Custom headers for requests (default: None, uses global headers)
+    :return: List of all boxes for the token ID
+    :raises: Exception if unable to fetch data after retries
+    """
+
+    base_url = 'https://api.ergoplatform.com/api/v1/boxes/byTokenId/'
+    all_boxes = []
+    offset = 0
+    total = None
+    request_count = 0
+
+    print(f"Starting to fetch boxes for token ID: {token_id}")
+
+    while True:
+        request_count += 1
+
+        # Show progress periodically
+        if request_count % progress_interval == 0 or request_count == 1:
+            progress = f"{len(all_boxes)}/{total}" if total is not None else str(len(all_boxes))
+            print(f"Progress: Request #{request_count}, Boxes collected: {progress}")
+
+        # Construct URL with parameters
+        url = f"{base_url}{token_id}?offset={offset}&limit={limit}"
+
+        # Make request using the provided get_request function
+        response = get_request(url, headers=headers, max_retries=max_retries, delay=delay)
+
+        # Handle different response types
+        if response is None:
+            raise Exception(f"Failed to fetch data after {max_retries} retries")
+
+        if response == 404:
+            print(f"Token ID '{token_id}' not found (404)")
+            return []
+
+        # Parse JSON response
+        try:
+            data = response.json()
+        except ValueError as e:
+            raise Exception(f"Failed to parse JSON response: {e}")
+
+        # Set total on first successful response
+        if total is None:
+            total = data.get('total', 0)
+            print(f"Total boxes to fetch: {total}")
+
+            if total == 0:
+                print("No boxes found for this token ID")
+                return []
+
+        # Add boxes from current response
+        items = data.get('items', [])
+        if items:
+            all_boxes.extend(items)
+            offset += len(items)
+
+        # Check if we've collected all boxes
+        if len(all_boxes) >= total or len(items) == 0:
+            break
+
+    print(f"Completed! Collected {len(all_boxes)} boxes in {request_count} requests")
+    return all_boxes
+
+
+def get_transaction_timestamp(transaction_id, max_retries=5, delay=REQUEST_DELAY, headers=None):
+    """
+    Fetch the timestamp of a transaction from the Ergo Platform API.
+
+    :param transaction_id: The transaction ID to fetch
+    :param max_retries: Maximum number of retries per request (default: 5)
+    :param delay: Delay between retries in seconds (default: REQUEST_DELAY)
+    :param headers: Custom headers for requests (default: None, uses global headers)
+    :return: Transaction timestamp, or None if not found/error
+    """
+
+    base_url = 'https://api.ergoplatform.com/api/v1/transactions/'
+    url = f"{base_url}{transaction_id}"
+
+    # Make request using the provided get_request function
+    response = get_request(url, headers=headers, max_retries=max_retries, delay=delay)
+
+    # Handle different response types
+    if response is None:
+        print(f"Failed to fetch transaction after {max_retries} retries")
+        return None
+
+    if response == 404:
+        print(f"Transaction '{transaction_id}' not found (404)")
+        return None
+
+    # Parse JSON response
+    try:
+        data = response.json()
+        timestamp = data.get('timestamp')
+        return timestamp
+    except ValueError as e:
+        print(f"Failed to parse JSON response: {e}")
+        return None
