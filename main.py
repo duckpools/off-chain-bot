@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 unlock_wallet()
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
-                for pool in (pools + current_pools[0:]):
+                for pool in (pools[0:] + current_pools[0:]):
                     try:
                         if pool["is_Erg"]:
                             curr_tx_obj = e_lend_proxy_job(pool)

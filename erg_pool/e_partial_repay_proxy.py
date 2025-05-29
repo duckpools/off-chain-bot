@@ -4,7 +4,7 @@ from consts import TX_FEE, ERROR, NULL_TX_OBJ
 from helpers.explorer_calls import get_box_from_id_explorer
 from helpers.job_helpers import job_processor
 from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
-from helpers.platform_functions import  get_children_boxes, get_base_child, \
+from helpers.platform_functions import get_parent_box, get_head_child, get_children_boxes, get_base_child, \
     get_interest_box, get_dex_box
 from logger import set_logger
 
@@ -40,7 +40,7 @@ def refund_repay_proxy_box(box):
     return
 
 
-def process_repay_partial_proxy_box(pool, box, empty):
+def process_repay_partial_proxy_box_v1(pool, box, empty):
     collateral_box = box["additionalRegisters"]["R4"]["renderedValue"]
     final_borrow_tokens = int(box["additionalRegisters"]["R5"]["renderedValue"])
     whole_collateral_box = get_box_from_id_explorer(collateral_box)
@@ -122,5 +122,9 @@ def process_repay_partial_proxy_box(pool, box, empty):
     return
 
 
+def process_repay_partial_proxy_box_v2(pool, box, empty):
+    return process_repay_partial_proxy_box_v1(pool, box, empty)
+
+
 def e_partial_repay_proxy_job(pool):
-    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box, "PARTIAL REPAYMENT", 1071199)
+    job_processor(pool, pool["proxy_partial_repay"], NULL_TX_OBJ, process_repay_partial_proxy_box_v1, process_repay_partial_proxy_box_v2, "PARTIAL REPAYMENT", 1535250)

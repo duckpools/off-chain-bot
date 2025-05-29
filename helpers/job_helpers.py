@@ -6,14 +6,15 @@ from helpers.generic_calls import logger
 from helpers.platform_functions import get_pool_box, get_pool_box_from_tx
 
 
-def job_processor(pool, address_to_scan, curr_tx_obj, proxy_job, job_name, height_limit=ERGO_MIN_HEIGHT):
+def job_processor(pool, address_to_scan, curr_tx_obj, proxy_job_v1, proxy_job_v2, job_name, height_limit=ERGO_MIN_HEIGHT):
     """Process a job by applying the proxy_job function to unspent boxes.
 
     Args:
         pool: (dict): The pool to read pool constants from.
         address_to_scan (str): The address to scan for unspent boxes.
         curr_tx_obj (object): The current transaction object.
-        proxy_job (function): The function to be applied to each unspent box.
+        proxy_job_v1 (function): The function to be applied to each unspent box.
+        proxy_job_v2 (function): The function to be applied to each unspent box.
         job_name (str): The name of the job being processed.
         height_limit (int, optional): The minimum creation height of a box to be considered. Defaults to ERGO_MAX_HEIGHT.
 
@@ -26,6 +27,10 @@ def job_processor(pool, address_to_scan, curr_tx_obj, proxy_job, job_name, heigh
     logger.debug(unspent_proxy_boxes)
     num_unspent_proxy_boxes = len(unspent_proxy_boxes)
     logger.info(f"Found: {num_unspent_proxy_boxes} boxes")
+    if pool["version"] == 1:
+        proxy_job = proxy_job_v1
+    else:
+        proxy_job = proxy_job_v2
 
     if num_unspent_proxy_boxes == 0:
         return None

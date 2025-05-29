@@ -11,7 +11,7 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def process_withdraw_proxy_box(pool, box, latest_tx):
+def process_withdraw_proxy_box_v1(pool, box, latest_tx):
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     held_erg0 = erg_pool_box["value"]
@@ -129,5 +129,9 @@ def process_withdraw_proxy_box(pool, box, latest_tx):
     return obj
 
 
+def process_withdraw_proxy_box_v2(pool, box, latest_tx):
+    process_withdraw_proxy_box_v1(pool, box, latest_tx)
+
+
 def e_withdraw_proxy_job(pool, curr_tx_obj):
-    return job_processor(pool, pool["proxy_withdraw"], curr_tx_obj, process_withdraw_proxy_box, "withdrawal", 990000)
+    return job_processor(pool, pool["proxy_withdraw"], curr_tx_obj, process_withdraw_proxy_box_v1, process_withdraw_proxy_box_v2,"withdrawal", 1535250)

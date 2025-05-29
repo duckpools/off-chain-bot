@@ -1,10 +1,10 @@
 import json
 
 from consts import TX_FEE, MAX_BORROW_TOKENS, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, ERG_RSV_DEX_NFT, MIN_BOX_VALUE, \
-    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER
+    DOUBLE_SPENDING_ATTEMPT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT, rsADA_ID, ERG_rsADA_DEX_NFT
 from helpers.job_helpers import job_processor, latest_pool_info
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, \
+from helpers.platform_functions import get_dex_box, get_parent_box, get_head_child, \
     get_pool_param_box
 from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
 from logger import set_logger
@@ -12,7 +12,7 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
+def process_borrow_proxy_box_v1(pool, box, latest_tx, fee=TX_FEE):
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     held_token_in_proxy = box["assets"][0]
@@ -20,6 +20,10 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         dex_box = get_dex_box(ERG_USD_DEX_NFT)
     elif (held_token_in_proxy["tokenId"]) == SIG_RSV_ID:
         dex_box = get_dex_box(ERG_RSV_DEX_NFT)
+    elif (held_token_in_proxy["tokenId"]) == RSN_ID:
+        dex_box = get_dex_box(ERG_RSN_DEX_NFT)
+    elif (held_token_in_proxy["tokenId"]) == rsADA_ID:
+        dex_box = get_dex_box(ERG_rsADA_DEX_NFT)
     else:
         dex_box = None
 
@@ -114,9 +118,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     if tx_id != -1 and tx_id != DOUBLE_SPENDING_ATTEMPT:
         logger.info("Successfully submitted transaction with ID: %s", tx_id)
     elif tx_id == DOUBLE_SPENDING_ATTEMPT:
-        logger.info("Double spending attempt, trying again with fee: %s", str(fee + 12))
+        logger.info("Double spending attempt, trying again with fee: %s", str(fee + 120))
         print("Double spending attempt, trying again with higher fee")
-        process_borrow_proxy_box(pool, box, latest_tx, fee=fee + 2000)
+        process_borrow_proxy_box_v1(pool, box, latest_tx, fee=fee + 120)
     else:
         logger.debug("Failed to submit transaction, attempting to refund")
         transaction_to_sign = \
@@ -154,5 +158,9 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
     return obj
 
 
+def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
+    return process_borrow_proxy_box_v1(pool, box, latest_tx, fee=fee)
+
+
 def e_borrow_proxy_job(pool, curr_tx_obj):
-    return job_processor(pool, pool["proxy_borrow"], curr_tx_obj, process_borrow_proxy_box, "borrow", 920000)
+    return job_processor(pool, pool["proxy_borrow"], curr_tx_obj, process_borrow_proxy_box_v1, process_borrow_proxy_box_v2,"borrow", 1535250)

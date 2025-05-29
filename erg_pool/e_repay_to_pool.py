@@ -8,7 +8,7 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def process_repay_to_pool_box(pool, box, latest_tx):
+def process_repay_to_pool_box_v1(pool, box, latest_tx):
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     erg_to_give = box["value"] - TX_FEE
@@ -58,5 +58,9 @@ def process_repay_to_pool_box(pool, box, latest_tx):
     return obj
 
 
+def process_repay_to_pool_box_v2(pool, box, latest_tx):
+    return process_repay_to_pool_box_v1(pool, box, latest_tx)
+
+
 def e_repay_to_pool_job(pool, curr_tx_obj):
-    job_processor(pool, pool["repayment"], curr_tx_obj, process_repay_to_pool_box, "repay to pool", 1051829)
+    job_processor(pool, pool["repayment"], curr_tx_obj, process_repay_to_pool_box_v1, process_repay_to_pool_box_v2, "repay to pool", 1535250)

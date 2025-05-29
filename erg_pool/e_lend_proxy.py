@@ -11,7 +11,7 @@ from logger import set_logger
 logger = set_logger(__name__)
 
 
-def process_lend_proxy_box(pool, box, latest_tx):
+def process_lend_proxy_box_v1(pool, box, latest_tx):
     erg_pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
     usable_value = box["value"] - MIN_BOX_VALUE - TX_FEE - MIN_BOX_VALUE
@@ -130,5 +130,9 @@ def process_lend_proxy_box(pool, box, latest_tx):
     return obj
 
 
+def process_lend_proxy_box_v2(pool, box, latest_tx):
+    return process_lend_proxy_box_v1(pool, box, latest_tx)
+
+
 def e_lend_proxy_job(pool):
-    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box, "lend", 1047423)
+    return job_processor(pool, pool["proxy_lend"], None, process_lend_proxy_box_v1, process_lend_proxy_box_v2, "lend", 1535220)

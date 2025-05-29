@@ -4,11 +4,11 @@ import time
 from math import floor
 
 from consts import TX_FEE, PENALTY_DENOMINATION, MIN_BOX_VALUE, SIG_USD_ID, ERG_USD_DEX_NFT, SIG_RSV_ID, \
-    ERG_RSV_DEX_NFT, DEFAULT_BUFFER
+    ERG_RSV_DEX_NFT, DEFAULT_BUFFER, RSN_ID, ERG_RSN_DEX_NFT, rsADA_ID, ERG_rsADA_DEX_NFT
 from client_consts import node_address
 from helpers.explorer_calls import get_unspent_boxes_by_address, get_dummy_box
 from helpers.node_calls import tree_to_address, box_id_to_binary, get_box_from_id, sign_tx, current_height
-from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child,  \
+from helpers.platform_functions import get_dex_box, get_dex_box_from_tx, get_base_child, get_parent_box, get_head_child, \
     get_children_boxes, liquidation_allowed
 from helpers.serializer import encode_long_pair
 from logger import set_logger
@@ -102,7 +102,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": "04c60f"
+                        "R4": dex_box["additionalRegisters"]["R4"]["serializedValue"]
                     }
                 },
                 {
@@ -156,7 +156,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": "04c60f"
+                        "R4": dex_box["additionalRegisters"]["R4"]["serializedValue"]
                     }
                 },
                 {
@@ -204,6 +204,8 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     else:
         print("Waiting for buffer")
         return None
+    """
+    Need to assess whether it is possible to add liquidation claims in ERG pool
     if (client_amount >= MIN_BOX_VALUE + TX_FEE and curr_height > liquidation_buffer):
         transaction_to_sign["requests"].append(
             {
@@ -217,6 +219,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
         )
         transaction_to_sign["requests"][0]["value"] -= client_amount
         transaction_to_sign["fee"] += TX_FEE
+    """
     return transaction_to_sign
 
 
@@ -240,25 +243,30 @@ def get_dex_box_and_tokens(transaction, nft):
 def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child, parent_box, children, dummy_script):
     if box["assets"][0]['tokenId'] == SIG_USD_ID:
         dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, ERG_USD_DEX_NFT)
-
     if box["assets"][0]['tokenId'] == SIG_RSV_ID:
         dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_rsv_tx, ERG_RSV_DEX_NFT)
+    if box["assets"][0]['tokenId'] == RSN_ID:
+        dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(None, ERG_RSN_DEX_NFT)
+    if box["assets"][0]['tokenId'] == rsADA_ID:
+        dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(None, ERG_rsADA_DEX_NFT)
 
     dex_initial_val = int(dex_box["value"])
     dex_tokens = int(dex_box["assets"][2]["amount"])
     tokens_to_liquidate = int(box["assets"][0]["amount"])
-    liquidation_value = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * 995) //
-        ((int(dex_box["assets"][2]["amount"]) +
-          (int(dex_box["assets"][2]["amount"]) * 2) // 100) *
-         1000 +
-         int(box["assets"][0]["amount"]) *
-         995))
-    client_amount = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * 995) //
+    dex_fee = int(dex_box["additionalRegisters"]["R4"]["renderedValue"])
+    # Using 1% slippage rather than 2, 2 is possible
+    liquidation_value = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * dex_fee) //
         ((int(dex_box["assets"][2]["amount"]) +
           (int(dex_box["assets"][2]["amount"]) * 1) // 100) *
          1000 +
          int(box["assets"][0]["amount"]) *
-         995)) - liquidation_value
+         dex_fee))
+    client_amount = ((int(dex_box["value"]) * int(box["assets"][0]["amount"]) * dex_fee) //
+        ((int(dex_box["assets"][2]["amount"]) +
+          (int(dex_box["assets"][2]["amount"]) * 1) // 100) *
+         1000 +
+         int(box["assets"][0]["amount"]) *
+         dex_fee)) - liquidation_value
     loan_indexes = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     loan_parent_index = loan_indexes[0]
     base_child = get_base_child(children, loan_parent_index)
@@ -286,6 +294,8 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
 
 
 def e_liquidation_job(pool, dummy_script, height):
+    if pool["version"] == 2:
+        return e_liquidation_job_v2(pool, dummy_script, height)
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
@@ -309,3 +319,7 @@ def e_liquidation_job(pool, dummy_script, height):
                 except Exception as e:
                     logger.exception(
                         f"Failed to process liquidation box for transaction id: {transaction_id}. Exception: {e}")
+
+
+def e_liquidation_job_v2(pool, dummy_script, height):
+    return

@@ -336,3 +336,20 @@ def update_pools_in_file(new_pool):
 
     with open(file_path, 'w') as file:
         file.writelines(updated_lines)
+
+def get_parent_box(address, nft):
+    found_boxes = get_unspent_boxes_by_address(address)
+    for parent_box in found_boxes:
+        if parent_box["assets"] and parent_box["assets"][0]["tokenId"] == nft:
+            return parent_box
+
+
+def get_head_child(child_address, child_nft, parent_address, parent_nft, parent_box = None):
+    found_boxes = get_unspent_boxes_by_address(child_address)
+    time.sleep(0.5)
+    if not parent_box:
+        parent_box = get_parent_box(parent_address, parent_nft)
+    for box in found_boxes:
+        if box["assets"] and box["assets"][0]["tokenId"] == child_nft:
+            if int(box["additionalRegisters"]["R6"]["renderedValue"]) == len(json.loads(parent_box["additionalRegisters"]["R4"]["renderedValue"])):
+                return box

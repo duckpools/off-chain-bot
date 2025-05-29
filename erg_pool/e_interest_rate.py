@@ -7,7 +7,7 @@ from consts import INTEREST_MULTIPLIER, MIN_BOX_VALUE, MAX_TX_FEE, MAX_CHILD_EXE
     INTEREST_FREQUENCY_POLL, MAX_BORROW_TOKENS, TX_FEE, ERROR, DOUBLE_SPENDING_ATTEMPT
 from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
-from helpers.platform_functions import  get_pool_box, get_pool_box_from_tx, \
+from helpers.platform_functions import get_parent_box, get_head_child, get_pool_box, get_pool_box_from_tx, \
     get_interest_param_box
 from helpers.serializer import encode_long_tuple, encode_int, encode_long
 from logger import set_logger
@@ -86,6 +86,8 @@ def create_new_child(head_child, pool):
 
 
 def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randbelow(1300001 - 1100000) + 1100000):
+    if pool["version"] == 2:
+        return e_update_interest_rate_v2(pool, curr_height, latest_tx, dummy_script, fee)
     dummy_box = get_dummy_box(dummy_script)
     logger.info("Starting Interest Rate Job")
     box = get_head_child(pool["child"], pool["CHILD_NFT"], pool["parent"], pool["PARENT_NFT"])
@@ -196,3 +198,6 @@ def e_update_interest_rate(pool, curr_height, latest_tx, dummy_script, fee=randb
             logger.warning(
                 "Failed to submit transaction: %s Failed txID quoted as: %s",
                 json.dumps(transaction_to_sign), tx_id)
+
+def e_update_interest_rate_v2(pool, curr_height, latest_tx, dummy_script, fee=randbelow(1300001 - 1100000) + 1100000):
+    return
