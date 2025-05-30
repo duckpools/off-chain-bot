@@ -15,16 +15,16 @@ import time
 logger = set_logger(__name__)
 
 creation_settings = {
-    "AssetTicker": "QUACKS",
+    "AssetTicker": "SigUSD - Beta",
     "VersionId": "2.0",
-    "AssetDecimals": 6,
-    "tokenId": "089990451bb430f05a85f4ef3bcb6ebf852b3d6ee68d86d78658b9ccef20074f",
+    "AssetDecimals": 2,
+    "tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04",
     "liquidationThresholds": [1400],
     "serviceFeeThresholds": [2000, 200000],
     "liquidationAssets": None,
-    "dexNFTs": ["46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1"],
+    "dexNFTs": ["9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec"],
     "penalty": [300],
-    "interestParams": [490,4000,0,0,23000,9840],
+    "interestParams": [890,8000,0,0,53000,9840],
     "feeSettings": [2000, 200000, 160, 200, 250, 1],
 }
 
@@ -190,7 +190,7 @@ def mint_all_tokens(creation_settings):
     time.sleep(5)
     mint_logic_nft(assetTicker, VersionId)
     time.sleep(5)
-    pay_token_to_address(m_currency_addr, creation_settings["tokenId"], 12000010)
+    pay_token_to_address(m_currency_addr, creation_settings["tokenId"], 10)
 
 
 
@@ -312,7 +312,7 @@ def bootstrap_pool_box(pool_address, pool_nft, lend_token_id, borrow_token_id):
                         },
                         {
                             "tokenId": creation_settings["tokenId"],
-                            "amount": 12000010
+                            "amount": 10
                         }
                     ],
                     "registers": {
@@ -371,7 +371,7 @@ def bootstrap_logic_box(address, nft):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([1000000000, 0, 0, 30, 15000000, 8]),
+                        "R4": encode_long_tuple([10000, 0, 0, 300, 15000000, 8]),
                         "R5": "1a0120" + creation_settings["dexNFTs"][0],
                         "R6": encode_long_tuple([creation_settings["liquidationThresholds"][0]])
                     }
