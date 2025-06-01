@@ -9,7 +9,7 @@ from helpers.explorer_calls import get_dummy_box
 from helpers.node_calls import box_id_to_binary, sign_tx
 from helpers.platform_functions import get_pool_box, get_pool_box_from_tx, \
     get_interest_param_box, get_interest_box, get_head_child, get_parent_box
-from helpers.serializer import encode_long, encode_bigint, extract_number, encode_long_tuple
+from helpers.serializer import encode_long, encode_bigint, extract_number, encode_long_tuple, encode_int
 from logger import set_logger
 
 logger = set_logger(__name__)
