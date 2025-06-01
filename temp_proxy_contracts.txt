@@ -121,8 +121,9 @@
 		val iBufferLiquidation = currentCollateralBox.R6[Long].get
 		val currentQuoteNFT = currentCollateralBox.R7[Coll[Byte]].get
 		val iSpendingNFT = currentCollateralBox.R8[Coll[Byte]].get
+    val iLoanSettings = currentCollateralBox.R9[Coll[Long]].get
 		val currentLoanAmount = currentBorrowTokens._2
-		
+
 		// Extract values from final collateral box
 		val successorCollateralBox = OUTPUTS(0)
 		val successorScript = successorCollateralBox.propositionBytes
@@ -133,22 +134,24 @@
 		val fBufferLiquidation = successorCollateralBox.R6[Long].get
 		val fCollateralQuoteNFT = successorCollateralBox.R7[Coll[Byte]].get
 		val fSpendingNFT = successorCollateralBox.R8[Coll[Byte]].get
-		
+    val fLoanSettings = successorCollateralBox.R9[Coll[Long]].get
+
 		// Validate the current collateral box
 		val validInputCollateral = currentCollateralBox.id == collateralBoxId
-		
+
 		// Validate the successor collateral box
 		// Validate successor collateral box
 		val validSuccessorScript = successorScript == currentScript
 		val retainMinValue = successorValue >= currentValue
 		val retainBorrowTokenId = successorBorrowTokens._1 == currentBorrowTokens._1
-		val validBorrowTokens = successorBorrowTokens._2 == finalBorrowTokens
+		val validBorrowTokens = successorBorrowTokens._2 <= finalBorrowTokens
 		val retainRegisters = (
 			currentBorrower == fCollateralBorrower &&
 			currentUserPk == fCollateralUserPk &&
 			iBufferLiquidation == fBufferLiquidation &&
 			currentQuoteNFT == fCollateralQuoteNFT &&
-			iSpendingNFT == fSpendingNFT
+			iSpendingNFT == fSpendingNFT &&
+      iLoanSettings == fLoanSettings
 		)
 		
 		val isPartialRepayment = (
