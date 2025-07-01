@@ -6,16 +6,44 @@ from helpers.job_helpers import latest_pool_info, job_processor
 from helpers.node_calls import tree_to_address, box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import calculate_final_amount, get_pool_param_box
 from logger import set_logger
+from helpers.terminal_link import make_terminal_link
 
 logger = set_logger(__name__)
 
 
 def process_lend_proxy_box(pool, box, latest_tx):
-    if box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
-        return latest_tx
+    box_id = box.get('boxId', 'unknown')
+    transaction_id = box.get('transactionId', 'unknown')
+    box_url = f"https://ergexplorer.com/boxes#{box_id}" if box_id != 'unknown' else None
+    tx_url = f"https://ergexplorer.com/transactions#{transaction_id}" if transaction_id != 'unknown' else None
+    box_link = make_terminal_link(box_url, box_id) if box_url else box_id
+    tx_link = make_terminal_link(tx_url, transaction_id) if tx_url else transaction_id
+
+    if "assets" not in box or not box["assets"]:
+        duckpools_link = make_terminal_link("https://www.duckpools.io/", "www.duckpools.io")
+        logger.error(
+            f"[Lend Proxy SUSD] Box has no assets, the pool wallet needs to be refilled.\n"
+            f"\t- Transaction ID: {tx_link}\n"
+            f"\t- Box ID: {box_link}\n"
+            f"\t- If this persists, verify the bot's configuration or contact Duckpools support on Discord. Visit {duckpools_link}\n"
+        )
+        return None
+
+    try:
+        if box["assets"][0]["tokenId"] != pool["CURRENCY_ID"]:
+            return latest_tx
+        token_amount = box["assets"][0]["amount"]
+    except (ValueError, TypeError) as e:
+        duckpools_link = make_terminal_link("https://www.duckpools.io/", "www.duckpools.io")
+        logger.error(
+            f"[Lend Proxy SUSD] Invalid asset amount: {e}.\n"
+            f"\t- Transaction ID: {tx_link}\n"
+            f"\t- Box ID: {box_link}\n"
+            f"\t- If this persists, contact Duckpools support on Discord. Visit {duckpools_link}\n"
+        )
+        return None
     pool_box, borrowed = latest_pool_info(pool, latest_tx)
 
-    token_amount = box["assets"][0]["amount"]
     service_fee = max(calculate_final_amount(token_amount, pool["thresholds"]), 1)
     assets_to_give = token_amount - service_fee
     held_tokens = int(pool_box["assets"][1]["amount"])
@@ -129,10 +157,21 @@ def process_lend_proxy_box(pool, box, latest_tx):
         if tx_id != -1:
             logger.info("Successfully submitted refund transaction with ID: %s",  tx_id)
         else:
-            logger.warning("Failed to process or refund transaction object: %s Failed Refund txID quoted as: %s",
-                           json.dumps(transaction_to_sign), tx_id)
-
-        return latest_tx
+            box_id = box.get('boxId', 'unknown')
+            transaction_id = box.get('transactionId', 'unknown')
+            box_url = f"https://ergexplorer.com/boxes#{box_id}" if box_id != 'unknown' else None
+            tx_url = f"https://ergexplorer.com/transactions#{transaction_id}" if transaction_id != 'unknown' else None
+            box_link = make_terminal_link(box_url, box_id) if box_url else box_id
+            tx_link = make_terminal_link(tx_url, transaction_id) if tx_url else transaction_id
+            logger.warning(
+                f"Failed to process or refund transaction.\n"
+                f"- Transaction ID: {tx_link}\n"
+                f"- Box ID: {box_link}\n"
+                f"- Refund txID: -1\n"
+                f"- If this persists, verify the bot's configuration or contact Duckpools support on Discord.\n"
+            )
+            logger.debug(f"Full transaction object: {transaction_to_sign}")
+            return latest_tx
     return obj
 
 

@@ -8,6 +8,7 @@ from helpers.platform_functions import get_dex_box, get_parent_box, get_head_chi
     get_pool_param_box
 from helpers.serializer import encode_int_tuple, encode_long, encode_long_pair
 from logger import set_logger
+from helpers.terminal_link import make_terminal_link
 
 logger = set_logger(__name__)
 
@@ -152,9 +153,22 @@ def process_borrow_proxy_box(pool, box, latest_tx, fee=TX_FEE):
         if tx_id != -1:
             logger.info("Successfully submitted refund transaction with ID: %s",  tx_id)
         else:
-            logger.warning("Failed to process or refund transaction object: %s Failed Refund txID quoted as: %s",
-                           json.dumps(transaction_to_sign), tx_id)
-        return latest_tx
+            box_id = box.get('boxId', 'unknown')
+            transaction_id = box.get('transactionId', 'unknown')
+            box_url = f"https://ergexplorer.com/boxes#{box_id}" if box_id != 'unknown' else None
+            tx_url = f"https://ergexplorer.com/transactions#{transaction_id}" if transaction_id != 'unknown' else None
+            box_link = make_terminal_link(box_url, box_id) if box_url else box_id
+            tx_link = make_terminal_link(tx_url, transaction_id) if tx_url else transaction_id
+            duckpools_link = make_terminal_link("https://www.duckpools.io/", "www.duckpools.io")
+            logger.warning(
+                f"Failed to process or refund transaction.\n"
+                f"\t- Transaction ID: {tx_link}\n"
+                f"\t- Box ID: {box_link}\n"
+                f"\t- Refund txID: -1\n"
+                f"\t- If this persists, verify the bot's configuration or contact Duckpools support on Discord. Visit {duckpools_link}\n"
+            )
+            logger.debug(f"Full transaction object: {transaction_to_sign}")
+            return latest_tx
     return obj
 
 
