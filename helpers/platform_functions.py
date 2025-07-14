@@ -435,22 +435,20 @@ def get_all_boxes_by_token_id(
     return all_boxes
 
 
-def get_transaction_timestamp(transaction_id, max_retries=5, delay=REQUEST_DELAY, headers=None):
+def fetch_transaction_data(transaction_id):
     """
-    Fetch the timestamp of a transaction from the Ergo Platform API.
+    Fetch transaction data from the Ergo Platform API with retry logic.
 
     :param transaction_id: The transaction ID to fetch
-    :param max_retries: Maximum number of retries per request (default: 5)
-    :param delay: Delay between retries in seconds (default: REQUEST_DELAY)
-    :param headers: Custom headers for requests (default: None, uses global headers)
-    :return: Transaction timestamp, or None if not found/error
+    :return: Parsed JSON data, or None if failed after retries
     """
-
     base_url = 'https://api.ergoplatform.com/api/v1/transactions/'
     url = f"{base_url}{transaction_id}"
+    max_retries = 3
+    delay = REQUEST_DELAY
 
-    # Make request using the provided get_request function
-    response = get_request(url, headers=headers, max_retries=max_retries, delay=delay)
+    # Make request using the provided get_request function with 3 retries
+    response = get_request(url, max_retries=max_retries, delay=delay)
 
     # Handle different response types
     if response is None:
@@ -463,9 +461,25 @@ def get_transaction_timestamp(transaction_id, max_retries=5, delay=REQUEST_DELAY
 
     # Parse JSON response
     try:
-        data = response.json()
-        timestamp = data.get('timestamp')
-        return timestamp
-    except ValueError as e:
-        print(f"Failed to parse JSON response: {e}")
+        return response.json()
+    except (ValueError, AttributeError) as e:
+        print(f"Failed to parse JSON response for transaction {transaction_id}: {e}")
         return None
+
+
+def get_transaction_timestamp(transaction_id):
+    """
+    Get the timestamp of a transaction from the Ergo Platform API.
+
+    :param transaction_id: The transaction ID to fetch
+    :return: Transaction timestamp, or None if not found/error
+    """
+    # Fetch the transaction data (now returns parsed JSON)
+    data = fetch_transaction_data(transaction_id)
+
+    if data is None:
+        return None
+
+    # Extract timestamp from the parsed data
+    timestamp = data.get('timestamp')
+    return timestamp

@@ -54,8 +54,7 @@ class DatabaseManager:
             print(f"Error executing insert: {e}")
             return None
 
-
-    def insert_transaction(self,
+    def upsert_transaction(self,
                            transaction_id: str,
                            address: str,
                            pool_nft: str,
@@ -64,74 +63,57 @@ class DatabaseManager:
                            block_height: Optional[int] = None,
                            timestamp: Optional[int] = None) -> Optional[str]:
         """
-        Insert a new transaction into the database.
-        If the address doesn't exist, creates a new user and address automatically.
-
-        Args:
-            transaction_id: Unique identifier for the transaction
-            address: Wallet address
-            pool_nft: NFT identifier for the pool
-            transaction_type: Type of transaction ('lend', 'borrow', 'repayment', 'liquidation')
-            amount: Transaction amount
-            block_height: Blockchain block height (optional)
-            timestamp: Unix timestamp (optional)
-
-        Returns:
-            transaction_id if successful, None if failed
+        Insert or update a transaction. If a row with the same transaction_id exists,
+        updates its fields; otherwise creates it.
         """
         try:
-            # Check if address exists
             address_query = "SELECT id FROM addresses WHERE address = %s"
             address_result = self.execute_query(address_query, (address,))
 
             if address_result:
-                # Address exists, use it
                 address_id = address_result[0]['id']
             else:
-                # Address doesn't exist, create new user and address
-                user_insert = "INSERT INTO users DEFAULT VALUES RETURNING id"
-                user_id = self.execute_insert(user_insert, return_id=True)
-
+                user_id = self.execute_insert("INSERT INTO users DEFAULT VALUES RETURNING id", return_id=True)
                 if not user_id:
                     print("Failed to create user")
                     return None
-
-                # Create address for the new user
-                address_insert = """
-                    INSERT INTO addresses (address, user_id, is_primary)
-                    VALUES (%s, %s, %s)
-                    RETURNING id
-                """
-                address_id = self.execute_insert(address_insert, (address, user_id, True), return_id=True)
-
+                address_id = self.execute_insert(
+                    "INSERT INTO addresses (address, user_id, is_primary) VALUES (%s,%s,%s) RETURNING id",
+                    (address, user_id, True),
+                    return_id=True
+                )
                 if not address_id:
                     print("Failed to create address")
                     return None
 
-            # Validate transaction type
-            valid_types = ['lend', 'borrow', 'repayment', 'liquidation']
+            # 2) Validate transaction type - updated to include all types
+            valid_types = ('lend', 'withdraw', 'borrow', 'repayment', 'partial_repayment', 'liquidation')
             if transaction_type not in valid_types:
-                print(f"Error: Invalid transaction type '{transaction_type}'. Must be one of: {valid_types}")
+                print(f"Invalid transaction type {transaction_type}")
                 return None
 
-            # Insert the transaction
-            insert_query = """
-                INSERT INTO transactions (id, address_id, pool_nft, type, amount, block_height, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
+            # 3) Upsert in one statement:
+            upsert_sql = """
+            INSERT INTO transactions
+              (id, address_id, pool_nft, type, amount, block_height, timestamp)
+            VALUES
+              (%s,     %s,         %s,       %s,    %s,     %s,           %s)
+            ON CONFLICT (id) DO UPDATE
+              SET address_id  = EXCLUDED.address_id,
+                  pool_nft     = EXCLUDED.pool_nft,
+                  type         = EXCLUDED.type,
+                  amount       = EXCLUDED.amount,
+                  block_height = EXCLUDED.block_height,
+                  timestamp    = EXCLUDED.timestamp
+            RETURNING id
             """
-
             params = (transaction_id, address_id, pool_nft, transaction_type, amount, block_height, timestamp)
-            result_id = self.execute_insert(insert_query, params, return_id=True)
+            returned = self.execute_insert(upsert_sql, params, return_id=True)
 
-            if result_id:
-                return transaction_id
-            else:
-                print(f"Failed to insert transaction: {transaction_id}")
-                return None
+            return returned  # will be the transaction_id if successful, else None
 
         except Exception as e:
-            print(f"Error inserting transaction: {e}")
+            print(f"Error upserting transaction: {e}")
             return None
 
 

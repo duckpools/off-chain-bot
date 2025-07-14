@@ -34,7 +34,29 @@ current_pools = [
         "PARENT_NFT": "5255c5b1da74994236ee5d737516d02839f43cc6b61b206e1dc19ed39d9c11b8",
         "PARAMETER_NFT": "c75bf10aba4094f0cca74e3ff3cee0d016c2651e9554c95aabbed844f848ffe4",
         "INTEREST_PARAMETER_NFT": "54e175e1491af439c10652db7685651c7e57530d18a31c5b46e0b85f6bfb9b18",
-        "LEND_TOKEN": "fc888e0eed50a4042324793a7894134d83c7aaf5c99f4bf643e7e2b4e71e0095"
+        "LEND_TOKEN": "fc888e0eed50a4042324793a7894134d83c7aaf5c99f4bf643e7e2b4e71e0095",
+        "collateral_supported": {
+            "sigusd": {
+                "dex_nft": "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
+            },
+            "sigrsv": {
+                "dex_nft": "1d5afc59838920bb5ef2a8f9d63825a55b1d48e269d7cecee335d637c3ff5f3f",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
+            },
+            "rsn": {
+                "dex_nft": "1b694b15467c62f0cd4525e368dbdea2329c713aa200b73df4a622e950551b40",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
+            },
+            "rsada": {
+                "dex_nft": "ae97c5eccd59a065cd973a8d6afb8bb79f9cc70368a7dcdf73aaeab1cedf6f6b",
+                "dex_fee": 995,
+                "dex_fee_serialized": "04c60f"
+            }
+        }
     },
     {
         "is_Erg": False,
