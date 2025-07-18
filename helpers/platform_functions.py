@@ -357,6 +357,7 @@ def get_head_child(child_address, child_nft, parent_address, parent_nft, parent_
 
 def get_all_boxes_by_token_id(
         token_id,
+        min_height=0,
         limit=100,
         max_retries=5,
         delay=REQUEST_DELAY,
@@ -364,75 +365,103 @@ def get_all_boxes_by_token_id(
         headers=None
 ):
     """
-    Fetch all boxes for a given token ID from the Ergo Platform API.
+    Fetch all boxes for a given token ID from the Ergo Platform API, starting from the latest
+    and going backwards until min_height is reached.
 
     :param token_id: The token ID to search for
+    :param min_height: Minimum block height to fetch boxes for (default: 0)
     :param limit: Number of items per request (default: 100)
     :param max_retries: Maximum number of retries per request (default: 5)
     :param delay: Delay between retries in seconds (default: REQUEST_DELAY)
     :param progress_interval: Print progress every N requests (default: 10)
     :param headers: Custom headers for requests (default: None, uses global headers)
-    :return: List of all boxes for the token ID
+    :return: List of boxes for the token ID above min_height, in chronological order
     :raises: Exception if unable to fetch data after retries
     """
 
     base_url = 'https://api.ergoplatform.com/api/v1/boxes/byTokenId/'
     all_boxes = []
-    offset = 0
-    total = None
     request_count = 0
 
-    print(f"Starting to fetch boxes for token ID: {token_id}")
+    print(f"Starting to fetch boxes for token ID: {token_id} (min_height: {min_height})")
 
-    while True:
+    # First, get the total count
+    initial_url = f"{base_url}{token_id}?offset=0&limit=1"
+    response = get_request(initial_url, headers=headers, max_retries=max_retries, delay=delay)
+
+    if response is None:
+        raise Exception(f"Failed to fetch data after {max_retries} retries")
+
+    if response == 404:
+        print(f"Token ID '{token_id}' not found (404)")
+        return []
+
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise Exception(f"Failed to parse JSON response: {e}")
+
+    total = data.get('total', 0)
+    print(f"Total boxes available: {total}")
+
+    if total == 0:
+        print("No boxes found for this token ID")
+        return []
+
+    # Start from the end and work backwards
+    offset = max(0, total - limit)
+    reached_min_height = False
+
+    while offset >= 0 and not reached_min_height:
         request_count += 1
 
         # Show progress periodically
         if request_count % progress_interval == 0 or request_count == 1:
-            progress = f"{len(all_boxes)}/{total}" if total is not None else str(len(all_boxes))
-            print(f"Progress: Request #{request_count}, Boxes collected: {progress}")
+            print(f"Progress: Request #{request_count}, Boxes collected: {len(all_boxes)}, Current offset: {offset}")
 
         # Construct URL with parameters
         url = f"{base_url}{token_id}?offset={offset}&limit={limit}"
 
-        # Make request using the provided get_request function
+        # Make request
         response = get_request(url, headers=headers, max_retries=max_retries, delay=delay)
 
-        # Handle different response types
         if response is None:
             raise Exception(f"Failed to fetch data after {max_retries} retries")
 
-        if response == 404:
-            print(f"Token ID '{token_id}' not found (404)")
-            return []
-
-        # Parse JSON response
         try:
             data = response.json()
         except ValueError as e:
             raise Exception(f"Failed to parse JSON response: {e}")
 
-        # Set total on first successful response
-        if total is None:
-            total = data.get('total', 0)
-            print(f"Total boxes to fetch: {total}")
-
-            if total == 0:
-                print("No boxes found for this token ID")
-                return []
-
-        # Add boxes from current response
         items = data.get('items', [])
-        if items:
-            all_boxes.extend(items)
-            offset += len(items)
 
-        # Check if we've collected all boxes
-        if len(all_boxes) >= total or len(items) == 0:
+        if items:
+            # Filter boxes based on min_height
+            filtered_items = []
+            for box in items:
+                settlement_height = box.get('settlementHeight', 0)
+                if settlement_height > min_height:
+                    filtered_items.append(box)
+                else:
+                    reached_min_height = True
+
+            # Add filtered boxes to the beginning of our list (since we're going backwards)
+            all_boxes = filtered_items + all_boxes
+
+            # If we've reached min_height, we're done
+            if reached_min_height:
+                print(f"Reached minimum height {min_height}, stopping pagination")
+                break
+
+        # Move to previous batch
+        if offset == 0:
             break
 
-    print(f"Completed! Collected {len(all_boxes)} boxes in {request_count} requests")
+        offset = max(0, offset - limit)
+
+    print(f"Completed! Collected {len(all_boxes)} boxes above height {min_height} in {request_count} requests")
     return all_boxes
+
 
 
 def fetch_transaction_data(transaction_id):

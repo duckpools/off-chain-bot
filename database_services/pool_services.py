@@ -29,10 +29,23 @@ def sync_all_pools(db: DatabaseManager):
         update_pool(db, pool)
 
 
-def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes):
+def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0):
+    """
+    Sync pool interest data for boxes above min_height.
+
+    :param db: Database manager instance
+    :param pool: Pool configuration
+    :param pool_boxes: List of pool boxes
+    :param min_height: Minimum block height to process (default: 0)
+    """
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
             continue
+
+        # Skip boxes below min_height
+        if pool_box.get("settlementHeight", 0) <= min_height:
+            continue
+
         borrowed = total_borrowed(pool, pool_box)
         if pool["is_Erg"]:
             assets_in_Pool = pool_box["value"] - pool["InitializedPoolAmount"]
@@ -48,7 +61,17 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes):
             print("Error getting timestamp for pool box")
             continue
         print(pool_box)
-        print(db.upsert_pool_data_historical(pool["POOL_NFT"], pool_box["settlementHeight"], pool_box["transactionId"], lend_rate, borrow_rate, utilization, total_lent, borrowed, timestamp))
+        print(db.upsert_pool_data_historical(
+            pool["POOL_NFT"],
+            pool_box["settlementHeight"],
+            pool_box["transactionId"],
+            lend_rate,
+            borrow_rate,
+            utilization,
+            total_lent,
+            borrowed,
+            timestamp
+        ))
 
 
 def calculate_amount_difference(tx: dict, pool: dict) -> float:
@@ -261,9 +284,21 @@ def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tu
         return None, None, 0.0, None, None, None
 
 
-def sync_transactions(db: DatabaseManager, pool, pool_boxes):
+def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
+    """
+    Sync transactions for boxes above min_height.
+
+    :param db: Database manager instance
+    :param pool: Pool configuration
+    :param pool_boxes: List of pool boxes
+    :param min_height: Minimum block height to process (default: 0)
+    """
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
+            continue
+
+        # Skip boxes below min_height
+        if pool_box.get("settlementHeight", 0) <= min_height:
             continue
 
         tx_id = pool_box["transactionId"]
@@ -276,6 +311,10 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes):
         # Extract block_height and timestamp from main transaction
         main_block_height = tx.get("inclusionHeight")
         main_timestamp = tx.get("timestamp")
+
+        # Skip if main transaction is below min_height
+        if main_block_height and main_block_height <= min_height:
+            continue
 
         # Determine transaction type by checking input addresses
         transaction_type = None
@@ -304,6 +343,9 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes):
                 transaction_type, address, amount, final_tx_id, block_height, timestamp = determine_repayment_transaction(
                     input_box, tx, pool)
                 if transaction_type:
+                    # Check if inner transaction is above min_height
+                    if block_height and block_height <= min_height:
+                        transaction_type = None
                     break
 
         if not transaction_type:
@@ -328,17 +370,34 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes):
             print(f"Failed to upsert transaction {final_tx_id}")
 
 
-def sync_all_interest_data(db: DatabaseManager):
-    #TODO: Rename when function purpose known
+def sync_all_historical_data(db: DatabaseManager, min_height=0):
+    """
+    Sync all historical data for transactions and pool interest data above min_height.
+
+    :param db: Database manager instance
+    :param min_height: Minimum block height to sync from (default: 0)
+    """
     # Higher-level service function
+    print(f"Starting historical data sync from height {min_height}")
+
     for pool in current_pools:
-        pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"])
-        sync_transactions(db, pool, pool_boxes)
-        sync_pool_interest_data(db, pool, pool_boxes)
+        print(f"Processing pool: {pool['POOL_NFT']}")
+        pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
+
+        if pool_boxes:
+            sync_transactions(db, pool, pool_boxes, min_height=min_height)
+            sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height)
+        else:
+            print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
 
 
-def sync_all(db: DatabaseManager):
+def sync_all(db: DatabaseManager, min_height=1569437):
+    """
+    Sync all pools and historical data.
+
+    :param db: Database manager instance
+    :param min_height: Minimum block height to sync historical data from (default: 0)
+    """
     sync_all_pools(db)
-    sync_all_interest_data(db)
+    sync_all_historical_data(db, min_height=min_height)
     sync_all_pools(db)
-
