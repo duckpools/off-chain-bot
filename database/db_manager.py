@@ -229,3 +229,75 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error upserting pool data: {e}")
             return None
+
+
+    def upsert_lend_position_historical(self,
+                                        address: str,
+                                        pool_nft: str,
+                                        transaction_id: Optional[str],
+                                        block_height: int,
+                                        timestamp: int,
+                                        position_tokens: float,
+                                        position_value: float,
+                                        total_deposited: float,
+                                        total_withdrawn: float,
+                                        realized_profit: float,
+                                        total_profit: float) -> Optional[int]:
+        """
+        Upsert a lend position historical record.
+        Updates if a record exists for this address/pool/timestamp, otherwise inserts.
+
+        Returns:
+            The id of the upserted record if successful, None if failed
+        """
+        try:
+            # Get or create address_id
+            address_query = "SELECT id FROM addresses WHERE address = %s"
+            address_result = self.execute_query(address_query, (address,))
+
+            if address_result:
+                address_id = address_result[0]['id']
+            else:
+                user_id = self.execute_insert("INSERT INTO users DEFAULT VALUES RETURNING id", return_id=True)
+                if not user_id:
+                    print("Failed to create user")
+                    return None
+
+                address_id = self.execute_insert(
+                    "INSERT INTO addresses (address, user_id, is_primary) VALUES (%s, %s, %s) RETURNING id",
+                    (address, user_id, True),
+                    return_id=True
+                )
+                if not address_id:
+                    print("Failed to create address")
+                    return None
+
+            # Upsert historical record
+            upsert_query = """
+                INSERT INTO lend_positions_historical 
+                (address_id, pool_nft, transaction_id, block_height, timestamp,
+                 position_tokens, position_value, total_deposited, total_withdrawn,
+                 realized_profit, total_profit)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (address_id, pool_nft, timestamp)
+                DO UPDATE SET
+                    transaction_id = EXCLUDED.transaction_id,
+                    block_height = EXCLUDED.block_height,
+                    position_tokens = EXCLUDED.position_tokens,
+                    position_value = EXCLUDED.position_value,
+                    total_deposited = EXCLUDED.total_deposited,
+                    total_withdrawn = EXCLUDED.total_withdrawn,
+                    realized_profit = EXCLUDED.realized_profit,
+                    total_profit = EXCLUDED.total_profit
+                RETURNING id
+            """
+
+            params = (address_id, pool_nft, transaction_id, block_height, timestamp,
+                      position_tokens, position_value, total_deposited, total_withdrawn,
+                      realized_profit, total_profit)
+
+            return self.execute_insert(upsert_query, params, return_id=True)
+
+        except Exception as e:
+            print(f"Error upserting lend position historical: {e}")
+            return None

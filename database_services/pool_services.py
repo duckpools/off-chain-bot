@@ -50,7 +50,7 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0)
         if pool["is_Erg"]:
             assets_in_Pool = pool_box["value"] - pool["InitializedPoolAmount"]
         else:
-            assets_in_Pool = pool_box["value"] - pool["InitializedPoolAmount"]
+            assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
         total_lent = borrowed + assets_in_Pool
         lend_rate = lend_apy(pool, pool_box)
         borrow_rate = borrow_apy(pool, pool_box)
