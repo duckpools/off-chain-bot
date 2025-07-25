@@ -31,6 +31,8 @@ class CoreDB:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(query, params)
-                if return_id:
-                    return cur.fetchone()[0]
-                return None
+                result = None
+                if return_id and cur.rowcount > 0:
+                    result = cur.fetchone()[0]
+                conn.commit()
+                return result

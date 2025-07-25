@@ -51,12 +51,12 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0)
         lend_rate = lend_apy(pool, pool_box)
         borrow_rate = borrow_apy(pool, pool_box)
         utilization = pool_utilization(pool, pool_box)
+        lend_token_value = (assets_in_Pool + borrowed) / (pool["LendTokenSupply"] - pool_box["assets"][1]["amount"])
         try:
             timestamp = get_transaction_timestamp(pool_box["transactionId"])
         except Exception:
             print("Error getting timestamp for pool box")
             continue
-        print(pool_box)
         print(db.upsert_pool_data_historical(
             pool["POOL_NFT"],
             pool_box["settlementHeight"],
@@ -66,7 +66,9 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0)
             utilization,
             total_lent,
             borrowed,
-            timestamp
+            timestamp,
+            pool_box["boxId"],
+            lend_token_value
         ))
 
 

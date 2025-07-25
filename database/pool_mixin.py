@@ -1,6 +1,7 @@
 from typing import Optional
 from .core import CoreDB
 
+
 class PoolMixin:
     def upsert_pool(self,
                     nft: str,
@@ -62,7 +63,9 @@ class PoolMixin:
                                     pool_utilization: float,
                                     total_lent: float,
                                     total_borrowed: float,
-                                    box_timestamp: int) -> Optional[bool]:
+                                    box_timestamp: int,
+                                    pool_box_id: str,
+                                    lend_token_value: float) -> Optional[bool]:
         """
         Insert or update pool historical data in the database.
         If the pool_nft, block_height, and transaction_id combination exists, updates it with new data.
@@ -78,6 +81,8 @@ class PoolMixin:
             total_lent: Total amount lent in the pool at this point in time
             total_borrowed: Total amount borrowed from the pool at this point in time
             box_timestamp: Blockchain timestamp when the transaction occurred
+            pool_box_id: Pool box ID
+            lend_token_value: Lend token value
 
         Returns:
             True if successful, None if failed
@@ -85,24 +90,26 @@ class PoolMixin:
         try:
             # Use PostgreSQL's ON CONFLICT to handle upsert
             upsert_query = """
-                   INSERT INTO pool_data_historical (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization, total_lent, total_borrowed, box_timestamp)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (pool_nft, block_height, transaction_id)
-                   DO UPDATE SET
-                       lend_apy = EXCLUDED.lend_apy,
-                       borrow_apy = EXCLUDED.borrow_apy,
-                       pool_utilization = EXCLUDED.pool_utilization,
-                       total_lent = EXCLUDED.total_lent,
-                       total_borrowed = EXCLUDED.total_borrowed,
-                       box_timestamp = EXCLUDED.box_timestamp,
-                       updated_at = CURRENT_TIMESTAMP
-                   RETURNING pool_nft, block_height, transaction_id
-               """
+                INSERT INTO pool_data_historical (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization, total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (pool_nft, block_height, transaction_id)
+                DO UPDATE SET
+                    lend_apy = EXCLUDED.lend_apy,
+                    borrow_apy = EXCLUDED.borrow_apy,
+                    pool_utilization = EXCLUDED.pool_utilization,
+                    total_lent = EXCLUDED.total_lent,
+                    total_borrowed = EXCLUDED.total_borrowed,
+                    box_timestamp = EXCLUDED.box_timestamp,
+                    pool_box_id = EXCLUDED.pool_box_id,
+                    lend_token_value = EXCLUDED.lend_token_value,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING pool_nft, block_height, transaction_id
+            """
 
             params = (
-                pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization, total_lent,
-                total_borrowed,
-                box_timestamp)
+                pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization,
+                total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value
+            )
             result = self.execute_insert(upsert_query, params, return_id=True)
 
             if result:
