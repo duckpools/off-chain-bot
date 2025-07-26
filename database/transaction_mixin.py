@@ -8,6 +8,7 @@ class TransactionMixin:
                            pool_nft: str,
                            transaction_type: str,
                            amount: float,
+                           fee_paid: Optional[int] = None,
                            block_height: Optional[int] = None,
                            timestamp: Optional[int] = None) -> Optional[str]:
         """
@@ -53,20 +54,22 @@ class TransactionMixin:
                     # Upsert transaction
                     upsert_sql = """
                     INSERT INTO transactions
-                      (id, address_id, pool_nft, type, amount, block_height, timestamp)
+                      (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp)
                     VALUES
-                      (%s, %s, %s, %s, %s, %s, %s)
+                      (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                       SET address_id  = EXCLUDED.address_id,
                           pool_nft     = EXCLUDED.pool_nft,
                           type         = EXCLUDED.type,
                           amount       = EXCLUDED.amount,
+                          fee_paid     = EXCLUDED.fee_paid,
                           block_height = EXCLUDED.block_height,
                           timestamp    = EXCLUDED.timestamp
                     RETURNING id
                     """
 
-                    params = (transaction_id, address_id, pool_nft, transaction_type, amount, block_height, timestamp)
+                    params = (
+                    transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, block_height, timestamp)
                     cur.execute(upsert_sql, params)
                     result = cur.fetchone()
 

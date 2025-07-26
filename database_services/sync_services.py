@@ -23,7 +23,8 @@ def sync_all_historical_data(db: DatabaseManager, min_height=0):
 
         if pool_boxes:
             sync_transactions(db, pool, pool_boxes, min_height=min_height)
-            sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height)
+            #sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height)
+            pass
         else:
             print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
 

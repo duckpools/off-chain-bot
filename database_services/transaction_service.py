@@ -1,14 +1,18 @@
 from typing import Optional
 
+from consts import FEE_ADDRESS_LIST
 from database.db_manager import DatabaseManager
 from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
 
 
-def calculate_amount_difference(tx: dict, pool: dict) -> float:
+def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
     """
     Calculates the amount difference between pool boxes in inputs and outputs.
-    Returns the absolute difference based on pool["is_Erg"] setting.
+    Also calculates the fee paid to any address in FEE_ADDRESS_LIST.
+    Returns (amount, fee_amount) where:
+    - amount: absolute difference based on pool["is_Erg"] setting
+    - fee_amount: fee paid to fee addresses (0 if none found)
     """
     pool_address = pool["pool"]
     input_pool_box = None
@@ -28,8 +32,9 @@ def calculate_amount_difference(tx: dict, pool: dict) -> float:
 
     if not input_pool_box or not output_pool_box:
         print(f"Could not find pool boxes in inputs/outputs for pool address {pool_address}")
-        return 0.0
+        return 0.0, 0
 
+    # Calculate amount difference
     if pool.get("is_Erg", False):
         # Use box["value"] for ERG
         input_value = input_pool_box.get("value", 0)
@@ -51,35 +56,51 @@ def calculate_amount_difference(tx: dict, pool: dict) -> float:
 
         amount = abs(output_amount - input_amount)
 
-    return amount
+    # Calculate fee amount
+    fee_amount = 0
+
+    # Look for fee addresses in outputs
+    for output_box in tx.get("outputs", []):
+        output_address = output_box.get("address", "")
+        if output_address in FEE_ADDRESS_LIST:
+            if pool.get("is_Erg", False):
+                # For ERG pools, get box value
+                fee_amount += output_box.get("value", 0)
+            else:
+                # For token pools, get box assets[0] amount
+                assets = output_box.get("assets", [])
+                if len(assets) > 0:
+                    fee_amount += assets[0].get("amount", 0)
+
+    return amount, fee_amount
 
 
-def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float]:
+def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
     """
     Determines lend transaction and extracts address from R4 and calculates amount.
-    Returns: ("lend", address, amount)
+    Returns: ("lend", address, amount, fee)
     """
     transaction_type = "lend"
     address = None
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
         address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
 
-    amount = calculate_amount_difference(tx, pool)
-    return transaction_type, address, amount
+    amount, fee = calculate_amount_difference(tx, pool)
+    return transaction_type, address, amount, fee
 
 
-def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float]:
+def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
     """
     Determines withdraw transaction and extracts address from R4 and calculates amount.
-    Returns: ("withdraw", address, amount)
+    Returns: ("withdraw", address, amount, fee)
     """
     transaction_type = "withdraw"
     address = None
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
         address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
 
-    amount = calculate_amount_difference(tx, pool)
-    return transaction_type, address, amount
+    amount, fee = calculate_amount_difference(tx, pool)
+    return transaction_type, address, amount, fee
 
 
 def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float]:
@@ -92,7 +113,7 @@ def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict) -> tuple
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
         address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
 
-    amount = calculate_amount_difference(tx, pool)
+    amount, fee = calculate_amount_difference(tx, pool)
     return transaction_type, address, amount
 
 
@@ -113,7 +134,7 @@ def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict,
                 break
 
     # Use outer transaction for amount calculation
-    amount = calculate_amount_difference(outer_tx, pool)
+    amount, fee = calculate_amount_difference(outer_tx, pool)
     return transaction_type, address, amount
 
 
@@ -129,7 +150,7 @@ def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, ou
         address = tree_to_address(input_box["additionalRegisters"]["R5"]["renderedValue"])
 
     # Use outer transaction for amount calculation
-    amount = calculate_amount_difference(outer_tx, pool)
+    amount, fee = calculate_amount_difference(outer_tx, pool)
     return transaction_type, address, amount
 
 
@@ -150,7 +171,7 @@ def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: 
                 break
 
     # Use outer transaction for amount calculation
-    amount = calculate_amount_difference(outer_tx, pool)
+    amount, fee = calculate_amount_difference(outer_tx, pool)
     return transaction_type, address, amount
 
 
@@ -251,6 +272,7 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
         transaction_type = None
         address = None
         amount = 0.0
+        fee = 0
         final_tx_id = tx_id  # Default to main transaction ID
         block_height = main_block_height
         timestamp = main_timestamp
@@ -259,12 +281,12 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
         print(tx)
         for input_box in tx["inputs"]:
             input_address = input_box.get("address", "")
-
+            fee = 0
             if input_address == pool["proxy_lend"]:
-                transaction_type, address, amount = determine_lend_transaction(input_box, tx, pool)
+                transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
                 break
             elif input_address == pool["proxy_withdraw"]:
-                transaction_type, address, amount = determine_withdraw_transaction(input_box, tx, pool)
+                transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
                 break
             elif input_address == pool["proxy_borrow"]:
                 transaction_type, address, amount = determine_borrow_transaction(input_box, tx, pool)
@@ -290,6 +312,7 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
             pool_nft=pool["POOL_NFT"],  # Assuming pool has an 'nft' field
             transaction_type=transaction_type,
             amount=amount,
+            fee_paid=fee,
             block_height=block_height,  # Use extracted block_height
             timestamp=timestamp  # Use extracted timestamp
         )
