@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from consts import FEE_ADDRESS_LIST
 from database.db_manager import DatabaseManager
@@ -236,6 +236,87 @@ def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tu
         return None, None, 0.0, None, None, None
 
 
+def _process_single_transaction(pool_box: dict, pool: dict, min_height: int = 0) -> Optional[Dict[str, Any]]:
+    """
+    Process a single pool box transaction and return transaction data or None if invalid.
+    Shared logic between sync_transactions and sync_transactions_batched.
+
+    :param pool_box: Pool box data
+    :param pool: Pool configuration
+    :param min_height: Minimum block height to process
+    :return: Transaction data dictionary or None
+    """
+    if pool_box["address"] != pool["pool"]:
+        return None
+
+    # Skip boxes below min_height
+    if pool_box.get("settlementHeight", 0) <= min_height:
+        return None
+
+    tx_id = pool_box["transactionId"]
+    tx = fetch_transaction_data(tx_id)
+
+    if not tx or "inputs" not in tx:
+        print(f"Failed to fetch transaction data for {tx_id}")
+        return None
+
+    # Extract block_height and timestamp from main transaction
+    main_block_height = tx.get("inclusionHeight")
+    main_timestamp = tx.get("timestamp")
+
+    # Skip if main transaction is below min_height
+    if main_block_height and main_block_height <= min_height:
+        return None
+
+    # Determine transaction type by checking input addresses
+    transaction_type = None
+    address = None
+    amount = 0.0
+    fee = 0
+    final_tx_id = tx_id  # Default to main transaction ID
+    block_height = main_block_height
+    timestamp = main_timestamp
+
+    # Check each input to determine transaction type
+    print(tx)
+    for input_box in tx["inputs"]:
+        input_address = input_box.get("address", "")
+        fee = 0
+        if input_address == pool["proxy_lend"]:
+            transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
+            break
+        elif input_address == pool["proxy_withdraw"]:
+            transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
+            break
+        elif input_address == pool["proxy_borrow"]:
+            transaction_type, address, amount = determine_borrow_transaction(input_box, tx, pool)
+            break
+        elif input_address == pool["repayment"]:
+            # For repayments, use inner transaction data
+            transaction_type, address, amount, final_tx_id, block_height, timestamp = determine_repayment_transaction(
+                input_box, tx, pool)
+            if transaction_type:
+                # Check if inner transaction is above min_height
+                if block_height and block_height <= min_height:
+                    transaction_type = None
+                break
+
+    if not transaction_type:
+        print(f"Could not determine transaction type for {tx_id}")
+        return None
+
+    return {
+        'transaction_id': final_tx_id,
+        'address': address or "unknown_address",
+        'pool_nft': pool["POOL_NFT"],
+        'transaction_type': transaction_type,
+        'amount': amount,
+        'fee_paid': fee,
+        'block_height': block_height,
+        'timestamp': timestamp
+    }
+
+
 def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
     """
     Sync transactions for boxes above min_height.
@@ -246,79 +327,60 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
     :param min_height: Minimum block height to process (default: 0)
     """
     for pool_box in pool_boxes:
-        if pool_box["address"] != pool["pool"]:
-            continue
-
-        # Skip boxes below min_height
-        if pool_box.get("settlementHeight", 0) <= min_height:
-            continue
-
-        tx_id = pool_box["transactionId"]
-        tx = fetch_transaction_data(tx_id)
-
-        if not tx or "inputs" not in tx:
-            print(f"Failed to fetch transaction data for {tx_id}")
-            continue
-
-        # Extract block_height and timestamp from main transaction
-        main_block_height = tx.get("inclusionHeight")
-        main_timestamp = tx.get("timestamp")
-
-        # Skip if main transaction is below min_height
-        if main_block_height and main_block_height <= min_height:
-            continue
-
-        # Determine transaction type by checking input addresses
-        transaction_type = None
-        address = None
-        amount = 0.0
-        fee = 0
-        final_tx_id = tx_id  # Default to main transaction ID
-        block_height = main_block_height
-        timestamp = main_timestamp
-
-        # Check each input to determine transaction type
-        print(tx)
-        for input_box in tx["inputs"]:
-            input_address = input_box.get("address", "")
-            fee = 0
-            if input_address == pool["proxy_lend"]:
-                transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
-                break
-            elif input_address == pool["proxy_withdraw"]:
-                transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
-                break
-            elif input_address == pool["proxy_borrow"]:
-                transaction_type, address, amount = determine_borrow_transaction(input_box, tx, pool)
-                break
-            elif input_address == pool["repayment"]:
-                # For repayments, use inner transaction data
-                transaction_type, address, amount, final_tx_id, block_height, timestamp = determine_repayment_transaction(
-                    input_box, tx, pool)
-                if transaction_type:
-                    # Check if inner transaction is above min_height
-                    if block_height and block_height <= min_height:
-                        transaction_type = None
-                    break
-
-        if not transaction_type:
-            print(f"Could not determine transaction type for {tx_id}")
+        transaction_data = _process_single_transaction(pool_box, pool, min_height)
+        if not transaction_data:
             continue
 
         # Call upsert_transaction
         result = db.upsert_transaction(
-            transaction_id=final_tx_id,  # Use inner transaction ID for repayments
-            address=address or "unknown_address",  # Use extracted address or fallback
-            pool_nft=pool["POOL_NFT"],  # Assuming pool has an 'nft' field
-            transaction_type=transaction_type,
-            amount=amount,
-            fee_paid=fee,
-            block_height=block_height,  # Use extracted block_height
-            timestamp=timestamp  # Use extracted timestamp
+            transaction_id=transaction_data['transaction_id'],
+            address=transaction_data['address'],
+            pool_nft=transaction_data['pool_nft'],
+            transaction_type=transaction_data['transaction_type'],
+            amount=transaction_data['amount'],
+            fee_paid=transaction_data['fee_paid'],
+            block_height=transaction_data['block_height'],
+            timestamp=transaction_data['timestamp']
         )
 
         if result:
             print(
-                f"Successfully processed transaction {final_tx_id} of type {transaction_type} for address {address} with amount {amount}")
+                f"Successfully processed transaction {transaction_data['transaction_id']} of type {transaction_data['transaction_type']} for address {transaction_data['address']} with amount {transaction_data['amount']}")
         else:
-            print(f"Failed to upsert transaction {final_tx_id}")
+            print(f"Failed to upsert transaction {transaction_data['transaction_id']}")
+
+
+def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500):
+    """
+    Sync transactions for boxes above min_height using batched processing.
+    Processes transactions locally in batches and inserts them in bulk to reduce database calls.
+
+    :param db: Database manager instance
+    :param pool: Pool configuration
+    :param pool_boxes: List of pool boxes
+    :param min_height: Minimum block height to process (default: 0)
+    :param batch_size: Number of transactions to process in each batch (default: 500)
+    """
+    transactions_batch = []
+    processed_count = 0
+
+    for pool_box in pool_boxes:
+        transaction_data = _process_single_transaction(pool_box, pool, min_height)
+        if not transaction_data:
+            continue
+
+        transactions_batch.append(transaction_data)
+        processed_count += 1
+
+        # Process batch when it reaches batch_size
+        if len(transactions_batch) >= batch_size:
+            success_count = db.batch_upsert_transactions(transactions_batch)
+            print(f"Processed batch of {len(transactions_batch)} transactions, {success_count} successful")
+            transactions_batch = []
+
+    # Process any remaining transactions in the final batch
+    if transactions_batch:
+        success_count = db.batch_upsert_transactions(transactions_batch)
+        print(f"Processed final batch of {len(transactions_batch)} transactions, {success_count} successful")
+
+    print(f"Total transactions processed: {processed_count}")

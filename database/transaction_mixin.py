@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 
 class TransactionMixin:
@@ -69,7 +69,8 @@ class TransactionMixin:
                     """
 
                     params = (
-                    transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, block_height, timestamp)
+                        transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, block_height,
+                        timestamp)
                     cur.execute(upsert_sql, params)
                     result = cur.fetchone()
 
@@ -79,3 +80,117 @@ class TransactionMixin:
         except Exception as e:
             print(f"Error upserting transaction: {e}")
             return None
+
+    def batch_upsert_transactions(self, transactions: List[Dict[str, Any]]) -> int:
+        """
+        Batch upsert transactions into the database for improved performance.
+
+        :param transactions: List of transaction dictionaries with keys:
+                            - transaction_id: str
+                            - address: str
+                            - pool_nft: str
+                            - transaction_type: str
+                            - amount: float
+                            - fee_paid: Optional[int]
+                            - block_height: Optional[int]
+                            - timestamp: Optional[int]
+        :return: Number of successfully processed transactions
+        """
+        if not transactions:
+            return 0
+
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # First, collect all unique addresses and ensure they exist
+                    unique_addresses = set(tx['address'] for tx in transactions)
+                    address_to_id = {}
+
+                    # Get existing addresses
+                    if unique_addresses:
+                        placeholders = ','.join(['%s'] * len(unique_addresses))
+                        cur.execute(f"SELECT address, id FROM addresses WHERE address IN ({placeholders})",
+                                    list(unique_addresses))
+                        existing_addresses = cur.fetchall()
+                        address_to_id = {addr: addr_id for addr, addr_id in existing_addresses}
+
+                    # Create missing addresses
+                    missing_addresses = unique_addresses - set(address_to_id.keys())
+                    for address in missing_addresses:
+                        try:
+                            # Create user first
+                            cur.execute("INSERT INTO users DEFAULT VALUES RETURNING id")
+                            user_result = cur.fetchone()
+                            if not user_result:
+                                print(f"Failed to create user for address {address}")
+                                continue
+                            user_id = user_result[0]
+
+                            # Create address
+                            cur.execute(
+                                "INSERT INTO addresses (address, user_id, is_primary) VALUES (%s, %s, %s) RETURNING id",
+                                (address, user_id, True)
+                            )
+                            address_result = cur.fetchone()
+                            if not address_result:
+                                print(f"Failed to create address {address}")
+                                continue
+                            address_to_id[address] = address_result[0]
+                        except Exception as e:
+                            print(f"Error creating address {address}: {e}")
+                            continue
+
+                    # Prepare transaction data for bulk insert
+                    transaction_params = []
+                    valid_types = ('lend', 'withdraw', 'borrow', 'repayment', 'partial_repayment', 'liquidation')
+
+                    for tx_data in transactions:
+                        # Validate transaction type
+                        if tx_data['transaction_type'] not in valid_types:
+                            print(f"Invalid transaction type {tx_data['transaction_type']}")
+                            continue
+
+                        # Get address_id
+                        address_id = address_to_id.get(tx_data['address'])
+                        if not address_id:
+                            print(f"Could not find address_id for {tx_data['address']}")
+                            continue
+
+                        transaction_params.append((
+                            tx_data['transaction_id'],
+                            address_id,
+                            tx_data['pool_nft'],
+                            tx_data['transaction_type'],
+                            tx_data['amount'],
+                            tx_data.get('fee_paid'),
+                            tx_data.get('block_height'),
+                            tx_data.get('timestamp')
+                        ))
+
+                    # Bulk upsert transactions
+                    if transaction_params:
+                        upsert_sql = """
+                        INSERT INTO transactions
+                          (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp)
+                        VALUES
+                          (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE
+                          SET address_id  = EXCLUDED.address_id,
+                              pool_nft     = EXCLUDED.pool_nft,
+                              type         = EXCLUDED.type,
+                              amount       = EXCLUDED.amount,
+                              fee_paid     = EXCLUDED.fee_paid,
+                              block_height = EXCLUDED.block_height,
+                              timestamp    = EXCLUDED.timestamp
+                        """
+
+                        cur.executemany(upsert_sql, transaction_params)
+                        conn.commit()
+
+                        return len(transaction_params)
+
+                    return 0
+
+        except Exception as e:
+            print(f"Error processing transaction batch: {e}")
+            return 0
