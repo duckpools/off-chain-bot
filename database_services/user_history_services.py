@@ -247,3 +247,348 @@ def sync_user_lend_positions(
         print("No position updates to perform")
 
     print("Sync completed")
+
+
+def sync_user_deposits_historical(db: DatabaseManager, pool) -> bool:
+    """
+    Synchronize user deposits historical data for a specific pool.
+    Processes all transactions for the pool in block height order and calculates
+    cumulative deposit/withdrawal amounts for each user.
+
+    Args:
+        db: Database manager instance
+        pool: Pool configuration dictionary
+
+    Returns:
+        True if sync was successful, False otherwise
+    """
+    pool_nft = pool["POOL_NFT"]
+
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Get all transactions for the pool ordered by block height, then by transaction id
+                transaction_query = """
+                    SELECT t.id, t.address_id, t.type, t.amount, t.fee_paid, 
+                           t.block_height, t.timestamp, a.address
+                    FROM transactions t
+                    JOIN addresses a ON t.address_id = a.id
+                    WHERE t.pool_nft = %s
+                    ORDER BY t.block_height ASC, t.id ASC
+                """
+
+                cur.execute(transaction_query, (pool_nft,))
+                transactions = cur.fetchall()
+
+                if not transactions:
+                    print(f"No transactions found for pool {pool_nft}")
+                    return True
+
+                # Track cumulative amounts per address
+                user_totals = {}  # address -> {'deposited': float, 'withdrawn': float}
+
+                # Process each transaction in chronological order
+                for tx in transactions:
+                    tx_id, address_id, tx_type, amount, fee_paid, block_height, timestamp, address = tx
+
+                    # Initialize user totals if first time seeing this address
+                    if address not in user_totals:
+                        user_totals[address] = {'deposited': 0.0, 'withdrawn': 0.0}
+
+                    # Handle different transaction types
+                    fee = fee_paid if fee_paid is not None else 0
+
+                    if tx_type == 'lend':
+                        # For lend transactions: deposited amount increases by amount + fee
+                        user_totals[address]['deposited'] += float(amount) + float(fee)
+                    elif tx_type == 'withdraw':
+                        # For withdraw transactions: withdrawn amount increases by amount - fee
+                        user_totals[address]['withdrawn'] += float(amount) - float(fee)
+                    # Note: Other transaction types (borrow, repayment, etc.) don't affect deposit/withdrawal totals
+
+                    # Upsert the historical record with current cumulative totals
+                    result = db.upsert_user_deposits_historical(
+                        address=address,
+                        pool_nft=pool_nft,
+                        transaction_id=tx_id,
+                        block_height=block_height,
+                        timestamp=timestamp,
+                        total_deposited=user_totals[address]['deposited'],
+                        total_withdrawn=user_totals[address]['withdrawn']
+                    )
+
+                    if result is None:
+                        print(f"Failed to upsert historical record for transaction {tx_id}")
+                        return False
+
+                print(f"Successfully synced {len(transactions)} transactions for pool {pool_nft}")
+                return True
+
+    except Exception as e:
+        print(f"Error syncing user deposits historical for pool {pool_nft}: {e}")
+        return False
+
+
+def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
+    """
+    Alternative optimized version that does all the work in a single SQL operation.
+    This is the fastest approach as it avoids Python loops entirely.
+
+    Args:
+        db: Database manager instance
+        pool: Pool configuration dictionary
+
+    Returns:
+        True if sync was successful, False otherwise
+    """
+    pool_nft = pool["POOL_NFT"]
+
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Single SQL operation that calculates and upserts all snapshots
+                # Uses DISTINCT ON to handle duplicate (address_id, pool_nft, timestamp) combinations
+                bulk_upsert_query = """
+                    INSERT INTO user_portfolio_snapshots 
+                    (address_id, pool_nft, block_height, timestamp, position_value, total_profit)
+                    SELECT DISTINCT ON (address_id, pool_nft, timestamp)
+                        lp.address_id,
+                        lp.pool_nft,
+                        lp.block_height,
+                        lp.timestamp,
+                        lp.position_value,
+                        lp.position_value + COALESCE(dh.total_withdrawn, 0) - COALESCE(dh.total_deposited, 0) as total_profit
+                    FROM user_lend_positions_historical lp
+                    LEFT JOIN LATERAL (
+                        SELECT 
+                            total_deposited,
+                            total_withdrawn
+                        FROM user_deposits_historical udh
+                        WHERE udh.address_id = lp.address_id 
+                        AND udh.pool_nft = lp.pool_nft
+                        AND udh.block_height <= lp.block_height
+                        ORDER BY udh.block_height DESC, udh.id DESC
+                        LIMIT 1
+                    ) dh ON true
+                    WHERE lp.pool_nft = %s
+                    ORDER BY address_id, pool_nft, timestamp, lp.block_height DESC, lp.id DESC
+                    ON CONFLICT (address_id, pool_nft, timestamp)
+                    DO UPDATE SET
+                        block_height = EXCLUDED.block_height,
+                        position_value = EXCLUDED.position_value,
+                        total_profit = EXCLUDED.total_profit,
+                        updated_at = CURRENT_TIMESTAMP
+                """
+
+                cur.execute(bulk_upsert_query, (pool_nft,))
+                rows_affected = cur.rowcount
+                conn.commit()
+
+                print(f"Successfully upserted {rows_affected} portfolio snapshots for pool {pool_nft}")
+                return True
+
+    except Exception as e:
+        print(f"Error syncing user portfolio snapshots for pool {pool_nft}: {e}")
+        return False
+
+def get_pool_lend_token_value_map(db: DatabaseManager, pool_nft: str) -> dict:
+    """
+    Fetches all lend_token_value data from pool_data_historical for a specific pool.
+    Returns a map of {block_height: lend_token_value} where the value is constant between updates.
+
+    Args:
+        db: Database manager instance
+        pool_nft: The pool NFT identifier
+
+    Returns:
+        Dictionary mapping block heights to lend token values
+    """
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                query = """
+                    SELECT block_height, lend_token_value
+                    FROM pool_data_historical
+                    WHERE pool_nft = %s
+                    ORDER BY block_height ASC
+                """
+
+                cur.execute(query, (pool_nft,))
+                results = cur.fetchall()
+
+                if not results:
+                    print(f"No pool data historical found for pool {pool_nft}")
+                    return {}
+
+                # Create a map where each block height maps to its lend token value
+                value_map = {}
+                for block_height, lend_token_value in results:
+                    value_map[block_height] = float(lend_token_value)
+
+                print(f"Retrieved lend token values for {len(value_map)} block heights for pool {pool_nft}")
+                return value_map
+
+    except Exception as e:
+        print(f"Error fetching pool lend token value map for pool {pool_nft}: {e}")
+        return {}
+
+
+def get_lend_token_value_at_height(value_map: dict, target_height: int) -> float:
+    """
+    Gets the lend token value at a specific block height.
+    Since values are constant between updates, finds the most recent value <= target_height.
+
+    Args:
+        value_map: Dictionary of {block_height: lend_token_value}
+        target_height: The block height to get value for
+
+    Returns:
+        The lend token value at that height, or -1 if not found
+    """
+    if not value_map:
+        return -1
+
+    # Find the highest block height that is <= target_height
+    valid_heights = [h for h in value_map.keys() if h <= target_height]
+
+    if not valid_heights:
+        return -1
+
+    # Return the value at the most recent height
+    most_recent_height = max(valid_heights)
+    return value_map[most_recent_height]
+
+
+def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_blocks: int = 5000) -> bool:
+    """
+    Adds granular position updates for all users at regular block intervals.
+    This creates intermediate position records between actual transactions to provide
+    more granular tracking of position values over time.
+
+    Args:
+        db: Database manager instance
+        pool: Pool configuration dictionary
+        interval_blocks: Block interval for granular updates (default: 5000)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    pool_nft = pool["POOL_NFT"]
+
+    try:
+        # Step 1: Get the lend token value map
+        print(f"Fetching lend token value map for pool {pool_nft}")
+        value_map = get_pool_lend_token_value_map(db, pool_nft)
+
+        if not value_map:
+            print(f"No lend token value data available for pool {pool_nft}")
+            return False
+
+        # Step 2: Get the block height range
+        min_height = min(value_map.keys())
+        max_height = max(value_map.keys())
+
+        print(f"Block height range: {min_height} to {max_height}")
+
+        # Step 3: Generate interval heights
+        interval_heights = []
+        current_height = min_height + interval_blocks
+        while current_height <= max_height:
+            interval_heights.append(current_height)
+            current_height += interval_blocks
+
+        print(f"Generated {len(interval_heights)} interval heights every {interval_blocks} blocks")
+
+        if not interval_heights:
+            print("No interval heights to process")
+            return True
+
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Step 4: For each interval height, get all users' latest positions
+                batch_data = []
+
+                for interval_height in interval_heights:
+                    print(f"Processing interval height {interval_height}")
+
+                    # Get all users who have positions in this pool up to this height
+                    user_query = """
+                        SELECT DISTINCT 
+                            lp.address_id,
+                            a.address,
+                            FIRST_VALUE(lp.position_tokens) OVER (
+                                PARTITION BY lp.address_id 
+                                ORDER BY lp.block_height DESC, lp.id DESC
+                                ROWS UNBOUNDED PRECEDING
+                            ) as latest_position_tokens,
+                            FIRST_VALUE(lp.timestamp) OVER (
+                                PARTITION BY lp.address_id 
+                                ORDER BY lp.block_height DESC, lp.id DESC
+                                ROWS UNBOUNDED PRECEDING
+                            ) as latest_timestamp
+                        FROM user_lend_positions_historical lp
+                        JOIN addresses a ON lp.address_id = a.id
+                        WHERE lp.pool_nft = %s 
+                        AND lp.block_height <= %s
+                        AND lp.position_tokens > 0
+                    """
+
+                    cur.execute(user_query, (pool_nft, interval_height))
+                    user_positions = cur.fetchall()
+
+                    print(f"  Found {len(user_positions)} users with positions at height {interval_height}")
+
+                    # Get lend token value at this height
+                    lend_token_value = get_lend_token_value_at_height(value_map, interval_height)
+
+                    if lend_token_value == -1:
+                        print(f"  No lend token value available for height {interval_height}, skipping")
+                        continue
+
+                    # Check if records already exist at this exact height to avoid duplicates
+                    existing_query = """
+                        SELECT address_id
+                        FROM user_lend_positions_historical
+                        WHERE pool_nft = %s AND block_height = %s
+                    """
+
+                    cur.execute(existing_query, (pool_nft, interval_height))
+                    existing_addresses = {row[0] for row in cur.fetchall()}
+
+                    # Create position records for this interval
+                    for address_id, address, position_tokens, latest_timestamp in user_positions:
+                        # Skip if record already exists for this address at this height
+                        if address_id in existing_addresses:
+                            continue
+
+                        position_tokens = float(position_tokens)
+                        position_value = position_tokens * lend_token_value
+
+                        # Use a timestamp slightly after the latest known timestamp
+                        # This ensures chronological ordering while marking these as interval records
+                        interval_timestamp = latest_timestamp + 1
+
+                        batch_data.append((
+                            address,
+                            pool_nft,
+                            interval_height,
+                            interval_timestamp,
+                            position_tokens,
+                            position_value
+                        ))
+
+                print(f"Generated {len(batch_data)} granular position records")
+
+                # Step 5: Batch insert all granular records
+                if batch_data:
+                    print("Performing batch upsert of granular positions...")
+                    successful_inserts = db.batch_upsert_user_lend_positions_historical(batch_data)
+                    print(f"Successfully inserted {successful_inserts} granular position records")
+                    return successful_inserts == len(batch_data)
+                else:
+                    print("No granular records to insert")
+                    return True
+
+    except Exception as e:
+        print(f"Error adding granular user lend positions for pool {pool_nft}: {e}")
+        return False
