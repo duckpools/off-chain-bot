@@ -16,7 +16,7 @@ def update_pool(db: DatabaseManager, pool):
     borrow_rate = borrow_apy(pool, pool_box)
     lend_rate = lend_apy(pool, pool_box)
     # Call raw DB function
-    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID"], total_lent, borrowed, lend_rate, borrow_rate)
+    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID_DB"], total_lent, borrowed, lend_rate, borrow_rate)
 
 
 def sync_all_pools(db: DatabaseManager):
