@@ -115,6 +115,75 @@ def get_box_from_id(box_id):
         logger.error(f"Error while decoding response: {e}")
         return ERROR
 
+
+def get_block_info(height):
+    """
+    Get block information by block height.
+
+    First calls /blocks/at/{blockHeight} to get the header ID,
+    then calls /blocks/{headerId} to get the full block data including timestamp.
+
+    :param height: The block height to retrieve information for.
+    :return: The block data if found, None if not found, or an error code if an error occurred.
+    """
+    try:
+        # Step 1: Get block header ID by height
+        response = get_request(f"{node_url}/blocks/at/{height}")
+
+        if response == HTTP_NOT_FOUND:
+            logger.warning(f"Block not found at height: {height}")
+            return None
+
+        header_ids = json.loads(response.text)
+
+        if not header_ids or len(header_ids) == 0:
+            logger.warning(f"No header ID found for block height: {height}")
+            return None
+
+        header_id = header_ids[0]  # Get the first (and should be only) header ID
+
+        # Step 2: Get full block data by header ID
+        response = get_request(f"{node_url}/blocks/{header_id}")
+
+        if response == HTTP_NOT_FOUND:
+            logger.warning(f"Block not found with header ID: {header_id}")
+            return None
+
+        block_data = json.loads(response.text)
+        return block_data
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error while getting block info for height {height}: {e}")
+        return ERROR
+    except json.JSONDecodeError as e:
+        logger.error(f"Error while decoding response for block height {height}: {e}")
+        return ERROR
+    except (KeyError, IndexError) as e:
+        logger.error(f"Error parsing block data for height {height}: {e}")
+        return ERROR
+
+
+def get_block_timestamp(height):
+    """
+    Get the timestamp for a specific block height.
+
+    :param height: The block height to get timestamp for.
+    :return: The block timestamp in milliseconds, or None if not found/error.
+    """
+    block_data = get_block_info(height)
+
+    if block_data is None or block_data == ERROR:
+        return None
+
+    try:
+        # Extract timestamp from header
+        timestamp = block_data["header"]["timestamp"]
+        return int(timestamp)
+    except (KeyError, TypeError, ValueError) as e:
+        logger.error(f"Error extracting timestamp from block {height}: {e}")
+        return None
+
+
 def generate_dummy_script(node_address):
     script_payload = {
         "source": f"PK(\"{node_address}\") && HEIGHT >= -1"

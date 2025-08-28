@@ -1,4 +1,5 @@
 from database.db_manager import DatabaseManager
+from helpers.node_calls import get_block_timestamp
 from helpers.platform_functions import get_all_boxes_by_token_id, fetch_transaction_data
 from collections import defaultdict, OrderedDict
 from typing import Dict, List, Tuple
@@ -459,19 +460,13 @@ def get_lend_token_value_at_height(value_map: dict, target_height: int) -> float
     return value_map[most_recent_height]
 
 
-def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_blocks: int = 5000) -> bool:
+def add_granular_user_lend_positions(
+        db: DatabaseManager,
+        pool: dict,
+        interval_blocks: int = 5000
+) -> bool:
     """
-    Adds granular position updates for all users at regular block intervals.
-    This creates intermediate position records between actual transactions to provide
-    more granular tracking of position values over time.
-
-    Args:
-        db: Database manager instance
-        pool: Pool configuration dictionary
-        interval_blocks: Block interval for granular updates (default: 5000)
-
-    Returns:
-        True if successful, False otherwise
+    Add granular user positions using REAL block timestamps from the node API.
     """
     pool_nft = pool["POOL_NFT"]
 
@@ -484,13 +479,10 @@ def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_b
             print(f"No lend token value data available for pool {pool_nft}")
             return False
 
-        # Step 2: Get the block height range
+        # Step 2: Generate interval heights
         min_height = min(value_map.keys())
         max_height = max(value_map.keys())
 
-        print(f"Block height range: {min_height} to {max_height}")
-
-        # Step 3: Generate interval heights
         interval_heights = []
         current_height = min_height + interval_blocks
         while current_height <= max_height:
@@ -500,18 +492,33 @@ def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_b
         print(f"Generated {len(interval_heights)} interval heights every {interval_blocks} blocks")
 
         if not interval_heights:
-            print("No interval heights to process")
             return True
 
         with db.get_connection() as conn:
             with conn.cursor() as cur:
-                # Step 4: For each interval height, get all users' latest positions
                 batch_data = []
 
                 for interval_height in interval_heights:
                     print(f"Processing interval height {interval_height}")
 
-                    # Get all users who have positions in this pool up to this height
+                    # Get REAL block timestamp from node API
+                    block_timestamp = get_block_timestamp(interval_height)
+
+                    if block_timestamp is None:
+                        print(f"  Failed to get timestamp for block {interval_height}, skipping")
+                        continue
+
+                    # Get lend token value for this height
+                    lend_token_value = get_lend_token_value_at_height(value_map, interval_height)
+
+                    if lend_token_value == -1:
+                        print(f"  No lend token value available for height {interval_height}, skipping")
+                        continue
+
+                    print(f"  Using lend_token_value: {lend_token_value}")
+                    print(f"  Using REAL block_timestamp: {block_timestamp}")
+
+                    # Get users' latest positions up to this height
                     user_query = """
                         SELECT DISTINCT 
                             lp.address_id,
@@ -520,12 +527,7 @@ def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_b
                                 PARTITION BY lp.address_id 
                                 ORDER BY lp.block_height DESC, lp.id DESC
                                 ROWS UNBOUNDED PRECEDING
-                            ) as latest_position_tokens,
-                            FIRST_VALUE(lp.timestamp) OVER (
-                                PARTITION BY lp.address_id 
-                                ORDER BY lp.block_height DESC, lp.id DESC
-                                ROWS UNBOUNDED PRECEDING
-                            ) as latest_timestamp
+                            ) as latest_position_tokens
                         FROM user_lend_positions_historical lp
                         JOIN addresses a ON lp.address_id = a.id
                         WHERE lp.pool_nft = %s 
@@ -536,16 +538,9 @@ def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_b
                     cur.execute(user_query, (pool_nft, interval_height))
                     user_positions = cur.fetchall()
 
-                    print(f"  Found {len(user_positions)} users with positions at height {interval_height}")
+                    print(f"  Found {len(user_positions)} users with positions")
 
-                    # Get lend token value at this height
-                    lend_token_value = get_lend_token_value_at_height(value_map, interval_height)
-
-                    if lend_token_value == -1:
-                        print(f"  No lend token value available for height {interval_height}, skipping")
-                        continue
-
-                    # Check if records already exist at this exact height to avoid duplicates
+                    # Check for existing records at this height
                     existing_query = """
                         SELECT address_id
                         FROM user_lend_positions_historical
@@ -555,31 +550,26 @@ def add_granular_user_lend_positions(db: DatabaseManager, pool: dict, interval_b
                     cur.execute(existing_query, (pool_nft, interval_height))
                     existing_addresses = {row[0] for row in cur.fetchall()}
 
-                    # Create position records for this interval
-                    for address_id, address, position_tokens, latest_timestamp in user_positions:
-                        # Skip if record already exists for this address at this height
+                    # Create position records with REAL node API timestamps
+                    for address_id, address, position_tokens in user_positions:
                         if address_id in existing_addresses:
                             continue
 
                         position_tokens = float(position_tokens)
                         position_value = position_tokens * lend_token_value
 
-                        # Use a timestamp slightly after the latest known timestamp
-                        # This ensures chronological ordering while marking these as interval records
-                        interval_timestamp = latest_timestamp + 1
-
                         batch_data.append((
                             address,
                             pool_nft,
                             interval_height,
-                            interval_timestamp,
+                            block_timestamp,  # REAL timestamp from node API!
                             position_tokens,
                             position_value
                         ))
+                        print(batch_data)
 
-                print(f"Generated {len(batch_data)} granular position records")
+                print(f"Generated {len(batch_data)} granular position records with REAL timestamps")
 
-                # Step 5: Batch insert all granular records
                 if batch_data:
                     print("Performing batch upsert of granular positions...")
                     successful_inserts = db.batch_upsert_user_lend_positions_historical(batch_data)
