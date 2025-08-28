@@ -1,4 +1,7 @@
-from typing import Optional
+from typing import Optional, List
+
+from psycopg2.extras import execute_values
+
 from .core import CoreDB
 
 
@@ -122,3 +125,97 @@ class PoolMixin:
         except Exception as e:
             print(f"Error upserting pool data: {e}")
             return None
+
+    def batch_upsert_pools(self, pools_data: List[tuple]) -> int:
+        """
+        Batch upsert pools data.
+
+        Args:
+            pools_data: List of tuples (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
+
+        Returns:
+            Number of successfully processed pools
+        """
+        if not pools_data:
+            return 0
+
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    upsert_query = """
+                        INSERT INTO pools (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
+                        VALUES %s
+                        ON CONFLICT (nft)
+                        DO UPDATE SET
+                            pooled_asset = EXCLUDED.pooled_asset,
+                            total_lent = EXCLUDED.total_lent,
+                            total_borrowed = EXCLUDED.total_borrowed,
+                            lend_apy = EXCLUDED.lend_apy,
+                            borrow_apy = EXCLUDED.borrow_apy,
+                            updated_at = CURRENT_TIMESTAMP
+                    """
+
+                    execute_values(
+                        cur,
+                        upsert_query,
+                        pools_data,
+                        template=None,
+                        page_size=1000
+                    )
+
+                    conn.commit()
+                    return len(pools_data)
+
+        except Exception as e:
+            print(f"Error batch upserting pools: {e}")
+            return 0
+
+    def batch_upsert_pool_data_historical(self, pool_data: List[tuple]) -> int:
+        """
+        Batch upsert pool historical data.
+
+        Args:
+            pool_data: List of tuples containing pool historical data
+
+        Returns:
+            Number of successfully processed records
+        """
+        if not pool_data:
+            return 0
+
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    upsert_query = """
+                        INSERT INTO pool_data_historical 
+                        (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, 
+                         pool_utilization, total_lent, total_borrowed, box_timestamp, 
+                         pool_box_id, lend_token_value)
+                        VALUES %s
+                        ON CONFLICT (pool_nft, block_height, transaction_id)
+                        DO UPDATE SET
+                            lend_apy = EXCLUDED.lend_apy,
+                            borrow_apy = EXCLUDED.borrow_apy,
+                            pool_utilization = EXCLUDED.pool_utilization,
+                            total_lent = EXCLUDED.total_lent,
+                            total_borrowed = EXCLUDED.total_borrowed,
+                            box_timestamp = EXCLUDED.box_timestamp,
+                            pool_box_id = EXCLUDED.pool_box_id,
+                            lend_token_value = EXCLUDED.lend_token_value,
+                            updated_at = CURRENT_TIMESTAMP
+                    """
+
+                    execute_values(
+                        cur,
+                        upsert_query,
+                        pool_data,
+                        template=None,
+                        page_size=1000
+                    )
+
+                    conn.commit()
+                    return len(pool_data)
+
+        except Exception as e:
+            print(f"Error batch upserting pool historical data: {e}")
+            return 0

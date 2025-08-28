@@ -145,3 +145,77 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict]) -> Dict[str, str
     print(f"Currency sync complete: {success_count} successful")
 
     return results
+
+
+def sync_currency_rates_batched(db: DatabaseManager, pools):
+    """
+    Sync USD currency rates using batch processing.
+    """
+    print("Starting batch currency rates sync...")
+
+    # Collect distinct CoinGecko IDs
+    coingecko_ids = []
+    for pool in pools:
+        cg = pool.get("coingecko")
+        if cg and cg not in coingecko_ids:
+            coingecko_ids.append(cg)
+
+    if not coingecko_ids:
+        print("No coingecko fields found in pools")
+        return {}
+
+    print(f"Found coingecko IDs: {coingecko_ids}")
+
+    # Split into hardcoded vs to-fetch
+    hardcoded_ids = [cg for cg in coingecko_ids if cg in HARD_CODED_PRICES]
+    to_fetch_ids = [cg for cg in coingecko_ids if cg not in HARD_CODED_PRICES]
+
+    if hardcoded_ids:
+        print(f"Using hardcoded prices for: {hardcoded_ids}")
+
+    # Fetch remaining from API
+    api_prices = {}
+    if to_fetch_ids:
+        print(f"Fetching USD prices for: {to_fetch_ids}")
+        api_prices = fetch_usd_prices(to_fetch_ids) or {}
+
+    # Merge prices
+    prices = {}
+    prices.update(api_prices)
+    for cg in hardcoded_ids:
+        prices[cg] = HARD_CODED_PRICES[cg]
+
+    if not prices:
+        print("No prices resolved")
+        return {}
+
+    # Prepare batch data
+    batch_data = []
+    results = {}
+
+    for pool in pools:
+        currency_id = pool.get("CURRENCY_ID_DB")
+        coingecko_id = pool.get("coingecko")
+
+        if not currency_id or not coingecko_id:
+            continue
+
+        usd_price = prices.get(coingecko_id)
+
+        if usd_price is None or usd_price < 0:
+            results[currency_id] = 'skipped'
+            continue
+
+        batch_data.append((currency_id, float(usd_price)))
+        results[currency_id] = 'pending'
+
+    # Batch upsert all currency rates
+    if batch_data:
+        success_count = db.batch_upsert_currency_rates(batch_data)
+        print(f"Successfully updated {success_count}/{len(batch_data)} currency rates")
+
+        # Update results
+        for currency_id, _ in batch_data[:success_count]:
+            results[currency_id] = 'success'
+
+    return results
