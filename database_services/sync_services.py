@@ -1,4 +1,5 @@
 from current_pools import current_pools
+from database.analytics_mixin import sync_user_pool_analytics_standalone
 from database.db_manager import DatabaseManager
 from database_services.pool_services import sync_pool_interest_data, sync_all_pools, sync_all_pools_batched, \
     sync_pool_interest_data_batched
@@ -75,6 +76,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0):
         add_granular_user_lend_positions(db, pool, 1000)
         sync_user_deposits_historical(db, pool)
         sync_user_portfolio_snapshots(db, pool)
+    sync_user_pool_analytics_standalone(db)
 
     print("\n=== Full sync complete ===")
 
@@ -95,4 +97,6 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True):
         for pool in pools:
             sync_all_historical_data(db, pool, min_height=min_height)
             sync_user_lend_data(db, pool, min_height=min_height)
+        sync_user_pool_analytics_standalone(db)
+
 

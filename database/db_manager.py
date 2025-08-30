@@ -1,3 +1,4 @@
+from .analytics_mixin import AnalyticsMixin
 from .core import CoreDB
 from .currency_mixin import CurrencyMixin
 from .transaction_mixin import TransactionMixin
@@ -9,5 +10,6 @@ class DatabaseManager(CoreDB,
                       TransactionMixin,
                       PoolMixin,
                       HistoryMixin,
-                      CurrencyMixin):
+                      CurrencyMixin,
+                      AnalyticsMixin):
     pass
