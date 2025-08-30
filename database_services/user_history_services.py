@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Optional
 def sync_user_lend_positions(
         db: DatabaseManager,
         pool: dict,
-        min_height: int = 0,  # we will ignore this for now and implement the height logic later
+        min_height: int = 0,
         sync_block: Optional[int] = None
 ):
     """
@@ -23,10 +23,10 @@ def sync_user_lend_positions(
 
     print(f"Starting sync for pool {pool_nft} with lend token {lend_token_id}")
     print(f"Pool address: {pool_address}")
-    print(f"Pool address length: {len(pool_address)}")
+    print(f"Min height: {min_height}")
 
-    # Call: get_all_boxes_by_token_id(pool["LEND_TOKEN"])
-    boxes_response = get_all_boxes_by_token_id(lend_token_id)
+    # Call: get_all_boxes_by_token_id with min_height
+    boxes_response = get_all_boxes_by_token_id(lend_token_id, min_height=min_height)
 
     if not boxes_response:
         print("No boxes found or invalid response")
@@ -56,6 +56,10 @@ def sync_user_lend_positions(
 
         block_height = transaction_data.get("inclusionHeight", 0)
         timestamp = transaction_data.get("timestamp", 0)
+
+        # Skip transactions below min_height
+        if block_height <= min_height:
+            continue
 
         transactions_data.append({
             'transaction_id': transaction_id,
