@@ -7,12 +7,13 @@ from current_pools import current_pools
 
 
 class AnalyticsMixin:
-    def sync_user_pool_analytics(self, days_lookback: int = 400) -> int:
+    def sync_user_pool_analytics(self, days_lookback: int = 400, sync_block: Optional[int] = None) -> int:
         """
         Sync user pool analytics by calculating earnings and APY metrics.
 
         Args:
             days_lookback: How many days back to look for historical data (default 400 to ensure we capture 365d)
+            sync_block: Block height when this analytics sync was performed
 
         Returns:
             Number of analytics records successfully processed
@@ -51,7 +52,7 @@ class AnalyticsMixin:
 
                             if analytics_data:
                                 # Upsert the analytics data
-                                success = self._upsert_user_pool_analytics(cur, address_id, pool_nft, analytics_data)
+                                success = self._upsert_user_pool_analytics(cur, address_id, pool_nft, analytics_data, sync_block)
                                 if success:
                                     successful_updates += 1
                         except Exception as e:
@@ -271,7 +272,7 @@ class AnalyticsMixin:
 
         return analytics
 
-    def _upsert_user_pool_analytics(self, cur, address_id: int, pool_nft: str, analytics: Dict) -> bool:
+    def _upsert_user_pool_analytics(self, cur, address_id: int, pool_nft: str, analytics: Dict, sync_block: Optional[int] = None) -> bool:
         """Upsert analytics data into user_pool_analytics table"""
         try:
             upsert_query = """
@@ -280,9 +281,9 @@ class AnalyticsMixin:
                     total_earnt_30d, total_earnt_30d_usd, apy_earnt_30d, position_value_30d,
                     total_earnt_90d, total_earnt_90d_usd, apy_earnt_90d, position_value_90d,
                     total_earnt_365d, total_earnt_365d_usd, apy_earnt_365d, position_value_365d,
-                    projected_earnt_30d, projected_earnt_30d_usd, projected_apy_30d
+                    projected_earnt_30d, projected_earnt_30d_usd, projected_apy_30d, sync_block
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (address_id, pool_nft)
                 DO UPDATE SET
@@ -301,6 +302,7 @@ class AnalyticsMixin:
                     projected_earnt_30d = EXCLUDED.projected_earnt_30d,
                     projected_earnt_30d_usd = EXCLUDED.projected_earnt_30d_usd,
                     projected_apy_30d = EXCLUDED.projected_apy_30d,
+                    sync_block = EXCLUDED.sync_block,
                     updated_at = CURRENT_TIMESTAMP
             """
 
@@ -309,7 +311,7 @@ class AnalyticsMixin:
                 analytics['total_earnt_30d'], analytics['total_earnt_30d_usd'], analytics['apy_earnt_30d'], analytics['position_value_30d'],
                 analytics['total_earnt_90d'], analytics['total_earnt_90d_usd'], analytics['apy_earnt_90d'], analytics['position_value_90d'],
                 analytics['total_earnt_365d'], analytics['total_earnt_365d_usd'], analytics['apy_earnt_365d'], analytics['position_value_365d'],
-                analytics['projected_earnt_30d'], analytics['projected_earnt_30d_usd'], analytics['projected_apy_30d']
+                analytics['projected_earnt_30d'], analytics['projected_earnt_30d_usd'], analytics['projected_apy_30d'], sync_block
             )
 
             cur.execute(upsert_query, params)
@@ -379,13 +381,14 @@ class AnalyticsMixin:
             return []
 
 
-def sync_user_pool_analytics_standalone(db_instance, days_lookback: int = 400) -> int:
+def sync_user_pool_analytics_standalone(db_instance, days_lookback: int = 400, sync_block: Optional[int] = None) -> int:
     """
     Standalone function to sync user pool analytics.
 
     Args:
         db_instance: Database instance that has AnalyticsMixin mixed in
         days_lookback: How many days back to look for historical data (default 400)
+        sync_block: Block height when this analytics sync was performed
 
     Returns:
         Number of analytics records successfully processed
@@ -393,4 +396,4 @@ def sync_user_pool_analytics_standalone(db_instance, days_lookback: int = 400) -
     if not hasattr(db_instance, 'sync_user_pool_analytics'):
         raise AttributeError("Database instance must have AnalyticsMixin mixed in")
 
-    return db_instance.sync_user_pool_analytics(days_lookback)
+    return db_instance.sync_user_pool_analytics(days_lookback, sync_block)

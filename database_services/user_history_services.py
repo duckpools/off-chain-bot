@@ -2,13 +2,14 @@ from database.db_manager import DatabaseManager
 from helpers.node_calls import get_block_timestamp
 from helpers.platform_functions import get_all_boxes_by_token_id, fetch_transaction_data
 from collections import defaultdict, OrderedDict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 def sync_user_lend_positions(
         db: DatabaseManager,
         pool: dict,
-        min_height: int = 0  # we will ignore this for now and implement the height logic later
+        min_height: int = 0,  # we will ignore this for now and implement the height logic later
+        sync_block: Optional[int] = None
 ):
     """
     Sync user lend positions by processing all boxes for a pool's lend token
@@ -108,7 +109,7 @@ def sync_user_lend_positions(
 
     # Step 5: Process all transactions chronologically and build final dataset
     current_positions = defaultdict(float)  # {address: current_position_tokens}
-    final_batch_data = []  # List of (address, pool_nft, block_height, timestamp, position_tokens, position_value)
+    final_batch_data = []  # List of (address, pool_nft, block_height, timestamp, position_tokens, position_value, sync_block)
 
     # Initialize current positions with database values
     for address in all_affected_addresses:
@@ -210,14 +211,15 @@ def sync_user_lend_positions(
             else:
                 position_value = -1
 
-            # Add to batch data
+            # Add to batch data - include sync_block
             final_batch_data.append((
                 address,
                 pool_nft,
                 block_height,
                 timestamp,
                 new_position_tokens,
-                position_value
+                position_value,
+                sync_block or block_height  # Use block_height as sync_block if not provided
             ))
 
     print(f"Generated {len(final_batch_data)} position updates")
@@ -231,7 +233,7 @@ def sync_user_lend_positions(
         # Group by (address, pool_nft, block_height) and keep the latest timestamp
         consolidated_data = {}
         for record in final_batch_data:
-            address, pool_nft, block_height, timestamp, position_tokens, position_value = record
+            address, pool_nft, block_height, timestamp, position_tokens, position_value, record_sync_block = record
             key = (address, pool_nft, block_height)
 
             # Keep the record with the latest timestamp (final state for that block)
@@ -242,7 +244,7 @@ def sync_user_lend_positions(
         print(f"Consolidated to {len(final_consolidated_data)} unique records")
 
         print("Performing batch upsert...")
-        successful_inserts = db.batch_upsert_user_lend_positions_historical(final_consolidated_data)
+        successful_inserts = db.batch_upsert_user_lend_positions_historical(final_consolidated_data, sync_block)
         print(f"Successfully inserted/updated {successful_inserts} position records")
     else:
         print("No position updates to perform")
@@ -250,7 +252,7 @@ def sync_user_lend_positions(
     print("Sync completed")
 
 
-def sync_user_deposits_historical(db: DatabaseManager, pool) -> bool:
+def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
     """
     Synchronize user deposits historical data for a specific pool.
     Processes all transactions for the pool in block height order and calculates
@@ -259,6 +261,7 @@ def sync_user_deposits_historical(db: DatabaseManager, pool) -> bool:
     Args:
         db: Database manager instance
         pool: Pool configuration dictionary
+        sync_block: Block height when this data was synced
 
     Returns:
         True if sync was successful, False otherwise
@@ -315,7 +318,8 @@ def sync_user_deposits_historical(db: DatabaseManager, pool) -> bool:
                         block_height=block_height,
                         timestamp=timestamp,
                         total_deposited=user_totals[address]['deposited'],
-                        total_withdrawn=user_totals[address]['withdrawn']
+                        total_withdrawn=user_totals[address]['withdrawn'],
+                        sync_block=sync_block or block_height  # Use block_height as sync_block if not provided
                     )
 
                     if result is None:
@@ -330,7 +334,7 @@ def sync_user_deposits_historical(db: DatabaseManager, pool) -> bool:
         return False
 
 
-def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
+def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
     """
     Alternative optimized version that does all the work in a single SQL operation.
     This is the fastest approach as it avoids Python loops entirely.
@@ -338,6 +342,7 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
     Args:
         db: Database manager instance
         pool: Pool configuration dictionary
+        sync_block: Block height when this data was synced
 
     Returns:
         True if sync was successful, False otherwise
@@ -351,14 +356,15 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
                 # Uses DISTINCT ON to handle duplicate (address_id, pool_nft, timestamp) combinations
                 bulk_upsert_query = """
                     INSERT INTO user_portfolio_snapshots 
-                    (address_id, pool_nft, block_height, timestamp, position_value, total_profit)
+                    (address_id, pool_nft, block_height, timestamp, position_value, total_profit, sync_block)
                     SELECT DISTINCT ON (address_id, pool_nft, timestamp)
                         lp.address_id,
                         lp.pool_nft,
                         lp.block_height,
                         lp.timestamp,
                         lp.position_value,
-                        lp.position_value + COALESCE(dh.total_withdrawn, 0) - COALESCE(dh.total_deposited, 0) as total_profit
+                        lp.position_value + COALESCE(dh.total_withdrawn, 0) - COALESCE(dh.total_deposited, 0) as total_profit,
+                        %s as sync_block
                     FROM user_lend_positions_historical lp
                     LEFT JOIN LATERAL (
                         SELECT 
@@ -378,10 +384,11 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
                         block_height = EXCLUDED.block_height,
                         position_value = EXCLUDED.position_value,
                         total_profit = EXCLUDED.total_profit,
+                        sync_block = EXCLUDED.sync_block,
                         updated_at = CURRENT_TIMESTAMP
                 """
 
-                cur.execute(bulk_upsert_query, (pool_nft,))
+                cur.execute(bulk_upsert_query, (sync_block, pool_nft))
                 rows_affected = cur.rowcount
                 conn.commit()
 
@@ -391,6 +398,7 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool) -> bool:
     except Exception as e:
         print(f"Error syncing user portfolio snapshots for pool {pool_nft}: {e}")
         return False
+
 
 def get_pool_lend_token_value_map(db: DatabaseManager, pool_nft: str) -> dict:
     """
@@ -463,7 +471,8 @@ def get_lend_token_value_at_height(value_map: dict, target_height: int) -> float
 def add_granular_user_lend_positions(
         db: DatabaseManager,
         pool: dict,
-        interval_blocks: int = 5000
+        interval_blocks: int = 5000,
+        sync_block: Optional[int] = None
 ) -> bool:
     """
     Add granular user positions using REAL block timestamps from the node API.
@@ -564,7 +573,8 @@ def add_granular_user_lend_positions(
                             interval_height,
                             block_timestamp,  # REAL timestamp from node API!
                             position_tokens,
-                            position_value
+                            position_value,
+                            sync_block or interval_height  # Use interval_height as sync_block if not provided
                         ))
                         print(batch_data)
 
@@ -572,7 +582,7 @@ def add_granular_user_lend_positions(
 
                 if batch_data:
                     print("Performing batch upsert of granular positions...")
-                    successful_inserts = db.batch_upsert_user_lend_positions_historical(batch_data)
+                    successful_inserts = db.batch_upsert_user_lend_positions_historical(batch_data, sync_block)
                     print(f"Successfully inserted {successful_inserts} granular position records")
                     return successful_inserts == len(batch_data)
                 else:

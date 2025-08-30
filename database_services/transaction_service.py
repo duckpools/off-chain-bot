@@ -236,7 +236,7 @@ def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tu
         return None, None, 0.0, None, None, None
 
 
-def _process_single_transaction(pool_box: dict, pool: dict, min_height: int = 0) -> Optional[Dict[str, Any]]:
+def _process_single_transaction(pool_box: dict, pool: dict, min_height: int = 0, sync_block: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """
     Process a single pool box transaction and return transaction data or None if invalid.
     Shared logic between sync_transactions and sync_transactions_batched.
@@ -244,6 +244,7 @@ def _process_single_transaction(pool_box: dict, pool: dict, min_height: int = 0)
     :param pool_box: Pool box data
     :param pool: Pool configuration
     :param min_height: Minimum block height to process
+    :param sync_block: Block height when this data was synced
     :return: Transaction data dictionary or None
     """
     if pool_box["address"] != pool["pool"]:
@@ -313,11 +314,12 @@ def _process_single_transaction(pool_box: dict, pool: dict, min_height: int = 0)
         'amount': amount,
         'fee_paid': fee,
         'block_height': block_height,
-        'timestamp': timestamp
+        'timestamp': timestamp,
+        'sync_block': sync_block or block_height  # Use block_height as sync_block if not provided
     }
 
 
-def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
+def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: Optional[int] = None):
     """
     Sync transactions for boxes above min_height.
 
@@ -325,9 +327,10 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
     :param pool: Pool configuration
     :param pool_boxes: List of pool boxes
     :param min_height: Minimum block height to process (default: 0)
+    :param sync_block: Block height when this data was synced
     """
     for pool_box in pool_boxes:
-        transaction_data = _process_single_transaction(pool_box, pool, min_height)
+        transaction_data = _process_single_transaction(pool_box, pool, min_height, sync_block)
         if not transaction_data:
             continue
 
@@ -340,7 +343,8 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
             amount=transaction_data['amount'],
             fee_paid=transaction_data['fee_paid'],
             block_height=transaction_data['block_height'],
-            timestamp=transaction_data['timestamp']
+            timestamp=transaction_data['timestamp'],
+            sync_block=transaction_data['sync_block']
         )
 
         if result:
@@ -350,7 +354,7 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, min_height=0):
             print(f"Failed to upsert transaction {transaction_data['transaction_id']}")
 
 
-def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500):
+def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500, sync_block: Optional[int] = None):
     """
     Sync transactions for boxes above min_height using batched processing.
     Processes transactions locally in batches and inserts them in bulk to reduce database calls.
@@ -360,12 +364,13 @@ def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes, min_height=
     :param pool_boxes: List of pool boxes
     :param min_height: Minimum block height to process (default: 0)
     :param batch_size: Number of transactions to process in each batch (default: 500)
+    :param sync_block: Block height when this data was synced
     """
     transactions_batch = []
     processed_count = 0
 
     for pool_box in pool_boxes:
-        transaction_data = _process_single_transaction(pool_box, pool, min_height)
+        transaction_data = _process_single_transaction(pool_box, pool, min_height, sync_block)
         if not transaction_data:
             continue
 

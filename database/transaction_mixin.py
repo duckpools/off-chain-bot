@@ -10,7 +10,8 @@ class TransactionMixin:
                            amount: float,
                            fee_paid: Optional[int] = None,
                            block_height: Optional[int] = None,
-                           timestamp: Optional[int] = None) -> Optional[str]:
+                           timestamp: Optional[int] = None,
+                           sync_block: Optional[int] = None) -> Optional[str]:
         """
         Insert or update a transaction. If a row with the same transaction_id exists,
         updates its fields; otherwise creates it.
@@ -33,7 +34,7 @@ class TransactionMixin:
                         address_id = address_result[0]
                     else:
                         # Create user first
-                        cur.execute("INSERT INTO users DEFAULT VALUES RETURNING id")
+                        cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
                         user_result = cur.fetchone()
                         if not user_result:
                             print("Failed to create user")
@@ -42,8 +43,8 @@ class TransactionMixin:
 
                         # Create address
                         cur.execute(
-                            "INSERT INTO addresses (address, user_id, is_primary) VALUES (%s, %s, %s) RETURNING id",
-                            (address, user_id, True)
+                            "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
+                            (address, user_id, True, sync_block)
                         )
                         address_result = cur.fetchone()
                         if not address_result:
@@ -54,9 +55,9 @@ class TransactionMixin:
                     # Upsert transaction
                     upsert_sql = """
                     INSERT INTO transactions
-                      (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp)
+                      (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp, sync_block)
                     VALUES
-                      (%s, %s, %s, %s, %s, %s, %s, %s)
+                      (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                       SET address_id  = EXCLUDED.address_id,
                           pool_nft     = EXCLUDED.pool_nft,
@@ -64,13 +65,14 @@ class TransactionMixin:
                           amount       = EXCLUDED.amount,
                           fee_paid     = EXCLUDED.fee_paid,
                           block_height = EXCLUDED.block_height,
-                          timestamp    = EXCLUDED.timestamp
+                          timestamp    = EXCLUDED.timestamp,
+                          sync_block   = EXCLUDED.sync_block
                     RETURNING id
                     """
 
                     params = (
                         transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, block_height,
-                        timestamp)
+                        timestamp, sync_block)
                     cur.execute(upsert_sql, params)
                     result = cur.fetchone()
 
@@ -94,6 +96,7 @@ class TransactionMixin:
                             - fee_paid: Optional[int]
                             - block_height: Optional[int]
                             - timestamp: Optional[int]
+                            - sync_block: Optional[int]
         :return: Number of successfully processed transactions
         """
         if not transactions:
@@ -118,8 +121,15 @@ class TransactionMixin:
                     missing_addresses = unique_addresses - set(address_to_id.keys())
                     for address in missing_addresses:
                         try:
+                            # Get sync_block from first transaction for this address
+                            sync_block = None
+                            for tx in transactions:
+                                if tx['address'] == address:
+                                    sync_block = tx.get('sync_block')
+                                    break
+
                             # Create user first
-                            cur.execute("INSERT INTO users DEFAULT VALUES RETURNING id")
+                            cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
                             user_result = cur.fetchone()
                             if not user_result:
                                 print(f"Failed to create user for address {address}")
@@ -128,8 +138,8 @@ class TransactionMixin:
 
                             # Create address
                             cur.execute(
-                                "INSERT INTO addresses (address, user_id, is_primary) VALUES (%s, %s, %s) RETURNING id",
-                                (address, user_id, True)
+                                "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
+                                (address, user_id, True, sync_block)
                             )
                             address_result = cur.fetchone()
                             if not address_result:
@@ -164,16 +174,17 @@ class TransactionMixin:
                             tx_data['amount'],
                             tx_data.get('fee_paid'),
                             tx_data.get('block_height'),
-                            tx_data.get('timestamp')
+                            tx_data.get('timestamp'),
+                            tx_data.get('sync_block')
                         ))
 
                     # Bulk upsert transactions
                     if transaction_params:
                         upsert_sql = """
                         INSERT INTO transactions
-                          (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp)
+                          (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp, sync_block)
                         VALUES
-                          (%s, %s, %s, %s, %s, %s, %s, %s)
+                          (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
                           SET address_id  = EXCLUDED.address_id,
                               pool_nft     = EXCLUDED.pool_nft,
@@ -181,7 +192,8 @@ class TransactionMixin:
                               amount       = EXCLUDED.amount,
                               fee_paid     = EXCLUDED.fee_paid,
                               block_height = EXCLUDED.block_height,
-                              timestamp    = EXCLUDED.timestamp
+                              timestamp    = EXCLUDED.timestamp,
+                              sync_block   = EXCLUDED.sync_block
                         """
 
                         cur.executemany(upsert_sql, transaction_params)

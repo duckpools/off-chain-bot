@@ -1,6 +1,6 @@
 import requests
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 from database.db_manager import DatabaseManager
 
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
@@ -43,7 +43,7 @@ def fetch_usd_prices(asset_ids: list):
     return None
 
 
-def sync_currency_rates(db: DatabaseManager, pools: List[dict]) -> Dict[str, str]:
+def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Optional[int] = None) -> Dict[str, str]:
     """Sync USD currency rates for all pooled assets.
 
     - Uses HARD_CODED_PRICES for any matching CoinGecko IDs
@@ -125,7 +125,7 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict]) -> Dict[str, str
                 continue
 
             # Upsert by CURRENCY_ID
-            success = db.upsert_currency_rate(currency_id, float(usd_price))
+            success = db.upsert_currency_rate(currency_id, float(usd_price), sync_block)
 
             # CHANGED: source detection—hardcoded overrides API, so report correctly
             src = "hardcoded" if coingecko_id in HARD_CODED_PRICES else "api"
@@ -147,7 +147,7 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict]) -> Dict[str, str
     return results
 
 
-def sync_currency_rates_batched(db: DatabaseManager, pools):
+def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None):
     """
     Sync USD currency rates using batch processing.
     """
@@ -206,16 +206,19 @@ def sync_currency_rates_batched(db: DatabaseManager, pools):
             results[currency_id] = 'skipped'
             continue
 
-        batch_data.append((currency_id, float(usd_price)))
+        batch_data.append((currency_id, float(usd_price), sync_block))
         results[currency_id] = 'pending'
 
     # Batch upsert all currency rates
     if batch_data:
-        success_count = db.batch_upsert_currency_rates(batch_data)
+        success_count = db.batch_upsert_currency_rates(batch_data, sync_block)
         print(f"Successfully updated {success_count}/{len(batch_data)} currency rates")
 
         # Update results
-        for currency_id, _ in batch_data[:success_count]:
-            results[currency_id] = 'success'
+        for i, (currency_id, _, _) in enumerate(batch_data):
+            if i < success_count:
+                results[currency_id] = 'success'
+            else:
+                results[currency_id] = 'failed'
 
     return results

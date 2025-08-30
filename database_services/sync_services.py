@@ -1,3 +1,4 @@
+from typing import Optional
 from current_pools import current_pools
 from database.analytics_mixin import sync_user_pool_analytics_standalone
 from database.db_manager import DatabaseManager
@@ -10,36 +11,37 @@ from helpers.platform_functions import get_all_boxes_by_token_id
 from database_services.currency_services import sync_currency_rates as _sync_currency_rates, sync_currency_rates_batched
 
 
-def sync_user_lend_data(db: DatabaseManager, pool, min_height=0):
+def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
     # Can only be called on up-to-date database
-    sync_user_lend_positions(db, pool)
-    add_granular_user_lend_positions(db, pool, 1000)
-    sync_user_deposits_historical(db, pool)
-    sync_user_portfolio_snapshots(db,pool)
+    sync_user_lend_positions(db, pool, sync_block=sync_block)
+    add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block)
+    sync_user_deposits_historical(db, pool, sync_block=sync_block)
+    sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
 
 
-def sync_all_historical_data(db: DatabaseManager, pool, min_height=0):
+def sync_all_historical_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
     print(f"Starting historical data sync from height {min_height}")
     pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
     if pool_boxes:
-        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height)
-        sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height)
+        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
+        sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
         pass
     else:
         print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
 
 
-def sync_currency_rates(db: DatabaseManager, pools):
+def sync_currency_rates(db: DatabaseManager, pools, sync_block: Optional[int] = None):
     """Sync USD currency rates for all pooled assets using CoinGecko API."""
-    return _sync_currency_rates(db, pools)
+    return _sync_currency_rates(db, pools, sync_block=sync_block)
 
 
-def sync_all_optimized(db: DatabaseManager, min_height=0):
+def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None):
     """
     Optimized sync routine using batch processing throughout.
 
     :param db: Database manager instance
     :param min_height: Minimum block height to sync historical data from
+    :param sync_block: Block height when this sync was performed
     """
     print(f"Starting optimized full sync from height {min_height}")
 
@@ -47,11 +49,11 @@ def sync_all_optimized(db: DatabaseManager, min_height=0):
 
     # Step 1: Sync all pools in batch
     print("\n=== Step 1: Syncing all pools ===")
-    sync_all_pools_batched(db)
+    sync_all_pools_batched(db, sync_block=sync_block)
 
     # Step 2: Sync currency rates in batch
     print("\n=== Step 2: Syncing currency rates ===")
-    sync_currency_rates_batched(db, pools)
+    sync_currency_rates_batched(db, pools, sync_block=sync_block)
 
     # Step 3: Process historical data for each pool
     print("\n=== Step 3: Syncing historical data ===")
@@ -68,35 +70,39 @@ def sync_all_optimized(db: DatabaseManager, min_height=0):
         print(f"Found {len(pool_boxes)} boxes to process")
 
         # Use batched versions for everything
-        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500)
-        sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500)
+        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500, sync_block=sync_block)
+        sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
+                                        sync_block=sync_block)
 
         # User lend data - already optimized with batching
-        sync_user_lend_positions(db, pool)
-        add_granular_user_lend_positions(db, pool, 1000)
-        sync_user_deposits_historical(db, pool)
-        sync_user_portfolio_snapshots(db, pool)
-    sync_user_pool_analytics_standalone(db)
+        sync_user_lend_positions(db, pool, sync_block=sync_block)
+        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block)
+        sync_user_deposits_historical(db, pool, sync_block=sync_block)
+        sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+
+    # Step 4: Sync user pool analytics
+    print("\n=== Step 4: Syncing user pool analytics ===")
+    sync_user_pool_analytics_standalone(db, sync_block=sync_block)
 
     print("\n=== Full sync complete ===")
 
 
-def sync_all(db: DatabaseManager, min_height=0, optimized=True):
+def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Optional[int] = None):
     """
     Sync all pools and historical data.
 
     :param db: Database manager instance
     :param min_height: Minimum block height to sync historical data from (default: 0)
+    :param optimized: Whether to use optimized sync (default: True)
+    :param sync_block: Block height when this sync was performed
     """
     if optimized:
-        return sync_all_optimized(db, min_height)
+        return sync_all_optimized(db, min_height, sync_block)
     else:
         pools = current_pools[:]
-        sync_all_pools(db)
-        sync_currency_rates(db, pools)
+        sync_all_pools(db, sync_block=sync_block)
+        sync_currency_rates(db, pools, sync_block=sync_block)
         for pool in pools:
-            sync_all_historical_data(db, pool, min_height=min_height)
-            sync_user_lend_data(db, pool, min_height=min_height)
-        sync_user_pool_analytics_standalone(db)
-
-
+            sync_all_historical_data(db, pool, min_height=min_height, sync_block=sync_block)
+            sync_user_lend_data(db, pool, min_height=min_height, sync_block=sync_block)
+        sync_user_pool_analytics_standalone(db, sync_block=sync_block)

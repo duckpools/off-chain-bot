@@ -4,7 +4,7 @@ from database_services.data_aggregation.pool_stats import borrow_apy, total_borr
 from helpers.platform_functions import get_pool_box, get_transaction_timestamp
 
 
-def update_pool(db: DatabaseManager, pool):
+def update_pool(db: DatabaseManager, pool, sync_block: int = None):
     # Business logic here
     pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
     borrowed = total_borrowed(pool, pool_box)
@@ -16,16 +16,17 @@ def update_pool(db: DatabaseManager, pool):
     borrow_rate = borrow_apy(pool, pool_box)
     lend_rate = lend_apy(pool, pool_box)
     # Call raw DB function
-    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID_DB"], total_lent, borrowed, lend_rate, borrow_rate)
+    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID_DB"], total_lent, borrowed, lend_rate, borrow_rate,
+                          sync_block)
 
 
-def sync_all_pools(db: DatabaseManager):
+def sync_all_pools(db: DatabaseManager, sync_block: int = None):
     # Higher-level service function
     for pool in current_pools:
-        update_pool(db, pool)
+        update_pool(db, pool, sync_block)
 
 
-def sync_all_pools_batched(db: DatabaseManager):
+def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
     """
     Sync all pools using batch processing for better performance.
     """
@@ -55,7 +56,8 @@ def sync_all_pools_batched(db: DatabaseManager):
                 total_lent,
                 borrowed,
                 lend_rate,
-                borrow_rate
+                borrow_rate,
+                sync_block
             ))
 
         except Exception as e:
@@ -69,7 +71,8 @@ def sync_all_pools_batched(db: DatabaseManager):
     else:
         print("No pool data to update")
 
-def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0):
+
+def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
     """
     Sync pool interest data for boxes above min_height.
 
@@ -77,6 +80,7 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0)
     :param pool: Pool configuration
     :param pool_boxes: List of pool boxes
     :param min_height: Minimum block height to process (default: 0)
+    :param sync_block: Block height when this data was synced
     """
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
@@ -112,11 +116,13 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0)
             borrowed,
             timestamp,
             pool_box["boxId"],
-            lend_token_value
+            lend_token_value,
+            sync_block or pool_box["settlementHeight"]  # Use settlementHeight as sync_block if not provided
         ))
 
 
-def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500):
+def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
+                                    sync_block: int = None):
     """
     Sync pool interest data using batch processing.
 
@@ -125,6 +131,7 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
     :param pool_boxes: List of pool boxes
     :param min_height: Minimum block height to process
     :param batch_size: Number of records to process in each batch
+    :param sync_block: Block height when this data was synced
     """
     print(f"Starting batch pool interest sync for {pool['POOL_NFT']}...")
 
@@ -159,7 +166,9 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
                 print(f"Error getting timestamp for pool box {pool_box['boxId']}, skipping")
                 continue
 
-            # Add to batch
+            # Add to batch - use settlement height as sync_block if not provided
+            box_sync_block = sync_block or pool_box["settlementHeight"]
+
             batch_data.append((
                 pool["POOL_NFT"],
                 pool_box["settlementHeight"],
@@ -171,7 +180,8 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
                 borrowed,
                 timestamp,
                 pool_box["boxId"],
-                lend_token_value
+                lend_token_value,
+                box_sync_block
             ))
 
             processed_count += 1

@@ -12,7 +12,8 @@ class PoolMixin:
                     total_lent: float = 0,
                     total_borrowed: float = 0,
                     lend_apy: float = 0,
-                    borrow_apy: float = 0) -> Optional[str]:
+                    borrow_apy: float = 0,
+                    sync_block: Optional[int] = None) -> Optional[str]:
         """
         Insert or update a pool in the database.
         If the pool exists, updates it with new data. If not, creates it.
@@ -24,6 +25,7 @@ class PoolMixin:
             total_borrowed: Total amount borrowed from the pool (default: 0)
             lend_apy: Annual percentage yield for lenders (default: 0)
             borrow_apy: Annual percentage yield for borrowers (default: 0)
+            sync_block: Block height when this data was synced
 
         Returns:
             nft identifier if successful, None if failed
@@ -31,8 +33,8 @@ class PoolMixin:
         try:
             # Use PostgreSQL's ON CONFLICT to handle upsert
             upsert_query = """
-                   INSERT INTO pools (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
-                   VALUES (%s, %s, %s, %s, %s, %s)
+                   INSERT INTO pools (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy, sync_block)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (nft)
                    DO UPDATE SET
                        pooled_asset = EXCLUDED.pooled_asset,
@@ -40,11 +42,12 @@ class PoolMixin:
                        total_borrowed = EXCLUDED.total_borrowed,
                        lend_apy = EXCLUDED.lend_apy,
                        borrow_apy = EXCLUDED.borrow_apy,
+                       sync_block = EXCLUDED.sync_block,
                        updated_at = CURRENT_TIMESTAMP
                    RETURNING nft
                """
 
-            params = (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
+            params = (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy, sync_block)
             result_nft = self.execute_insert(upsert_query, params, return_id=True)
 
             if result_nft:
@@ -68,7 +71,8 @@ class PoolMixin:
                                     total_borrowed: float,
                                     box_timestamp: int,
                                     pool_box_id: str,
-                                    lend_token_value: float) -> Optional[bool]:
+                                    lend_token_value: float,
+                                    sync_block: Optional[int] = None) -> Optional[bool]:
         """
         Insert or update pool historical data in the database.
         If the pool_nft, block_height, and transaction_id combination exists, updates it with new data.
@@ -86,6 +90,7 @@ class PoolMixin:
             box_timestamp: Blockchain timestamp when the transaction occurred
             pool_box_id: Pool box ID
             lend_token_value: Lend token value
+            sync_block: Block height when this data was synced
 
         Returns:
             True if successful, None if failed
@@ -93,8 +98,8 @@ class PoolMixin:
         try:
             # Use PostgreSQL's ON CONFLICT to handle upsert
             upsert_query = """
-                INSERT INTO pool_data_historical (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization, total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO pool_data_historical (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization, total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value, sync_block)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (pool_nft, block_height, transaction_id)
                 DO UPDATE SET
                     lend_apy = EXCLUDED.lend_apy,
@@ -105,13 +110,14 @@ class PoolMixin:
                     box_timestamp = EXCLUDED.box_timestamp,
                     pool_box_id = EXCLUDED.pool_box_id,
                     lend_token_value = EXCLUDED.lend_token_value,
+                    sync_block = EXCLUDED.sync_block,
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING pool_nft, block_height, transaction_id
             """
 
             params = (
                 pool_nft, block_height, transaction_id, lend_apy, borrow_apy, pool_utilization,
-                total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value
+                total_lent, total_borrowed, box_timestamp, pool_box_id, lend_token_value, sync_block
             )
             result = self.execute_insert(upsert_query, params, return_id=True)
 
@@ -131,7 +137,7 @@ class PoolMixin:
         Batch upsert pools data.
 
         Args:
-            pools_data: List of tuples (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
+            pools_data: List of tuples (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy, sync_block)
 
         Returns:
             Number of successfully processed pools
@@ -143,7 +149,7 @@ class PoolMixin:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     upsert_query = """
-                        INSERT INTO pools (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy)
+                        INSERT INTO pools (nft, pooled_asset, total_lent, total_borrowed, lend_apy, borrow_apy, sync_block)
                         VALUES %s
                         ON CONFLICT (nft)
                         DO UPDATE SET
@@ -152,6 +158,7 @@ class PoolMixin:
                             total_borrowed = EXCLUDED.total_borrowed,
                             lend_apy = EXCLUDED.lend_apy,
                             borrow_apy = EXCLUDED.borrow_apy,
+                            sync_block = EXCLUDED.sync_block,
                             updated_at = CURRENT_TIMESTAMP
                     """
 
@@ -175,7 +182,7 @@ class PoolMixin:
         Batch upsert pool historical data.
 
         Args:
-            pool_data: List of tuples containing pool historical data
+            pool_data: List of tuples containing pool historical data with sync_block
 
         Returns:
             Number of successfully processed records
@@ -190,7 +197,7 @@ class PoolMixin:
                         INSERT INTO pool_data_historical 
                         (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, 
                          pool_utilization, total_lent, total_borrowed, box_timestamp, 
-                         pool_box_id, lend_token_value)
+                         pool_box_id, lend_token_value, sync_block)
                         VALUES %s
                         ON CONFLICT (pool_nft, block_height, transaction_id)
                         DO UPDATE SET
@@ -202,6 +209,7 @@ class PoolMixin:
                             box_timestamp = EXCLUDED.box_timestamp,
                             pool_box_id = EXCLUDED.pool_box_id,
                             lend_token_value = EXCLUDED.lend_token_value,
+                            sync_block = EXCLUDED.sync_block,
                             updated_at = CURRENT_TIMESTAMP
                     """
 
