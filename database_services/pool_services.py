@@ -117,7 +117,7 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0,
             timestamp,
             pool_box["boxId"],
             lend_token_value,
-            sync_block or pool_box["settlementHeight"]  # Use settlementHeight as sync_block if not provided
+            sync_block
         ))
 
 
@@ -167,7 +167,7 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
                 continue
 
             # Add to batch - use settlement height as sync_block if not provided
-            box_sync_block = sync_block or pool_box["settlementHeight"]
+            box_sync_block = sync_block
 
             batch_data.append((
                 pool["POOL_NFT"],

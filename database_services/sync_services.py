@@ -4,7 +4,7 @@ from database.analytics_mixin import sync_user_pool_analytics_standalone
 from database.db_manager import DatabaseManager
 from database_services.pool_services import sync_pool_interest_data, sync_all_pools, sync_all_pools_batched, \
     sync_pool_interest_data_batched
-from database_services.transaction_service import sync_transactions, sync_transactions_batched
+from database_services.transaction_service import sync_transactions_batched
 from database_services.user_history_services import sync_user_lend_positions, sync_user_deposits_historical, \
     add_granular_user_lend_positions, sync_user_portfolio_snapshots
 from helpers.platform_functions import get_all_boxes_by_token_id
@@ -23,7 +23,7 @@ def sync_all_historical_data(db: DatabaseManager, pool, min_height=0, sync_block
     print(f"Starting historical data sync from height {min_height}")
     pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
     if pool_boxes:
-        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
+        sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height)
         sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
         pass
     else:
@@ -70,7 +70,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         print(f"Found {len(pool_boxes)} boxes to process")
 
         # Use batched versions for everything
-        sync_transactions_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500, sync_block=sync_block)
+        sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
         sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
                                         sync_block=sync_block)
 

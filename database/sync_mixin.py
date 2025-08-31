@@ -15,8 +15,6 @@ class SyncMixin:
                 with conn.cursor() as cur:
                     # Query all tables with sync_block, treating NULL as 0
                     sync_block_queries = [
-                        "SELECT MIN(COALESCE(sync_block, 0)) FROM users",
-                        "SELECT MIN(COALESCE(sync_block, 0)) FROM addresses",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM user_pool_analytics",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM pools",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM currency_rates",
@@ -65,8 +63,6 @@ class SyncMixin:
                 with conn.cursor() as cur:
                     # Query all tables with sync_block to find the maximum value
                     sync_block_queries = [
-                        "SELECT MAX(sync_block) FROM users WHERE sync_block IS NOT NULL",
-                        "SELECT MAX(sync_block) FROM addresses WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM user_pool_analytics WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM pools WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM currency_rates WHERE sync_block IS NOT NULL",
