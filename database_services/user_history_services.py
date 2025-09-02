@@ -553,21 +553,8 @@ def add_granular_user_lend_positions(
 
                     print(f"  Found {len(user_positions)} users with positions")
 
-                    # Check for existing records at this height
-                    existing_query = """
-                        SELECT address_id
-                        FROM user_lend_positions_historical
-                        WHERE pool_nft = %s AND block_height = %s
-                    """
-
-                    cur.execute(existing_query, (pool_nft, interval_height))
-                    existing_addresses = {row[0] for row in cur.fetchall()}
-
                     # Create position records with REAL node API timestamps
                     for address_id, address, position_tokens in user_positions:
-                        if address_id in existing_addresses:
-                            continue
-
                         position_tokens = float(position_tokens)
                         position_value = position_tokens * lend_token_value
 
@@ -578,9 +565,10 @@ def add_granular_user_lend_positions(
                             block_timestamp,  # REAL timestamp from node API!
                             position_tokens,
                             position_value,
-                            sync_block or interval_height  # Use interval_height as sync_block if not provided
+                            sync_block
                         ))
-                        print(batch_data)
+
+                    print("This is my batch data", batch_data)
 
                 print(f"Generated {len(batch_data)} granular position records with REAL timestamps")
 
