@@ -460,9 +460,14 @@ def get_all_boxes_by_token_id(
         offset = max(0, offset - limit)
 
     print(f"Completed! Collected {len(all_boxes)} boxes above height {min_height} in {request_count} requests")
-    all_boxes.sort(key=lambda box: box.get("settlementHeight", 0)) # Ensure sorted
-    return all_boxes
 
+    # Remove exactly identical boxes using json serialization
+    seen = set()
+    all_boxes = [box for box in all_boxes if
+                 json.dumps(box, sort_keys=True) not in seen and not seen.add(json.dumps(box, sort_keys=True))]
+
+    all_boxes.sort(key=lambda box: box.get("settlementHeight", 0))  # Ensure sorted
+    return all_boxes
 
 
 def fetch_transaction_data(transaction_id):
