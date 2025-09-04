@@ -2,6 +2,122 @@ from typing import Optional, Dict, List
 
 
 class SyncMixin:
+    def get_pool_sync_block_for_table(self, table_name: str, pool_nft: str) -> Optional[int]:
+        """
+        Check if all entries for a specific pool in a given table
+        have the same sync_block value.
+
+        Args:
+            table_name: Name of the table to check (e.g., 'user_lend_positions_historical')
+            pool_nft: The pool NFT identifier
+
+        Returns:
+            - The sync_block value if all entries are consistent and non-NULL
+            - 0 if no entries exist for this pool
+            - None if sync_blocks are inconsistent or any NULL values exist
+        """
+        # Validate table name to prevent SQL injection
+        allowed_tables = [
+            'user_lend_positions_historical',
+            'user_deposits_historical',
+            'user_portfolio_snapshots',
+            'pool_data_historical',
+            'transactions',
+            'user_pool_analytics'
+        ]
+
+        if table_name not in allowed_tables:
+            raise ValueError(f"Table '{table_name}' is not allowed for sync_block checking")
+
+        # Build query - table name is validated so safe to use in f-string
+        # NOTE: Removed the "AND sync_block IS NOT NULL" filter to include NULLs
+        query = f"""
+        SELECT DISTINCT sync_block 
+        FROM {table_name}
+        WHERE pool_nft = %s
+        """
+
+        try:
+            results = self.execute_query(query, (pool_nft,))
+
+            if not results:
+                # No existing data for this pool in this table
+                print(f"No existing entries found in {table_name} for pool {pool_nft}")
+                return 0
+
+            # Results are dictionaries, not tuples, so access by column name
+            sync_blocks = [row['sync_block'] for row in results]
+
+            # Check if any sync_block is NULL
+            if None in sync_blocks:
+                print(f"WARNING: Found NULL sync_block values in {table_name} for pool {pool_nft}")
+                print(f"Will need full scan to ensure consistency")
+                return None
+
+            if len(sync_blocks) == 1:
+                # All sync_blocks are the same and non-NULL
+                sync_block = sync_blocks[0]
+                print(f"Found consistent sync_block {sync_block} in {table_name} for pool {pool_nft}")
+                return sync_block
+            else:
+                # Multiple different non-NULL sync_blocks
+                print(f"WARNING: Inconsistent sync_blocks in {table_name} for pool {pool_nft}: {sync_blocks}")
+                print(f"Will need full scan to ensure consistency")
+                return None
+
+        except Exception as e:
+            print(f"Error checking sync_block consistency in {table_name} for pool {pool_nft}: {e}")
+            return None
+
+    def get_lowest_sync_block_for_pool(self, table_name: str, pool_nft: str) -> int:
+        """
+        Get the lowest sync_block value for a specific pool in a given table.
+
+        Args:
+            table_name: Name of the table to check (e.g., 'user_lend_positions_historical')
+            pool_nft: The pool NFT identifier
+
+        Returns:
+            - The lowest sync_block value (treating NULL as 0)
+            - 0 if no entries exist for this pool
+        """
+        # Validate table name to prevent SQL injection
+        allowed_tables = [
+            'user_lend_positions_historical',
+            'user_deposits_historical',
+            'user_portfolio_snapshots',
+            'pool_data_historical',
+            'transactions',
+            'user_pool_analytics'
+        ]
+
+        if table_name not in allowed_tables:
+            raise ValueError(f"Table '{table_name}' is not allowed for sync_block checking")
+
+        # Build query - use COALESCE to treat NULL as 0, then find MIN
+        query = f"""
+        SELECT MIN(COALESCE(sync_block, 0)) as min_sync_block
+        FROM {table_name}
+        WHERE pool_nft = %s
+        """
+
+        try:
+            results = self.execute_query(query, (pool_nft,))
+
+            if not results or results[0]['min_sync_block'] is None:
+                # No existing data for this pool in this table
+                print(f"No existing entries found in {table_name} for pool {pool_nft}")
+                return 0
+
+            min_sync_block = results[0]['min_sync_block']
+            print(f"Lowest sync_block in {table_name} for pool {pool_nft}: {min_sync_block}")
+            return min_sync_block
+
+        except Exception as e:
+            print(f"Error getting lowest sync_block in {table_name} for pool {pool_nft}: {e}")
+            return 0
+
+
     def get_lowest_sync_block(self) -> Optional[int]:
         """
         Get the lowest sync_block value across all tables to determine

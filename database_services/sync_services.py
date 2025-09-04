@@ -46,6 +46,9 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     print(f"Starting optimized full sync from height {min_height}")
 
     pools = current_pools[:]
+    full_scan = False
+    if min_height != 0:
+        full_scan = True
 
     # Step 1: Sync all pools in batch
     print("\n=== Step 1: Syncing all pools ===")
@@ -65,19 +68,17 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
 
         if not pool_boxes:
             print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
-            continue
-
-        print(f"Found {len(pool_boxes)} boxes to process")
-
-        # Use batched versions for everything
-        sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
-        sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
-                                        sync_block=sync_block)
+        else:
+            print(f"Found {len(pool_boxes)} boxes to process")
+            # Use batched versions for everything
+            sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
+            sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
+                                            sync_block=sync_block)
 
         # User lend data - already optimized with batching
-        sync_user_lend_positions(db, pool, sync_block=sync_block)
-        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block)
-        sync_user_deposits_historical(db, pool, sync_block=sync_block)
+        sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
+        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+        sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
 
     # Step 4: Sync user pool analytics
