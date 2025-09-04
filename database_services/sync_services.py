@@ -53,7 +53,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
 
     # Step 2: Sync currency rates in batch
     print("\n=== Step 2: Syncing currency rates ===")
-    sync_currency_rates_batched(db, pools, sync_block=sync_block, min_height=min_height)
+    sync_currency_rates_batched(db, pools, sync_block=sync_block)
 
     # Step 3: Process historical data for each pool
     print("\n=== Step 3: Syncing historical data ===")

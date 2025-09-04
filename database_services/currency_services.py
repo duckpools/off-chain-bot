@@ -180,51 +180,22 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
     return results
 
 
-def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None, min_height: int = 0):
+def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None):
     """
     Sync USD currency rates using batch processing.
     """
     print("Starting batch currency rates sync...")
 
-    # Check which assets need updates based on min_height
-    assets_to_skip = set()
-    if min_height > 0:
-        try:
-            with db.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT pooled_asset 
-                        FROM currency_rates 
-                        WHERE sync_block IS NOT NULL AND sync_block > %s
-                    """, (min_height,))
-                    results = cur.fetchall()
-                    assets_to_skip = {row[0] for row in results}
-                    if assets_to_skip:
-                        print(f"Skipping {len(assets_to_skip)} recently synced assets: {list(assets_to_skip)}")
-        except Exception as e:
-            print(f"Error checking recent currency updates: {e}")
-
-    # Collect distinct CoinGecko IDs (excluding recently synced ones)
+    # Collect distinct CoinGecko IDs
     coingecko_ids = []
-    pools_to_process = []
     for pool in pools:
-        currency_id = pool.get("CURRENCY_ID_DB")
-        if currency_id in assets_to_skip:
-            continue
-        pools_to_process.append(pool)
         cg = pool.get("coingecko")
         if cg and cg not in coingecko_ids:
             coingecko_ids.append(cg)
 
     if not coingecko_ids:
-        print("No coingecko fields found in pools (or all recently synced)")
-        # Return skipped status for recently synced assets
-        results = {}
-        for pool in pools:
-            currency_id = pool.get("CURRENCY_ID_DB")
-            if currency_id in assets_to_skip:
-                results[currency_id] = 'skipped_recent'
-        return results
+        print("No coingecko fields found in pools")
+        return {}
 
     print(f"Found coingecko IDs: {coingecko_ids}")
 
@@ -251,11 +222,11 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
         print("No prices resolved")
         return {}
 
-    # Prepare batch data (only for pools that need updates)
+    # Prepare batch data
     batch_data = []
     results = {}
 
-    for pool in pools_to_process:
+    for pool in pools:
         currency_id = pool.get("CURRENCY_ID_DB")
         coingecko_id = pool.get("coingecko")
 
