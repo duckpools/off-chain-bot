@@ -506,6 +506,7 @@ def add_granular_user_lend_positions(
 ) -> bool:
     """
     Add granular user positions using REAL block timestamps from the node API.
+    Correctly handles positions that go 0 → positive → 0 throughout time.
     """
     pool_nft = pool["POOL_NFT"]
 
@@ -513,7 +514,6 @@ def add_granular_user_lend_positions(
         # Step 1: Get the lend token value map
         print(f"Fetching lend token value map for pool {pool_nft}")
         value_map = get_pool_lend_token_value_map(db, pool_nft)
-
         if not value_map:
             print(f"No lend token value data available for pool {pool_nft}")
             return False
@@ -523,8 +523,8 @@ def add_granular_user_lend_positions(
         if not full_scan:
             min_height = db.get_lowest_sync_block_for_pool("user_lend_positions_historical", pool_nft)
         print("Using min_height", min_height)
-        max_height = max(max(value_map.keys()), sync_block)
 
+        max_height = max(max(value_map.keys()), sync_block)
         interval_heights = []
         current_height = min_height + interval_blocks
         while current_height <= max_height:
@@ -545,14 +545,12 @@ def add_granular_user_lend_positions(
 
                     # Get REAL block timestamp from node API
                     block_timestamp = get_block_timestamp(interval_height)
-
                     if block_timestamp is None:
                         print(f"  Failed to get timestamp for block {interval_height}, skipping")
                         continue
 
                     # Get lend token value for this height
                     lend_token_value = get_lend_token_value_at_height(value_map, interval_height)
-
                     if lend_token_value == -1:
                         print(f"  No lend token value available for height {interval_height}, skipping")
                         continue
@@ -560,27 +558,30 @@ def add_granular_user_lend_positions(
                     print(f"  Using lend_token_value: {lend_token_value}")
                     print(f"  Using REAL block_timestamp: {block_timestamp}")
 
-                    # Get users' latest positions up to this height
+                    # FIXED QUERY: Get truly latest position first, then filter for active positions
                     user_query = """
+                    WITH latest_positions AS (
                         SELECT DISTINCT 
-                            lp.address_id,
+                            lp.address_id, 
                             a.address,
                             FIRST_VALUE(lp.position_tokens) OVER (
                                 PARTITION BY lp.address_id 
-                                ORDER BY lp.block_height DESC, lp.id DESC
+                                ORDER BY lp.block_height DESC, lp.id DESC 
                                 ROWS UNBOUNDED PRECEDING
                             ) as latest_position_tokens
                         FROM user_lend_positions_historical lp
                         JOIN addresses a ON lp.address_id = a.id
-                        WHERE lp.pool_nft = %s 
-                        AND lp.block_height <= %s
-                        AND lp.position_tokens > 0
+                        WHERE lp.pool_nft = %s AND lp.block_height <= %s
+                    )
+                    SELECT address_id, address, latest_position_tokens
+                    FROM latest_positions
+                    WHERE latest_position_tokens > 0
                     """
 
                     cur.execute(user_query, (pool_nft, interval_height))
                     user_positions = cur.fetchall()
 
-                    print(f"  Found {len(user_positions)} users with positions")
+                    print(f"  Found {len(user_positions)} users with active positions")
 
                     # Create position records with REAL node API timestamps
                     for address_id, address, position_tokens in user_positions:
@@ -597,8 +598,7 @@ def add_granular_user_lend_positions(
                             sync_block
                         ))
 
-                    print("This is my batch data", batch_data)
-
+                print("This is my batch data", batch_data)
                 print(f"Generated {len(batch_data)} granular position records with REAL timestamps")
 
                 if batch_data:
