@@ -1,399 +1,214 @@
-from typing import Optional, List, Tuple, Dict
-import time
-from decimal import Decimal
-import math
-
-from current_pools import current_pools
+from typing import Optional, List, Dict, Any
 
 
 class AnalyticsMixin:
-    def sync_user_pool_analytics(self, days_lookback: int = 400, sync_block: Optional[int] = None) -> int:
+    def get_next_snapshot(self, address: str, timestamp: int) -> Dict[str, Dict[str, Any]]:
         """
-        Sync user pool analytics by calculating earnings and APY metrics.
+        Fetch the earliest snapshot strictly after a given timestamp for an address, by pool.
 
         Args:
-            days_lookback: How many days back to look for historical data (default 400 to ensure we capture 365d)
-            sync_block: Block height when this analytics sync was performed
+            address: The blockchain address to query
+            timestamp: Unix timestamp to search after
 
         Returns:
-            Number of analytics records successfully processed
+            Dictionary with pool_nft as keys containing snapshot data for each pool
         """
-        successful_updates = 0
-        # Convert to milliseconds
-        current_timestamp = int(time.time() * 1000)
-
         try:
-            # Get pools data for decimals and lend_apy
-            pools_data = self._get_pools_data()
-            if not pools_data:
-                print("No pools data available")
-                return 0
-
-            # Get currency rates
-            currency_rates = self._get_currency_rates()
-
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    # Get all unique address_id, pool_nft combinations from portfolio snapshots
-                    cur.execute("""
-                        SELECT DISTINCT address_id, pool_nft
-                        FROM user_portfolio_snapshots
-                        ORDER BY address_id, pool_nft
-                    """)
-
-                    combinations = cur.fetchall()
-
-                    for address_id, pool_nft in combinations:
-                        try:
-                            analytics_data = self._calculate_analytics_for_user_pool(
-                                cur, address_id, pool_nft, current_timestamp,
-                                days_lookback, pools_data, currency_rates
-                            )
-
-                            if analytics_data:
-                                # Upsert the analytics data
-                                success = self._upsert_user_pool_analytics(cur, address_id, pool_nft, analytics_data, sync_block)
-                                if success:
-                                    successful_updates += 1
-                        except Exception as e:
-                            print(f"Error processing analytics for address_id {address_id}, pool {pool_nft}: {e}")
-                            continue
-
-                    conn.commit()
-
-        except Exception as e:
-            print(f"Error in sync_user_pool_analytics: {e}")
-
-        return successful_updates
-
-    def _get_pools_data(self) -> Dict[str, Dict]:
-        """Get pools data including decimals and lend_apy"""
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT nft, pooled_asset, lend_apy
-                        FROM pools
-                    """)
-
-                    pools = {}
-                    for nft, pooled_asset, lend_apy in cur.fetchall():
-                        # Get decimals from the current_pools data
-                        decimals = self._get_decimals_for_pool(nft)
-                        pools[nft] = {
-                            'pooled_asset': pooled_asset,
-                            'lend_apy': float(lend_apy) if lend_apy else 0,
-                            'decimals': decimals
-                        }
-
-                    return pools
-        except Exception as e:
-            print(f"Error getting pools data: {e}")
-            return {}
-
-    def _get_decimals_for_pool(self, pool_nft: str) -> int:
-        """Get decimals for a pool from the current_pools data"""
-        for pool in current_pools:
-            if pool.get('POOL_NFT') == pool_nft:
-                return pool.get('decimals', 0)
-        return 0
-
-    def _get_currency_rates(self) -> Dict[str, float]:
-        """Get latest currency rates"""
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT pooled_asset, usd_rate
-                        FROM currency_rates
-                        ORDER BY updated_at DESC
-                    """)
-
-                    return {asset: float(rate) for asset, rate in cur.fetchall()}
-        except Exception as e:
-            print(f"Error getting currency rates: {e}")
-            return {}
-
-    def _calculate_analytics_for_user_pool(self, cur, address_id: int, pool_nft: str,
-                                           current_timestamp: int, days_lookback: int,
-                                           pools_data: Dict, currency_rates: Dict) -> Optional[Dict]:
-        """Calculate analytics for a specific user-pool combination"""
-
-        # Get pool info
-        pool_info = pools_data.get(pool_nft)
-        if not pool_info:
-            return None
-
-        pooled_asset = pool_info['pooled_asset']
-        lend_apy = pool_info['lend_apy']
-        decimals = pool_info['decimals']
-        usd_rate = currency_rates.get(pooled_asset, 0)
-
-        # Calculate timestamps for lookback periods (using milliseconds)
-        milliseconds_per_day = 86400 * 1000
-        timestamp_30d = current_timestamp - (30 * milliseconds_per_day)
-        timestamp_90d = current_timestamp - (90 * milliseconds_per_day)
-        timestamp_365d = current_timestamp - (365 * milliseconds_per_day)
-        earliest_timestamp = current_timestamp - (days_lookback * milliseconds_per_day)
-
-        # Get snapshots
-        cur.execute("""
-            SELECT timestamp, position_value, total_profit
-            FROM user_portfolio_snapshots
-            WHERE address_id = %s AND pool_nft = %s 
-            AND timestamp >= %s
-            ORDER BY timestamp DESC
-        """, (address_id, pool_nft, earliest_timestamp))
-
-        snapshots = cur.fetchall()
-        if not snapshots:
-            return None
-
-        # Get latest snapshot
-        latest = snapshots[0]
-        latest_timestamp, latest_position_value, latest_total_profit = latest
-        latest_position_value = float(latest_position_value)
-        latest_total_profit = float(latest_total_profit)
-
-        # DEBUG: Print address_id and current total profit
-        print(f"\n=== DEBUG: Address ID {address_id}, Pool {pool_nft} ===")
-        print(f"Current total_profit: {latest_total_profit}")
-
-        # Find snapshots closest to target dates
-        def find_closest_snapshot(target_timestamp):
-            print("Target timestamp", target_timestamp)
-            closest = None
-            min_diff = float('inf')
-            for timestamp, position_value, total_profit in snapshots:
-                diff = abs(timestamp - target_timestamp)
-                if diff < min_diff:
-                    min_diff = diff
-                    closest = (timestamp, float(position_value), float(total_profit))
-            return closest
-
-        snapshot_30d = find_closest_snapshot(timestamp_30d)
-        snapshot_90d = find_closest_snapshot(timestamp_90d)
-        snapshot_365d = find_closest_snapshot(timestamp_365d)
-
-        # DEBUG: Print historical total profits
-        if snapshot_30d:
-            print(f"Total profit 30d ago: {snapshot_30d[2]} (timestamp: {snapshot_30d[0]})")
-        else:
-            print("Total profit 30d ago: No snapshot found")
-
-        if snapshot_90d:
-            print(f"Total profit 90d ago: {snapshot_90d[2]} (timestamp: {snapshot_90d[0]})")
-        else:
-            print("Total profit 90d ago: No snapshot found")
-
-        if snapshot_365d:
-            print(f"Total profit 365d ago: {snapshot_365d[2]} (timestamp: {snapshot_365d[0]})")
-        else:
-            print("Total profit 365d ago: No snapshot found")
-
-        # Calculate analytics
-        analytics = {}
-
-        # Calculate for each period
-        periods = [
-            ('30d', snapshot_30d, 30),
-            ('90d', snapshot_90d, 90),
-            ('365d', snapshot_365d, 365)
-        ]
-
-        for period_name, snapshot, days in periods:
-            if snapshot and snapshot[0] != latest_timestamp:
-                old_timestamp, old_position_value, old_total_profit = snapshot
-
-                # Calculate total earned (change in total profit)
-                total_earnt = latest_total_profit - old_total_profit
-
-                # DEBUG: Print calculated earnings for this period
-                print(f"Total earned {period_name}: {total_earnt} ({latest_total_profit} - {old_total_profit})")
-
-                # Convert to USD (divide by decimals first, then multiply by USD rate)
-                total_earnt_usd = (total_earnt / (10 ** decimals)) * usd_rate
-
-                # Calculate APY (annualized return based on position value)
-                if old_position_value > 0:
-                    # Convert millisecond difference to days
-                    actual_days = (latest_timestamp - old_timestamp) / milliseconds_per_day
-                    if actual_days > 0:
-                        # Calculate return rate and annualize it
-                        return_rate = total_earnt / old_position_value
-                        periods_per_year = 365.25 / actual_days
-
-                        # Handle negative returns to avoid complex numbers
-                        base = 1 + return_rate
-                        if base > 0:
-                            apy_earnt = (base ** periods_per_year) - 1
-                        else:
-                            # For losses greater than 100%, calculate as negative APY
-                            # Use absolute value and make result negative
-                            abs_base = abs(base)
-                            if abs_base > 0:
-                                apy_earnt = -((abs_base ** periods_per_year) + 1)
-                            else:
-                                apy_earnt = -1  # 100% loss
-                    else:
-                        apy_earnt = 0
-                else:
-                    apy_earnt = 0
-            else:
-                old_position_value = 0
-                total_earnt = 0
-                total_earnt_usd = 0
-                apy_earnt = 0
-                print(f"Total earned {period_name}: {total_earnt} (no valid snapshot)")
-
-            analytics[f'total_earnt_{period_name}'] = total_earnt
-            analytics[f'total_earnt_{period_name}_usd'] = total_earnt_usd
-            analytics[f'apy_earnt_{period_name}'] = apy_earnt
-            analytics[f'position_value_{period_name}'] = old_position_value
-
-        print("=" * 50)  # End debug section
-
-        # Calculate projected earnings for 30 days
-        if latest_position_value > 0 and lend_apy > 0:
-            # Simple interest calculation for 30 days
-            projected_earnt_30d = latest_position_value * lend_apy * (30 / 365.25)
-            projected_earnt_30d_usd = (projected_earnt_30d / (10 ** decimals)) * usd_rate
-            projected_apy_30d = lend_apy  # Current lend APY from pool
-        else:
-            projected_earnt_30d = 0
-            projected_earnt_30d_usd = 0
-            projected_apy_30d = 0
-
-        analytics.update({
-            'projected_earnt_30d': projected_earnt_30d,
-            'projected_earnt_30d_usd': projected_earnt_30d_usd,
-            'projected_apy_30d': projected_apy_30d
-        })
-
-        return analytics
-
-    def _upsert_user_pool_analytics(self, cur, address_id: int, pool_nft: str, analytics: Dict, sync_block: Optional[int] = None) -> bool:
-        """Upsert analytics data into user_pool_analytics table"""
-        try:
-            upsert_query = """
-                INSERT INTO user_pool_analytics (
-                    address_id, pool_nft,
-                    total_earnt_30d, total_earnt_30d_usd, apy_earnt_30d, position_value_30d,
-                    total_earnt_90d, total_earnt_90d_usd, apy_earnt_90d, position_value_90d,
-                    total_earnt_365d, total_earnt_365d_usd, apy_earnt_365d, position_value_365d,
-                    projected_earnt_30d, projected_earnt_30d_usd, projected_apy_30d, sync_block
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                )
-                ON CONFLICT (address_id, pool_nft)
-                DO UPDATE SET
-                    total_earnt_30d = EXCLUDED.total_earnt_30d,
-                    total_earnt_30d_usd = EXCLUDED.total_earnt_30d_usd,
-                    apy_earnt_30d = EXCLUDED.apy_earnt_30d,
-                    position_value_30d = EXCLUDED.position_value_30d,
-                    total_earnt_90d = EXCLUDED.total_earnt_90d,
-                    total_earnt_90d_usd = EXCLUDED.total_earnt_90d_usd,
-                    apy_earnt_90d = EXCLUDED.apy_earnt_90d,
-                    position_value_90d = EXCLUDED.position_value_90d,
-                    total_earnt_365d = EXCLUDED.total_earnt_365d,
-                    total_earnt_365d_usd = EXCLUDED.total_earnt_365d_usd,
-                    apy_earnt_365d = EXCLUDED.apy_earnt_365d,
-                    position_value_365d = EXCLUDED.position_value_365d,
-                    projected_earnt_30d = EXCLUDED.projected_earnt_30d,
-                    projected_earnt_30d_usd = EXCLUDED.projected_earnt_30d_usd,
-                    projected_apy_30d = EXCLUDED.projected_apy_30d,
-                    sync_block = EXCLUDED.sync_block,
-                    updated_at = CURRENT_TIMESTAMP
+            query = """
+                SELECT DISTINCT ON (ups.pool_nft)
+                    a.address,
+                    ups.pool_nft,
+                    ups.position_value,
+                    ups.total_profit,
+                    ups.timestamp,
+                    ups.block_height,
+                    ups.sync_block
+                FROM user_portfolio_snapshots ups
+                JOIN addresses a ON ups.address_id = a.id
+                WHERE a.address = %s
+                  AND ups.timestamp > %s
+                ORDER BY ups.pool_nft, ups.timestamp ASC, ups.block_height ASC;
             """
 
-            params = (
-                address_id, pool_nft,
-                analytics['total_earnt_30d'], analytics['total_earnt_30d_usd'], analytics['apy_earnt_30d'], analytics['position_value_30d'],
-                analytics['total_earnt_90d'], analytics['total_earnt_90d_usd'], analytics['apy_earnt_90d'], analytics['position_value_90d'],
-                analytics['total_earnt_365d'], analytics['total_earnt_365d_usd'], analytics['apy_earnt_365d'], analytics['position_value_365d'],
-                analytics['projected_earnt_30d'], analytics['projected_earnt_30d_usd'], analytics['projected_apy_30d'], sync_block
-            )
+            result = self.execute_query(query, (address, timestamp))
 
-            cur.execute(upsert_query, params)
-            return True
+            snapshots = {}
+            if result:
+                for row in result:
+                    pool_nft = row['pool_nft']
+                    snapshots[pool_nft] = {
+                        'address': row['address'],
+                        'pool_nft': row['pool_nft'],
+                        'position_value': row['position_value'],
+                        'total_profit': row['total_profit'],
+                        'timestamp': row['timestamp'],
+                        'block_height': row['block_height'],
+                        'sync_block': row['sync_block']
+                    }
+
+            return snapshots
 
         except Exception as e:
-            print(f"Error upserting analytics for address_id {address_id}, pool {pool_nft}: {e}")
-            return False
+            print(f"Error fetching next snapshot for address {address} after timestamp {timestamp}: {e}")
+            return {}
 
-    def get_user_pool_analytics(self, address: str, pool_nft: Optional[str] = None) -> List[Dict]:
+    def get_latest_snapshot(self, address: str) -> Dict[str, Dict[str, Any]]:
         """
-        Get user pool analytics for a specific address and optionally a specific pool.
+        Fetch the most recent snapshot for each pool for an address.
 
         Args:
-            address: User's wallet address
-            pool_nft: Optional specific pool NFT to filter by
+            address: The blockchain address to query
 
         Returns:
-            List of analytics dictionaries
+            Dictionary with pool_nft as keys containing latest snapshot data for each pool
         """
         try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    if pool_nft:
-                        query = """
-                            SELECT upa.*, p.pooled_asset, a.address
-                            FROM user_pool_analytics upa
-                            JOIN addresses a ON upa.address_id = a.id
-                            JOIN pools p ON upa.pool_nft = p.nft
-                            WHERE a.address = %s AND upa.pool_nft = %s
-                        """
-                        params = (address, pool_nft)
-                    else:
-                        query = """
-                            SELECT upa.*, p.pooled_asset, a.address
-                            FROM user_pool_analytics upa
-                            JOIN addresses a ON upa.address_id = a.id
-                            JOIN pools p ON upa.pool_nft = p.nft
-                            WHERE a.address = %s
-                            ORDER BY upa.pool_nft
-                        """
-                        params = (address,)
+            query = """
+                SELECT DISTINCT ON (ups.pool_nft)
+                    a.address,
+                    ups.pool_nft,
+                    ups.position_value,
+                    ups.total_profit,
+                    ups.timestamp,
+                    ups.block_height,
+                    ups.sync_block
+                FROM user_portfolio_snapshots ups
+                JOIN addresses a ON ups.address_id = a.id
+                WHERE a.address = %s
+                ORDER BY ups.pool_nft, ups.timestamp DESC, ups.block_height DESC;
+            """
 
-                    cur.execute(query, params)
-                    rows = cur.fetchall()
+            result = self.execute_query(query, (address,))
 
-                    if not rows:
-                        return []
+            snapshots = {}
+            if result:
+                for row in result:
+                    pool_nft = row['pool_nft']
+                    snapshots[pool_nft] = {
+                        'address': row['address'],
+                        'pool_nft': row['pool_nft'],
+                        'position_value': row['position_value'],
+                        'total_profit': row['total_profit'],
+                        'timestamp': row['timestamp'],
+                        'block_height': row['block_height'],
+                        'sync_block': row['sync_block']
+                    }
 
-                    # Get column names
-                    columns = [desc[0] for desc in cur.description]
-
-                    # Convert to list of dictionaries
-                    results = []
-                    for row in rows:
-                        result = dict(zip(columns, row))
-                        # Convert Decimal values to float
-                        for key, value in result.items():
-                            if isinstance(value, Decimal):
-                                result[key] = float(value)
-                        results.append(result)
-
-                    return results
+            return snapshots
 
         except Exception as e:
-            print(f"Error getting user pool analytics: {e}")
+            print(f"Error fetching latest snapshot for address {address}: {e}")
+            return {}
+
+    def get_currency_rates(self) -> Dict[str, float]:
+        """
+        Get all currency rates.
+
+        Returns:
+            Dictionary with pooled_asset as keys and USD rates as values
+        """
+        try:
+            query = "SELECT pooled_asset, usd_rate FROM currency_rates;"
+            result = self.execute_query(query)
+
+            rates = {}
+            if result:
+                for row in result:
+                    rates[row['pooled_asset']] = float(row['usd_rate'])
+
+            return rates
+
+        except Exception as e:
+            print(f"Error fetching currency rates: {e}")
+            return {}
+
+    def get_pool_asset(self, pool_nft: str) -> Optional[str]:
+        """
+        Get the pooled asset for a given pool NFT.
+
+        Args:
+            pool_nft: The pool NFT identifier
+
+        Returns:
+            The pooled asset string, or None if not found
+        """
+        try:
+            query = "SELECT pooled_asset FROM pools WHERE nft = %s;"
+            result = self.execute_query(query, (pool_nft,))
+
+            if result and len(result) > 0:
+                return result[0]['pooled_asset']
+            else:
+                return None
+
+        except Exception as e:
+            print(f"Error fetching pool asset for {pool_nft}: {e}")
+            return None
+
+    def get_address_id(self, address: str) -> Optional[int]:
+        """
+        Get the address ID for a given address string.
+
+        Args:
+            address: The blockchain address
+
+        Returns:
+            The address ID, or None if not found
+        """
+        try:
+            query = "SELECT id FROM addresses WHERE address = %s;"
+            result = self.execute_query(query, (address,))
+
+            if result and len(result) > 0:
+                return result[0]['id']
+            else:
+                return None
+
+        except Exception as e:
+            print(f"Error fetching address ID for {address}: {e}")
+            return None
+
+    def get_pool_lend_apy(self, pool_nft: str) -> float:
+        """
+        Get the current lend APY for a given pool NFT.
+
+        Args:
+            pool_nft: The pool NFT identifier
+
+        Returns:
+            The current lend APY as a float, or 0 if not found
+        """
+        try:
+            query = "SELECT lend_apy FROM pools WHERE nft = %s;"
+            result = self.execute_query(query, (pool_nft,))
+
+            if result and len(result) > 0:
+                return float(result[0]['lend_apy']) / 100
+            else:
+                return 0.0
+
+        except Exception as e:
+            print(f"Error fetching lend APY for pool {pool_nft}: {e}")
+            return 0.0
+
+    def get_all_addresses(self) -> List[str]:
+        """
+        Get all address strings from the database.
+
+        Returns:
+            List of all address strings in the database
+        """
+        try:
+            query = "SELECT address FROM addresses ORDER BY address;"
+            result = self.execute_query(query)
+
+            addresses = []
+            if result:
+                for row in result:
+                    addresses.append(row['address'])
+
+            return addresses
+
+        except Exception as e:
+            print(f"Error fetching all addresses: {e}")
             return []
-
-
-def sync_user_pool_analytics_standalone(db_instance, days_lookback: int = 400, sync_block: Optional[int] = None) -> int:
-    """
-    Standalone function to sync user pool analytics.
-
-    Args:
-        db_instance: Database instance that has AnalyticsMixin mixed in
-        days_lookback: How many days back to look for historical data (default 400)
-        sync_block: Block height when this analytics sync was performed
-
-    Returns:
-        Number of analytics records successfully processed
-    """
-    if not hasattr(db_instance, 'sync_user_pool_analytics'):
-        raise AttributeError("Database instance must have AnalyticsMixin mixed in")
-
-    return db_instance.sync_user_pool_analytics(days_lookback, sync_block)
