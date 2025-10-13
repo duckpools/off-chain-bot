@@ -306,13 +306,19 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
         print(f"Could not determine transaction type for {tx_id}")
         return None
 
+    # Divide amount and fee by pool decimals to get user-friendly values
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    # Fees are always in ERG (9 decimals)
+    fee_friendly = fee / 1e9 if fee > 0 else 0
+
     return {
         'transaction_id': final_tx_id,
         'address': address or "unknown_address",
         'pool_nft': pool["POOL_NFT"],
         'transaction_type': transaction_type,
-        'amount': amount,
-        'fee_paid': fee,
+        'amount': amount_friendly,
+        'fee_paid': fee_friendly,
         'block_height': block_height,
         'timestamp': timestamp,
         'sync_block': sync_block

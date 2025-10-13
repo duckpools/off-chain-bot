@@ -232,12 +232,16 @@ def sync_user_lend_positions(
             current_positions[address] += net_change
             new_position_tokens = current_positions[address]
 
+            # Divide position_tokens by lend token decimals (same as pool asset decimals)
+            decimals = pool["decimals"]
+            new_position_tokens_friendly = new_position_tokens / (10 ** decimals)
+
             # Get lend token value for this block height
             lend_token_value = pool_data_map.get(block_height, -1)
 
             if lend_token_value != -1:
-                # Ensure both values are float for multiplication
-                position_value = new_position_tokens * float(lend_token_value)
+                # Calculate position_value using friendly position_tokens
+                position_value = new_position_tokens_friendly * float(lend_token_value)
             else:
                 position_value = -1
 
@@ -247,7 +251,7 @@ def sync_user_lend_positions(
                 pool_nft,
                 block_height,
                 timestamp,
-                new_position_tokens,
+                new_position_tokens_friendly,
                 position_value,
                 sync_block
             ))
@@ -287,6 +291,7 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
     Synchronize user deposits historical data for a specific pool.
     Processes all transactions for the pool in block height order and calculates
     cumulative deposit/withdrawal amounts for each user.
+    Note: Transactions amounts and fees are already divided by decimals when stored.
     """
     pool_nft = pool["POOL_NFT"]
 
@@ -302,7 +307,7 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
             with conn.cursor() as cur:
                 # 2) Pull transactions at/after that baseline min height
                 transaction_query = """
-                    SELECT t.id, t.address_id, t.type, t.amount, t.fee_paid, 
+                    SELECT t.id, t.address_id, t.type, t.amount, t.fee_paid,
                            t.block_height, t.timestamp, a.address
                     FROM transactions t
                     JOIN addresses a ON t.address_id = a.id
@@ -330,6 +335,7 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
                         user_totals[address] = {'deposited': 0.0, 'withdrawn': 0.0}
 
                     # Handle different transaction types
+                    # Note: amount and fee_paid are already user-friendly values (divided by decimals)
                     fee = fee_paid if fee_paid is not None else 0
 
                     if tx_type == 'lend':
@@ -586,6 +592,7 @@ def add_granular_user_lend_positions(
                     # Create position records with REAL node API timestamps
                     for address_id, address, position_tokens in user_positions:
                         position_tokens = float(position_tokens)
+                        # position_tokens from DB is already divided by decimals, so position_value calculation stays the same
                         position_value = position_tokens * lend_token_value
 
                         batch_data.append((

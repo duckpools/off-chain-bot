@@ -13,10 +13,16 @@ def update_pool(db: DatabaseManager, pool, sync_block: int = None):
     else:
         assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
     total_lent = borrowed + assets_in_Pool
+
+    # Divide by pool decimals to get user-friendly values
+    decimals = pool["decimals"]
+    total_lent_friendly = total_lent / (10 ** decimals)
+    borrowed_friendly = borrowed / (10 ** decimals)
+
     borrow_rate = borrow_apy(pool, pool_box)
     lend_rate = lend_apy(pool, pool_box)
     # Call raw DB function
-    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID_DB"], total_lent, borrowed, lend_rate, borrow_rate,
+    return db.upsert_pool(pool["POOL_NFT"], pool["CURRENCY_ID_DB"], total_lent_friendly, borrowed_friendly, lend_rate, borrow_rate,
                           sync_block)
 
 
@@ -46,6 +52,12 @@ def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
                 assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
 
             total_lent = borrowed + assets_in_Pool
+
+            # Divide by pool decimals to get user-friendly values
+            decimals = pool["decimals"]
+            total_lent_friendly = total_lent / (10 ** decimals)
+            borrowed_friendly = borrowed / (10 ** decimals)
+
             borrow_rate = borrow_apy(pool, pool_box)
             lend_rate = lend_apy(pool, pool_box)
 
@@ -53,8 +65,8 @@ def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
             pools_batch_data.append((
                 pool["POOL_NFT"],
                 pool["CURRENCY_ID_DB"],
-                total_lent,
-                borrowed,
+                total_lent_friendly,
+                borrowed_friendly,
                 lend_rate,
                 borrow_rate,
                 sync_block
@@ -96,6 +108,12 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0,
         else:
             assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
         total_lent = borrowed + assets_in_Pool
+
+        # Divide by pool decimals to get user-friendly values
+        decimals = pool["decimals"]
+        total_lent_friendly = total_lent / (10 ** decimals)
+        borrowed_friendly = borrowed / (10 ** decimals)
+
         lend_rate = lend_apy(pool, pool_box)
         borrow_rate = borrow_apy(pool, pool_box)
         utilization = pool_utilization(pool, pool_box)
@@ -112,8 +130,8 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0,
             lend_rate,
             borrow_rate,
             utilization,
-            total_lent,
-            borrowed,
+            total_lent_friendly,
+            borrowed_friendly,
             timestamp,
             pool_box["boxId"],
             lend_token_value,
@@ -155,6 +173,12 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
                 assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
 
             total_lent = borrowed + assets_in_Pool
+
+            # Divide by pool decimals to get user-friendly values
+            decimals = pool["decimals"]
+            total_lent_friendly = total_lent / (10 ** decimals)
+            borrowed_friendly = borrowed / (10 ** decimals)
+
             lend_rate = lend_apy(pool, pool_box)
             borrow_rate = borrow_apy(pool, pool_box)
             utilization = pool_utilization(pool, pool_box)
@@ -176,8 +200,8 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
                 lend_rate,
                 borrow_rate,
                 utilization,
-                total_lent,
-                borrowed,
+                total_lent_friendly,
+                borrowed_friendly,
                 timestamp,
                 pool_box["boxId"],
                 lend_token_value,
