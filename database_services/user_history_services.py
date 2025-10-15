@@ -346,20 +346,22 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
                         user_totals[address]['withdrawn'] += float(amount) - float(fee)
                     # Note: Other transaction types (borrow, repayment, etc.) don't affect deposit/withdrawal totals
 
-                    result = db.upsert_user_deposits_historical(
-                        address=address,
-                        pool_nft=pool_nft,
-                        transaction_id=tx_id,
-                        block_height=block_height,
-                        timestamp=timestamp,
-                        total_deposited=user_totals[address]['deposited'],
-                        total_withdrawn=user_totals[address]['withdrawn'],
-                        sync_block=sync_block or block_height  # Use block_height as sync_block if not provided
-                    )
+                    # Only create historical entries for lend and withdraw transactions
+                    if tx_type in ('lend', 'withdraw'):
+                        result = db.upsert_user_deposits_historical(
+                            address=address,
+                            pool_nft=pool_nft,
+                            transaction_id=tx_id,
+                            block_height=block_height,
+                            timestamp=timestamp,
+                            total_deposited=user_totals[address]['deposited'],
+                            total_withdrawn=user_totals[address]['withdrawn'],
+                            sync_block=sync_block or block_height  # Use block_height as sync_block if not provided
+                        )
 
-                    if result is None:
-                        print(f"Failed to upsert historical record for transaction {tx_id}")
-                        return False
+                        if result is None:
+                            print(f"Failed to upsert historical record for transaction {tx_id}")
+                            return False
 
                 print(f"Successfully synced {len(transactions)} transactions for pool {pool_nft} (from height {min_height})")
                 return True
