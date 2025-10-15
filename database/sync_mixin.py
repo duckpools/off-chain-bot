@@ -225,7 +225,7 @@ class SyncMixin:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     tables = [
-                        'users', 'addresses', 'user_pool_analytics', 'pools',
+                        'addresses', 'user_pool_analytics', 'pools',
                         'currency_rates', 'pool_data_historical',
                         'transactions', 'borrow_positions', 'user_lend_positions_historical',
                         'user_deposits_historical', 'user_portfolio_snapshots'
@@ -284,7 +284,7 @@ class SyncMixin:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     tables = [
-                        'users', 'addresses', 'user_pool_analytics', 'pools',
+                        'addresses', 'user_pool_analytics', 'pools',
                         'currency_rates', 'pool_data_historical',
                         'transactions', 'borrow_positions', 'user_lend_positions_historical',
                         'user_deposits_historical', 'user_portfolio_snapshots'

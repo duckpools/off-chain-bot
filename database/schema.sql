@@ -6,22 +6,12 @@
 -- ========== CUSTOM TYPES ==========
 CREATE TYPE transaction_type AS ENUM ('lend', 'withdraw', 'borrow', 'repayment', 'partial_repayment', 'liquidation');
 
--- ========== USERS ==========
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    sync_block BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
+-- ========== ADDRESSES ==========
 CREATE TABLE addresses (
     id SERIAL PRIMARY KEY,
     address TEXT UNIQUE NOT NULL,
-    user_id INTEGER NOT NULL,
-    is_primary BOOLEAN DEFAULT FALSE,
     sync_block BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ========== USER POOL ANALYTICS ==========
@@ -183,7 +173,6 @@ CREATE TABLE user_portfolio_snapshots (
 
 -- ========== ADDRESSES INDEXES ==========
 CREATE INDEX idx_addresses_address ON addresses(address);
-CREATE INDEX idx_addresses_user_id ON addresses(user_id);
 
 -- ========== CURRENCY RATES INDEXES ==========
 CREATE INDEX idx_currency_rates_updated_at ON currency_rates(updated_at DESC);
@@ -294,8 +283,7 @@ LEFT JOIN currency_rates cr ON p.pooled_asset = cr.pooled_asset;
 -- ========================================
 
 /*
-TABLES: 12 total
-- users (+ sync_block)
+TABLES: 11 total
 - addresses (+ sync_block)
 - user_pool_analytics (+ sync_block)
 - pools (+ sync_block)

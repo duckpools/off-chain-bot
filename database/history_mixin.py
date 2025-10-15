@@ -29,18 +29,10 @@ class HistoryMixin:
                     if address_result:
                         address_id = address_result[0]
                     else:
-                        # Create user first
-                        cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
-                        user_result = cur.fetchone()
-                        if not user_result:
-                            print("Failed to create user")
-                            return None
-                        user_id = user_result[0]
-
                         # Create address
                         cur.execute(
-                            "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
-                            (address, user_id, True, sync_block)
+                            "INSERT INTO addresses (address, sync_block) VALUES (%s, %s) RETURNING id",
+                            (address, sync_block)
                         )
                         address_result = cur.fetchone()
                         if not address_result:
@@ -101,18 +93,10 @@ class HistoryMixin:
                     if address_result:
                         address_id = address_result[0]
                     else:
-                        # Create user first
-                        cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
-                        user_result = cur.fetchone()
-                        if not user_result:
-                            print("Failed to create user")
-                            return None
-                        user_id = user_result[0]
-
                         # Create address
                         cur.execute(
-                            "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
-                            (address, user_id, True, sync_block)
+                            "INSERT INTO addresses (address, sync_block) VALUES (%s, %s) RETURNING id",
+                            (address, sync_block)
                         )
                         address_result = cur.fetchone()
                         if not address_result:
@@ -174,18 +158,10 @@ class HistoryMixin:
                     if address_result:
                         address_id = address_result[0]
                     else:
-                        # Create user first
-                        cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
-                        user_result = cur.fetchone()
-                        if not user_result:
-                            print("Failed to create user")
-                            return None
-                        user_id = user_result[0]
-
                         # Create address
                         cur.execute(
-                            "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
-                            (address, user_id, True, sync_block)
+                            "INSERT INTO addresses (address, sync_block) VALUES (%s, %s) RETURNING id",
+                            (address, sync_block)
                         )
                         address_result = cur.fetchone()
                         if not address_result:
@@ -358,18 +334,10 @@ class HistoryMixin:
                         if address_result:
                             address_id_map[address] = address_result[0]
                         else:
-                            # Create user first
-                            cur.execute("INSERT INTO users (sync_block) VALUES (%s) RETURNING id", (sync_block,))
-                            user_result = cur.fetchone()
-                            if not user_result:
-                                print(f"Failed to create user for address {address}")
-                                continue
-                            user_id = user_result[0]
-
                             # Create address
                             cur.execute(
-                                "INSERT INTO addresses (address, user_id, is_primary, sync_block) VALUES (%s, %s, %s, %s) RETURNING id",
-                                (address, user_id, True, sync_block)
+                                "INSERT INTO addresses (address, sync_block) VALUES (%s, %s) RETURNING id",
+                                (address, sync_block)
                             )
                             address_result = cur.fetchone()
                             if not address_result:
