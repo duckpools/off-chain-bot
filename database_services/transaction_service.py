@@ -6,6 +6,33 @@ from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
 
 
+def is_proxy_match(address: str, pool: dict, proxy_type: str) -> bool:
+    """
+    Check if an address matches current or legacy proxy address.
+    Supports overlap period where both old and new proxies were valid.
+
+    Args:
+        address: Address to check
+        pool: Pool configuration dict
+        proxy_type: Type of proxy (e.g., 'proxy_lend', 'proxy_withdraw')
+
+    Returns:
+        True if address matches current or any legacy proxy of this type
+    """
+    # Check current proxy
+    if address == pool.get(proxy_type):
+        return True
+
+    # Check legacy proxies (optional field)
+    legacy_key = f"{proxy_type}_legacy"
+    if legacy_key in pool:
+        legacy_list = pool[legacy_key]
+        if isinstance(legacy_list, list) and address in legacy_list:
+            return True
+
+    return False
+
+
 def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
     """
     Calculates the amount difference between pool boxes in inputs and outputs.
@@ -283,7 +310,7 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     for input_box in tx["inputs"]:
         input_address = input_box.get("address", "")
         fee = 0
-        if input_address == pool["proxy_lend"]:
+        if is_proxy_match(input_address, pool, "proxy_lend"):
             transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
             break
         elif input_address == pool["proxy_withdraw"]:
