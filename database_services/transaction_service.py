@@ -336,8 +336,8 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     # Divide amount and fee by pool decimals to get user-friendly values
     decimals = pool["decimals"]
     amount_friendly = amount / (10 ** decimals)
-    # Fees are always in ERG (9 decimals)
-    fee_friendly = fee / 1e9 if fee > 0 else 0
+    # Fees are in pool token, use pool decimals (ERG has decimals=9, tokens have their own)
+    fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
 
     return {
         'transaction_id': final_tx_id,
