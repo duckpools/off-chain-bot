@@ -56,11 +56,13 @@ CREATE TABLE pools (
 
 -- ========== CURRENCY RATES ==========
 CREATE TABLE currency_rates (
-    pooled_asset TEXT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
+    pooled_asset TEXT NOT NULL,
     usd_rate NUMERIC NOT NULL DEFAULT 0,
+    timestamp BIGINT NOT NULL,
     sync_block BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CONSTRAINT unique_asset_timestamp UNIQUE (pooled_asset, timestamp)
 );
 
 
@@ -175,7 +177,8 @@ CREATE TABLE user_portfolio_snapshots (
 CREATE INDEX idx_addresses_address ON addresses(address);
 
 -- ========== CURRENCY RATES INDEXES ==========
-CREATE INDEX idx_currency_rates_updated_at ON currency_rates(updated_at DESC);
+CREATE INDEX idx_currency_rates_asset_timestamp ON currency_rates(pooled_asset, timestamp DESC);
+CREATE INDEX idx_currency_rates_timestamp ON currency_rates(timestamp DESC);
 
 -- ========== INTEREST DATA INDEXES ==========
 CREATE INDEX idx_interest_data_pool_nft ON interest_data(pool_nft);
@@ -276,7 +279,13 @@ SELECT
 FROM v_user_latest_positions ulp
 JOIN pools p ON ulp.pool_nft = p.nft
 LEFT JOIN v_user_latest_portfolio ups ON ulp.address_id = ups.address_id AND ulp.pool_nft = ups.pool_nft
-LEFT JOIN currency_rates cr ON p.pooled_asset = cr.pooled_asset;
+LEFT JOIN LATERAL (
+    SELECT usd_rate
+    FROM currency_rates
+    WHERE pooled_asset = p.pooled_asset
+    ORDER BY timestamp DESC
+    LIMIT 1
+) cr ON true;
 
 -- ========================================
 -- SCHEMA SUMMARY

@@ -44,34 +44,34 @@ def fetch_usd_prices(asset_ids: list):
 
 
 def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Optional[int] = None, min_height: int = 0) -> Dict[str, str]:
-    """Sync USD currency rates for all pooled assets.
+    """Sync USD currency rates for all pooled assets (latest only).
 
     - Uses HARD_CODED_PRICES for any matching CoinGecko IDs
     - Fetches remaining prices from CoinGecko
     - Hardcoded values override API values
-    - Upserts by each pool's 'CURRENCY_ID'
-    - Skips assets recently synced above min_height
+    - Only inserts new rate if >= 5 minutes since last timestamp
     - Returns a per-CURRENCY_ID status dict
     """
-    print("Starting USD currency rates sync...")
+    print("Starting USD currency rates sync (latest only)...")
 
-    # Check which assets need updates based on min_height
+    current_timestamp = int(time.time())
     assets_to_skip = set()
-    if min_height > 0:
-        try:
-            with db.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT pooled_asset 
-                        FROM currency_rates 
-                        WHERE sync_block IS NOT NULL AND sync_block > %s
-                    """, (min_height,))
-                    results = cur.fetchall()
-                    assets_to_skip = {row[0] for row in results}
-                    if assets_to_skip:
-                        print(f"Skipping {len(assets_to_skip)} recently synced assets: {list(assets_to_skip)}")
-        except Exception as e:
-            print(f"Error checking recent currency updates: {e}")
+
+    # Check which assets need updates based on 5-minute threshold
+    try:
+        for pool in pools:
+            currency_id = pool.get("CURRENCY_ID_DB")
+            if not currency_id:
+                continue
+
+            latest_timestamp = db.get_latest_currency_timestamp(currency_id)
+            if latest_timestamp:
+                time_diff = current_timestamp - latest_timestamp
+                if time_diff < 300:  # Less than 5 minutes (300 seconds)
+                    assets_to_skip.add(currency_id)
+                    print(f"Skipping {currency_id}: Last update was {time_diff}s ago (< 5 min)")
+    except Exception as e:
+        print(f"Error checking recent currency updates: {e}")
 
     # Collect distinct CoinGecko IDs (excluding recently synced ones)
     coingecko_ids: List[str] = []
@@ -157,8 +157,8 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
                 results[currency_id] = 'skipped'
                 continue
 
-            # Upsert by CURRENCY_ID
-            success = db.upsert_currency_rate(currency_id, float(usd_price), sync_block)
+            # Insert new rate with timestamp
+            success = db.insert_currency_rate(currency_id, float(usd_price), current_timestamp, sync_block)
 
             # CHANGED: source detection—hardcoded overrides API, so report correctly
             src = "hardcoded" if coingecko_id in HARD_CODED_PRICES else "api"
@@ -182,20 +182,49 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
 
 def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None):
     """
-    Sync USD currency rates using batch processing.
+    Sync USD currency rates using batch processing (latest only with 5-minute check).
     """
-    print("Starting batch currency rates sync...")
+    print("Starting batch currency rates sync (latest only)...")
 
-    # Collect distinct CoinGecko IDs
+    current_timestamp = int(time.time())
+    assets_to_skip = set()
+
+    # Check which assets need updates based on 5-minute threshold
+    try:
+        for pool in pools:
+            currency_id = pool.get("CURRENCY_ID_DB")
+            if not currency_id:
+                continue
+
+            latest_timestamp = db.get_latest_currency_timestamp(currency_id)
+            if latest_timestamp:
+                time_diff = current_timestamp - latest_timestamp
+                if time_diff < 300:  # Less than 5 minutes (300 seconds)
+                    assets_to_skip.add(currency_id)
+                    print(f"Skipping {currency_id}: Last update was {time_diff}s ago (< 5 min)")
+    except Exception as e:
+        print(f"Error checking recent currency updates: {e}")
+
+    # Collect distinct CoinGecko IDs (excluding recently synced)
     coingecko_ids = []
+    pools_to_process = []
     for pool in pools:
+        currency_id = pool.get("CURRENCY_ID_DB")
+        if currency_id in assets_to_skip:
+            continue
+        pools_to_process.append(pool)
         cg = pool.get("coingecko")
         if cg and cg not in coingecko_ids:
             coingecko_ids.append(cg)
 
     if not coingecko_ids:
-        print("No coingecko fields found in pools")
-        return {}
+        print("No coingecko fields found in pools (or all recently synced)")
+        results = {}
+        for pool in pools:
+            currency_id = pool.get("CURRENCY_ID_DB")
+            if currency_id in assets_to_skip:
+                results[currency_id] = 'skipped_recent'
+        return results
 
     print(f"Found coingecko IDs: {coingecko_ids}")
 
@@ -222,11 +251,11 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
         print("No prices resolved")
         return {}
 
-    # Prepare batch data
+    # Prepare batch data with timestamp
     batch_data = []
     results = {}
 
-    for pool in pools:
+    for pool in pools_to_process:
         currency_id = pool.get("CURRENCY_ID_DB")
         coingecko_id = pool.get("coingecko")
 
@@ -239,19 +268,139 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
             results[currency_id] = 'skipped'
             continue
 
-        batch_data.append((currency_id, float(usd_price), sync_block))
+        batch_data.append((currency_id, float(usd_price), current_timestamp, sync_block))
         results[currency_id] = 'pending'
 
-    # Batch upsert all currency rates
+    # Batch insert all currency rates
     if batch_data:
-        success_count = db.batch_upsert_currency_rates(batch_data, sync_block)
-        print(f"Successfully updated {success_count}/{len(batch_data)} currency rates")
+        success_count = db.batch_insert_currency_rates(batch_data, sync_block)
+        print(f"Successfully inserted {success_count}/{len(batch_data)} currency rates")
 
         # Update results
-        for i, (currency_id, _, _) in enumerate(batch_data):
+        for i, (currency_id, _, _, _) in enumerate(batch_data):
             if i < success_count:
                 results[currency_id] = 'success'
             else:
                 results[currency_id] = 'failed'
+
+    # Add skipped assets to results
+    for currency_id in assets_to_skip:
+        results[currency_id] = 'skipped_recent'
+
+    return results
+
+
+def fetch_historical_prices(coingecko_id: str, from_timestamp: int, to_timestamp: int) -> Dict[int, float]:
+    """
+    Fetch historical USD prices from CoinGecko API.
+
+    Args:
+        coingecko_id: CoinGecko asset ID
+        from_timestamp: Start Unix timestamp
+        to_timestamp: End Unix timestamp
+
+    Returns:
+        Dictionary mapping Unix timestamps to USD prices
+    """
+    url = f"{COINGECKO_BASE_URL}/coins/{coingecko_id}/market_chart/range"
+    params = {
+        'vs_currency': 'usd',
+        'from': from_timestamp,
+        'to': to_timestamp
+    }
+
+    for attempt in range(3):
+        try:
+            response = requests.get(url, params=params, timeout=60)
+            response.raise_for_status()
+
+            data = response.json()
+            prices = {}
+
+            # CoinGecko returns prices as [[timestamp_ms, price], ...]
+            if 'prices' in data:
+                for timestamp_ms, price in data['prices']:
+                    timestamp = int(timestamp_ms / 1000)  # Convert to seconds
+                    prices[timestamp] = price
+
+            return prices
+
+        except Exception as e:
+            print(f"CoinGecko historical API error for {coingecko_id} (attempt {attempt + 1}/3): {e}")
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+
+    return {}
+
+
+def sync_currency_all_time(db: DatabaseManager, pools: List[dict], from_timestamp: int = None, sync_block: Optional[int] = None) -> Dict[str, int]:
+    """
+    Sync historical currency rates from inception (or specified timestamp).
+
+    This function fetches and stores historical price data for all assets.
+    Use this for initial backfill or to fill gaps in historical data.
+
+    Args:
+        db: Database manager instance
+        pools: List of pool configurations
+        from_timestamp: Start timestamp (default: 1 year ago)
+        sync_block: Block height when this sync was performed
+
+    Returns:
+        Dictionary mapping currency_id to number of records inserted
+    """
+    print("Starting historical currency rates sync (all time)...")
+
+    # Default to 1 year ago if not specified
+    if from_timestamp is None:
+        from_timestamp = int(time.time()) - (365 * 24 * 60 * 60)
+
+    to_timestamp = int(time.time())
+
+    print(f"Fetching historical data from {from_timestamp} to {to_timestamp}")
+
+    results = {}
+
+    # Process each pool
+    for pool in pools:
+        currency_id = pool.get("CURRENCY_ID_DB")
+        coingecko_id = pool.get("coingecko")
+
+        if not currency_id or not coingecko_id:
+            print(f"Skipping pool - missing CURRENCY_ID_DB or coingecko")
+            continue
+
+        # Check if hardcoded price
+        if coingecko_id in HARD_CODED_PRICES:
+            print(f"Skipping {currency_id} (cg:{coingecko_id}) - using hardcoded price, no historical data")
+            results[currency_id] = 0
+            continue
+
+        print(f"Fetching historical prices for {currency_id} (cg:{coingecko_id})...")
+
+        historical_prices = fetch_historical_prices(coingecko_id, from_timestamp, to_timestamp)
+
+        if not historical_prices:
+            print(f"No historical prices found for {currency_id}")
+            results[currency_id] = 0
+            continue
+
+        # Prepare batch data
+        batch_data = []
+        for timestamp, price in historical_prices.items():
+            batch_data.append((currency_id, float(price), timestamp, sync_block))
+
+        # Insert in batches
+        if batch_data:
+            inserted_count = db.batch_insert_currency_rates(batch_data, sync_block)
+            results[currency_id] = inserted_count
+            print(f"✓ Inserted {inserted_count} historical rates for {currency_id}")
+
+            # Rate limit: CoinGecko free tier allows ~10-50 calls/minute
+            time.sleep(2)  # Wait 2 seconds between assets
+
+    # Summary
+    total_inserted = sum(results.values())
+    print(f"\nHistorical currency sync complete: {total_inserted} total records inserted")
 
     return results
