@@ -1,6 +1,5 @@
 from typing import Optional
 from current_pools import current_pools
-from database.analytics_mixin import sync_user_pool_analytics_standalone
 from database.db_manager import DatabaseManager
 from database_services.pool_services import sync_pool_interest_data, sync_all_pools, sync_all_pools_batched, \
     sync_pool_interest_data_batched
@@ -8,7 +7,8 @@ from database_services.transaction_service import sync_transactions_batched
 from database_services.user_history_services import sync_user_lend_positions, sync_user_deposits_historical, \
     add_granular_user_lend_positions, sync_user_portfolio_snapshots
 from helpers.platform_functions import get_all_boxes_by_token_id
-from database_services.currency_services import sync_currency_rates as _sync_currency_rates, sync_currency_rates_batched
+from database_services.currency_services import sync_currency_rates as _sync_currency_rates, \
+    sync_currency_rates_batched
 
 
 def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
@@ -47,7 +47,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
 
     pools = current_pools[:]
     full_scan = False
-    if min_height != 0:
+    if min_height == 0:
         full_scan = True
 
     # Step 1: Sync all pools in batch
@@ -57,7 +57,6 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     # Step 2: Sync currency rates in batch
     print("\n=== Step 2: Syncing currency rates ===")
     sync_currency_rates_batched(db, pools, sync_block=sync_block)
-
     # Step 3: Process historical data for each pool
     print("\n=== Step 3: Syncing historical data ===")
     for i, pool in enumerate(pools, 1):
@@ -81,10 +80,6 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
 
-    # Step 4: Sync user pool analytics
-    print("\n=== Step 4: Syncing user pool analytics ===")
-    sync_user_pool_analytics_standalone(db, sync_block=sync_block)
-
     print("\n=== Full sync complete ===")
 
 
@@ -106,7 +101,6 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
         for pool in pools:
             sync_all_historical_data(db, pool, min_height=min_height, sync_block=sync_block)
             sync_user_lend_data(db, pool, min_height=min_height, sync_block=sync_block)
-        sync_user_pool_analytics_standalone(db, sync_block=sync_block)
 
 
 def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None) -> bool:

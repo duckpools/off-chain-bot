@@ -14,33 +14,6 @@ CREATE TABLE addresses (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ========== USER POOL ANALYTICS ==========
-CREATE TABLE user_pool_analytics (
-    address_id INTEGER NOT NULL,
-    pool_nft TEXT NOT NULL,
-    total_earnt_30d NUMERIC DEFAULT 0,
-    total_earnt_30d_usd NUMERIC DEFAULT 0,
-    apy_earnt_30d NUMERIC DEFAULT 0,
-    position_value_30d NUMERIC DEFAULT 0,
-    total_earnt_90d NUMERIC DEFAULT 0,
-    total_earnt_90d_usd NUMERIC DEFAULT 0,
-    apy_earnt_90d NUMERIC DEFAULT 0,
-    position_value_90d NUMERIC DEFAULT 0,
-    total_earnt_365d NUMERIC DEFAULT 0,
-    total_earnt_365d_usd NUMERIC DEFAULT 0,
-    apy_earnt_365d NUMERIC DEFAULT 0,
-    position_value_365d NUMERIC DEFAULT 0,
-    projected_earnt_30d NUMERIC DEFAULT 0,
-    projected_earnt_30d_usd NUMERIC DEFAULT 0,
-    projected_apy_30d NUMERIC DEFAULT 0,
-    sync_block BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (address_id, pool_nft),
-    FOREIGN KEY (address_id) REFERENCES addresses(id),
-    FOREIGN KEY (pool_nft) REFERENCES pools(nft)
-);
-
 -- ========== POOLS ==========
 CREATE TABLE pools (
     nft TEXT PRIMARY KEY,
@@ -292,9 +265,8 @@ LEFT JOIN LATERAL (
 -- ========================================
 
 /*
-TABLES: 11 total
+TABLES: 10 total
 - addresses (+ sync_block)
-- user_pool_analytics (+ sync_block)
 - pools (+ sync_block)
 - currency_rates (+ sync_block)
 - interest_data (+ sync_block)

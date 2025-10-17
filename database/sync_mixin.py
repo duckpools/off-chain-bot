@@ -22,8 +22,7 @@ class SyncMixin:
             'user_deposits_historical',
             'user_portfolio_snapshots',
             'pool_data_historical',
-            'transactions',
-            'user_pool_analytics'
+            'transactions'
         ]
 
         if table_name not in allowed_tables:
@@ -87,8 +86,7 @@ class SyncMixin:
             'user_deposits_historical',
             'user_portfolio_snapshots',
             'pool_data_historical',
-            'transactions',
-            'user_pool_analytics'
+            'transactions'
         ]
 
         if table_name not in allowed_tables:
@@ -131,7 +129,6 @@ class SyncMixin:
                 with conn.cursor() as cur:
                     # Query all tables with sync_block, treating NULL as 0
                     sync_block_queries = [
-                        "SELECT MIN(COALESCE(sync_block, 0)) FROM user_pool_analytics",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM pools",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM currency_rates",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM pool_data_historical",
@@ -179,7 +176,6 @@ class SyncMixin:
                 with conn.cursor() as cur:
                     # Query all tables with sync_block to find the maximum value
                     sync_block_queries = [
-                        "SELECT MAX(sync_block) FROM user_pool_analytics WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM pools WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM currency_rates WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM pool_data_historical WHERE sync_block IS NOT NULL",
@@ -225,7 +221,7 @@ class SyncMixin:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     tables = [
-                        'addresses', 'user_pool_analytics', 'pools',
+                        'addresses', 'pools',
                         'currency_rates', 'pool_data_historical',
                         'transactions', 'borrow_positions', 'user_lend_positions_historical',
                         'user_deposits_historical', 'user_portfolio_snapshots'
@@ -284,7 +280,7 @@ class SyncMixin:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     tables = [
-                        'addresses', 'user_pool_analytics', 'pools',
+                        'addresses', 'pools',
                         'currency_rates', 'pool_data_historical',
                         'transactions', 'borrow_positions', 'user_lend_positions_historical',
                         'user_deposits_historical', 'user_portfolio_snapshots'
