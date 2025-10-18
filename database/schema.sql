@@ -75,22 +75,6 @@ CREATE TABLE transactions (
     FOREIGN KEY (pool_nft) REFERENCES pools(nft)
 );
 
--- ========== BORROW POSITIONS ==========
-CREATE TABLE borrow_positions (
-    box_id TEXT PRIMARY KEY,
-    address_id INTEGER NOT NULL,
-    pool_nft TEXT NOT NULL,
-    amount_borrowed NUMERIC NOT NULL,
-    total_owed NUMERIC NOT NULL,
-    borrow_height BIGINT NOT NULL,
-    last_modified_height BIGINT NOT NULL,
-    sync_block BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (address_id) REFERENCES addresses(id),
-    FOREIGN KEY (pool_nft) REFERENCES pools(nft)
-);
-
 -- ========== USER LEND POSITIONS HISTORICAL ==========
 CREATE TABLE user_lend_positions_historical (
     id SERIAL PRIMARY KEY,
@@ -142,6 +126,19 @@ CREATE TABLE user_portfolio_snapshots (
     CONSTRAINT unique_address_pool_snapshot_timestamp UNIQUE (address_id, pool_nft, timestamp)
 );
 
+-- ========== USER POOL DEBTS ==========
+CREATE TABLE user_pool_debts (
+    address_id INTEGER NOT NULL,
+    pool_nft TEXT NOT NULL,
+    total_debt NUMERIC NOT NULL DEFAULT 0,
+    sync_block BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (address_id, pool_nft),
+    FOREIGN KEY (address_id) REFERENCES addresses(id),
+    FOREIGN KEY (pool_nft) REFERENCES pools(nft)
+);
+
 -- ========================================
 -- ORIGINAL INDEXES
 -- ========================================
@@ -174,10 +171,6 @@ CREATE INDEX idx_transactions_type ON transactions(type);
 CREATE INDEX idx_transactions_block_height ON transactions(block_height);
 CREATE INDEX idx_transactions_fee_paid ON transactions(fee_paid);
 
--- ========== BORROW POSITIONS INDEXES ==========
-CREATE INDEX idx_borrow_positions_address_id ON borrow_positions(address_id);
-CREATE INDEX idx_borrow_positions_pool_nft ON borrow_positions(pool_nft);
-
 -- ========== USER LEND POSITIONS HISTORICAL INDEXES ==========
 CREATE INDEX idx_user_lend_positions_address_pool ON user_lend_positions_historical(address_id, pool_nft);
 CREATE INDEX idx_user_lend_positions_timestamp ON user_lend_positions_historical(timestamp DESC);
@@ -187,6 +180,10 @@ CREATE INDEX idx_user_lend_positions_block_height ON user_lend_positions_histori
 CREATE INDEX idx_user_deposits_address_pool_time ON user_deposits_historical(address_id, pool_nft, timestamp DESC);
 CREATE INDEX idx_user_deposits_transaction ON user_deposits_historical(transaction_id);
 CREATE INDEX idx_user_deposits_block_height ON user_deposits_historical(block_height);
+
+-- ========== USER POOL DEBTS INDEXES ==========
+CREATE INDEX idx_user_pool_debts_pool_nft ON user_pool_debts(pool_nft);
+CREATE INDEX idx_user_pool_debts_address ON user_pool_debts(address_id);
 
 -- ========================================
 -- NEW ESSENTIAL PERFORMANCE INDEXES
@@ -272,12 +269,12 @@ TABLES: 10 total
 - interest_data (+ sync_block)
 - pool_data_historical (+ sync_block)
 - transactions (+ sync_block)
-- borrow_positions (+ sync_block)
 - user_lend_positions_historical (+ sync_block)
 - user_deposits_historical (+ sync_block)
 - user_portfolio_snapshots (+ sync_block)
+- user_pool_debts (+ sync_block)
 
-INDEXES: 23 total (original + performance optimizations)
+INDEXES: 21 total (original + performance optimizations)
 
 VIEWS: 3 maintenance-free views (updated to include sync_block)
 - v_user_latest_positions

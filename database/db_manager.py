@@ -5,6 +5,7 @@ from .sync_mixin import SyncMixin
 from .transaction_mixin import TransactionMixin
 from .pool_mixin import PoolMixin
 from .history_mixin import HistoryMixin
+from .debt_mixin import DebtMixin
 
 
 class DatabaseManager(CoreDB,
@@ -13,5 +14,6 @@ class DatabaseManager(CoreDB,
                       HistoryMixin,
                       CurrencyMixin,
                       AnalyticsMixin,
-                      SyncMixin):
+                      SyncMixin,
+                      DebtMixin):
     pass

@@ -133,10 +133,10 @@ class SyncMixin:
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM currency_rates",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM pool_data_historical",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM transactions",
-                        "SELECT MIN(COALESCE(sync_block, 0)) FROM borrow_positions",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM user_lend_positions_historical",
                         "SELECT MIN(COALESCE(sync_block, 0)) FROM user_deposits_historical",
-                        "SELECT MIN(COALESCE(sync_block, 0)) FROM user_portfolio_snapshots"
+                        "SELECT MIN(COALESCE(sync_block, 0)) FROM user_portfolio_snapshots",
+                        "SELECT MIN(COALESCE(sync_block, 0)) FROM user_pool_debts"
                     ]
 
                     min_sync_blocks = []
@@ -180,10 +180,10 @@ class SyncMixin:
                         "SELECT MAX(sync_block) FROM currency_rates WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM pool_data_historical WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM transactions WHERE sync_block IS NOT NULL",
-                        "SELECT MAX(sync_block) FROM borrow_positions WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM user_lend_positions_historical WHERE sync_block IS NOT NULL",
                         "SELECT MAX(sync_block) FROM user_deposits_historical WHERE sync_block IS NOT NULL",
-                        "SELECT MAX(sync_block) FROM user_portfolio_snapshots WHERE sync_block IS NOT NULL"
+                        "SELECT MAX(sync_block) FROM user_portfolio_snapshots WHERE sync_block IS NOT NULL",
+                        "SELECT MAX(sync_block) FROM user_pool_debts WHERE sync_block IS NOT NULL"
                     ]
 
                     max_sync_blocks = []
@@ -223,8 +223,9 @@ class SyncMixin:
                     tables = [
                         'addresses', 'pools',
                         'currency_rates', 'pool_data_historical',
-                        'transactions', 'borrow_positions', 'user_lend_positions_historical',
-                        'user_deposits_historical', 'user_portfolio_snapshots'
+                        'transactions', 'user_lend_positions_historical',
+                        'user_deposits_historical', 'user_portfolio_snapshots',
+                        'user_pool_debts'
                     ]
 
                     summary = {}
@@ -282,8 +283,9 @@ class SyncMixin:
                     tables = [
                         'addresses', 'pools',
                         'currency_rates', 'pool_data_historical',
-                        'transactions', 'borrow_positions', 'user_lend_positions_historical',
-                        'user_deposits_historical', 'user_portfolio_snapshots'
+                        'transactions', 'user_lend_positions_historical',
+                        'user_deposits_historical', 'user_portfolio_snapshots',
+                        'user_pool_debts'
                     ]
 
                     affected_rows = {}

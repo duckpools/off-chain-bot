@@ -6,6 +6,7 @@ from database_services.pool_services import sync_pool_interest_data, sync_all_po
 from database_services.transaction_service import sync_transactions_batched
 from database_services.user_history_services import sync_user_lend_positions, sync_user_deposits_historical, \
     add_granular_user_lend_positions, sync_user_portfolio_snapshots
+from database_services.debt_services import sync_all_user_pool_debts
 from helpers.platform_functions import get_all_boxes_by_token_id
 from database_services.currency_services import sync_currency_rates as _sync_currency_rates, \
     sync_currency_rates_batched
@@ -79,6 +80,10 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+
+    # Step 4: Sync user pool debts
+    print("\n=== Step 4: Syncing user pool debts ===")
+    sync_all_user_pool_debts(db, pools, sync_block=sync_block)
 
     print("\n=== Full sync complete ===")
 
