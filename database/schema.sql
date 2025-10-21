@@ -140,21 +140,28 @@ CREATE TABLE user_pool_debts (
 );
 
 -- ========================================
--- ORIGINAL INDEXES
+-- CONSOLIDATED INDEXES (matching actual database)
 -- ========================================
 
 -- ========== ADDRESSES INDEXES ==========
+-- Covering index provides both lookup and avoids table scan
+CREATE INDEX idx_addresses_address_covering ON addresses(address) INCLUDE (id);
+-- Regular index kept for compatibility
 CREATE INDEX idx_addresses_address ON addresses(address);
 
--- ========== CURRENCY RATES INDEXES ==========
-CREATE INDEX idx_currency_rates_asset_timestamp ON currency_rates(pooled_asset, timestamp DESC);
-CREATE INDEX idx_currency_rates_timestamp ON currency_rates(timestamp DESC);
+-- ========== POOLS INDEXES ==========
+-- Hash index for NFT lookups
+CREATE INDEX idx_pools_nft_hash ON pools USING hash(nft);
+-- Partial index for active pools only
+CREATE INDEX idx_pools_active ON pools(pooled_asset) WHERE total_lent > 0;
+-- Updated_at tracking
+CREATE INDEX idx_pools_updated_at_desc ON pools(updated_at DESC);
 
--- ========== INTEREST DATA INDEXES ==========
-CREATE INDEX idx_interest_data_pool_nft ON interest_data(pool_nft);
-CREATE INDEX idx_interest_data_block_height ON interest_data(block_height);
-CREATE INDEX idx_interest_data_transaction_id ON interest_data(transaction_id);
-CREATE INDEX idx_interest_data_created_at ON interest_data(created_at);
+-- ========== CURRENCY RATES INDEXES ==========
+-- Primary composite index for asset-timestamp queries
+CREATE INDEX idx_currency_rates_asset_timestamp_desc ON currency_rates(pooled_asset, timestamp DESC);
+-- Standalone timestamp index for time-based queries
+CREATE INDEX idx_currency_rates_timestamp ON currency_rates(timestamp DESC);
 
 -- ========== POOL DATA HISTORICAL INDEXES ==========
 CREATE INDEX idx_pool_data_historical_pool_nft ON pool_data_historical(pool_nft);
@@ -163,6 +170,8 @@ CREATE INDEX idx_pool_data_historical_transaction_id ON pool_data_historical(tra
 CREATE INDEX idx_pool_data_historical_box_timestamp ON pool_data_historical(box_timestamp);
 CREATE INDEX idx_pool_data_historical_created_at ON pool_data_historical(created_at);
 CREATE INDEX idx_pool_data_historical_updated_at ON pool_data_historical(updated_at);
+-- Composite index for common pool+timestamp queries
+CREATE INDEX idx_pool_data_hist_pool_timestamp ON pool_data_historical(pool_nft, box_timestamp DESC);
 
 -- ========== TRANSACTIONS INDEXES ==========
 CREATE INDEX idx_transactions_address_id ON transactions(address_id);
@@ -170,65 +179,43 @@ CREATE INDEX idx_transactions_pool_nft ON transactions(pool_nft);
 CREATE INDEX idx_transactions_type ON transactions(type);
 CREATE INDEX idx_transactions_block_height ON transactions(block_height);
 CREATE INDEX idx_transactions_fee_paid ON transactions(fee_paid);
+-- Composite indexes for common query patterns
+CREATE INDEX idx_transactions_address_pool ON transactions(address_id, pool_nft, timestamp DESC);
+CREATE INDEX idx_transactions_address_type_timestamp ON transactions(address_id, type, timestamp DESC) WHERE timestamp IS NOT NULL;
 
 -- ========== USER LEND POSITIONS HISTORICAL INDEXES ==========
 CREATE INDEX idx_user_lend_positions_address_pool ON user_lend_positions_historical(address_id, pool_nft);
 CREATE INDEX idx_user_lend_positions_timestamp ON user_lend_positions_historical(timestamp DESC);
 CREATE INDEX idx_user_lend_positions_block_height ON user_lend_positions_historical(block_height);
+-- Partial index for active positions with timestamp ordering (most common query)
+CREATE INDEX idx_user_lend_positions_address_pool_timestamp ON user_lend_positions_historical(address_id, pool_nft, timestamp DESC) WHERE position_tokens > 0;
+-- Latest position lookup (used in views)
+CREATE INDEX idx_user_lend_positions_latest ON user_lend_positions_historical(address_id, pool_nft, block_height DESC, timestamp DESC);
+-- Alternative latest lookup using ID
+CREATE INDEX idx_user_lend_positions_historical_latest ON user_lend_positions_historical(address_id, pool_nft, block_height DESC, id DESC);
 
 -- ========== USER DEPOSITS HISTORICAL INDEXES ==========
-CREATE INDEX idx_user_deposits_address_pool_time ON user_deposits_historical(address_id, pool_nft, timestamp DESC);
+-- Primary composite for address+pool+time queries
+CREATE INDEX idx_user_deposits_address_pool_timestamp ON user_deposits_historical(address_id, pool_nft, timestamp DESC);
 CREATE INDEX idx_user_deposits_transaction ON user_deposits_historical(transaction_id);
 CREATE INDEX idx_user_deposits_block_height ON user_deposits_historical(block_height);
 
+-- ========== USER PORTFOLIO SNAPSHOTS INDEXES ==========
+CREATE INDEX idx_user_portfolio_snapshots_address_timestamp ON user_portfolio_snapshots(address_id, timestamp DESC);
+CREATE INDEX idx_user_portfolio_snapshots_address_pool_timestamp ON user_portfolio_snapshots(address_id, pool_nft, timestamp DESC);
+CREATE INDEX idx_user_portfolio_snapshots_block_height ON user_portfolio_snapshots(block_height);
+-- Latest snapshot lookup (with all sort keys)
+CREATE INDEX idx_user_portfolio_snapshots_latest ON user_portfolio_snapshots(address_id, pool_nft, block_height DESC, timestamp DESC, id DESC);
+-- Timestamp-only index with filter
+CREATE INDEX idx_user_portfolio_snapshots_timestamp ON user_portfolio_snapshots(timestamp DESC) WHERE address_id IS NOT NULL;
+-- Composite with all time dimensions (for complex queries)
+CREATE INDEX idx_user_portfolio_snapshots_address_pool_time ON user_portfolio_snapshots(address_id, pool_nft, timestamp DESC, block_height DESC);
+
 -- ========== USER POOL DEBTS INDEXES ==========
-CREATE INDEX idx_user_pool_debts_pool_nft ON user_pool_debts(pool_nft);
 CREATE INDEX idx_user_pool_debts_address ON user_pool_debts(address_id);
-
--- ========================================
--- NEW ESSENTIAL PERFORMANCE INDEXES
--- ========================================
-
--- 1. CRITICAL: User portfolio snapshots lookup (saves ~3-4s on 6s query)
-CREATE INDEX IF NOT EXISTS idx_user_portfolio_snapshots_address_timestamp
-ON user_portfolio_snapshots(address_id, timestamp DESC);
-
--- 2. CRITICAL: Composite index for filtering by address + pool (saves ~2s)
-CREATE INDEX IF NOT EXISTS idx_user_portfolio_snapshots_address_pool_timestamp
-ON user_portfolio_snapshots(address_id, pool_nft, timestamp DESC);
-
--- 3. CRITICAL: User lend positions with timestamp ordering (saves ~1s on 1.7s query)
-CREATE INDEX IF NOT EXISTS idx_user_lend_positions_address_pool_timestamp
-ON user_lend_positions_historical(address_id, pool_nft, timestamp DESC)
-WHERE position_tokens > 0;
-
--- 4. CRITICAL: Address lookup covering index (avoid table lookups)
-CREATE INDEX IF NOT EXISTS idx_addresses_address_covering
-ON addresses(address) INCLUDE (id);
-
--- 5. IMPORTANT: Currency rates latest lookup (saves ~1-2s on 2.4s query)
-CREATE INDEX IF NOT EXISTS idx_currency_rates_asset_timestamp_desc
-ON currency_rates(pooled_asset, timestamp DESC);
-
--- 6. IMPORTANT: User deposits composite index
-CREATE INDEX IF NOT EXISTS idx_user_deposits_address_pool_timestamp
-ON user_deposits_historical(address_id, pool_nft, timestamp DESC);
-
--- ========================================
--- ADDITIONAL PERFORMANCE INDEXES
--- ========================================
-
--- 7. Composite index for user debts lookup
-CREATE INDEX IF NOT EXISTS idx_user_pool_debts_address_pool
-ON user_pool_debts(address_id, pool_nft);
-
--- 8. Transaction lookup by address and type
-CREATE INDEX IF NOT EXISTS idx_transactions_address_type_timestamp
-ON transactions(address_id, type, timestamp DESC) WHERE timestamp IS NOT NULL;
-
--- 9. Pool data historical composite
-CREATE INDEX IF NOT EXISTS idx_pool_data_hist_pool_timestamp
-ON pool_data_historical(pool_nft, box_timestamp DESC);
+CREATE INDEX idx_user_pool_debts_pool_nft ON user_pool_debts(pool_nft);
+-- Composite index for direct lookup
+CREATE INDEX idx_user_pool_debts_address_pool ON user_pool_debts(address_id, pool_nft);
 
 -- ========================================
 -- MAINTENANCE-FREE VIEWS
@@ -290,11 +277,10 @@ LEFT JOIN LATERAL (
 -- ========================================
 
 /*
-TABLES: 10 total
+TABLES: 9 total
 - addresses (+ sync_block)
 - pools (+ sync_block)
 - currency_rates (+ sync_block)
-- interest_data (+ sync_block)
 - pool_data_historical (+ sync_block)
 - transactions (+ sync_block)
 - user_lend_positions_historical (+ sync_block)
@@ -302,24 +288,29 @@ TABLES: 10 total
 - user_portfolio_snapshots (+ sync_block)
 - user_pool_debts (+ sync_block)
 
-INDEXES: 21 total (original + performance optimizations)
+INDEXES: 40 total (consolidated and optimized)
+- addresses: 2 indexes
+- pools: 3 indexes
+- currency_rates: 2 indexes
+- pool_data_historical: 7 indexes
+- transactions: 7 indexes
+- user_lend_positions_historical: 6 indexes
+- user_deposits_historical: 3 indexes
+- user_portfolio_snapshots: 6 indexes
+- user_pool_debts: 3 indexes
+- (Plus system-generated primary key and unique constraint indexes)
 
 VIEWS: 3 maintenance-free views (updated to include sync_block)
 - v_user_latest_positions
 - v_user_latest_portfolio
 - v_user_portfolio_with_pools
 
-NEW FEATURES:
-- sync_block field on ALL tables for blockchain sync tracking
-- Currency rates table for USD conversions
-- Enhanced portfolio view with automatic USD conversion
-- Blockchain data lineage tracking capability
-
 OPTIMIZATIONS:
-- Critical composite indexes for user queries
-- Covering indexes to avoid table lookups
-- Partial indexes for active positions only
-- Always up-to-date views (no maintenance required)
-- USD currency conversion calculations in views
-- Block height tracking for data synchronization
+- Consolidated duplicate/redundant indexes
+- Hash indexes for exact-match NFT lookups
+- Covering indexes to avoid table lookups (addresses)
+- Partial indexes for active positions/pools only
+- Composite indexes matching actual query patterns
+- Multiple "latest" lookup strategies for flexibility
+- All index names match actual database implementation
 */
