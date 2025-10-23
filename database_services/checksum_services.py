@@ -396,6 +396,60 @@ class ChecksumManager:
         print("="*70)
 
 
+def create_checksums_file(output_file: str, sync_block: int = None) -> Dict[str, Any]:
+    """
+    Convenience function: Scan the database and write checksums to a file.
+
+    Args:
+        output_file: Path to save checksums JSON file
+        sync_block: Block height to checksum up to. If None, uses current highest.
+
+    Returns:
+        Dictionary containing all checksums and metadata
+
+    Example:
+        create_checksums_file('checksums_before_sync.json')
+    """
+    db = DatabaseManager()
+    manager = ChecksumManager(db)
+
+    print(f"Creating checksums and saving to {output_file}...")
+    checksums = manager.create_checksums(sync_block=sync_block)
+    manager.save_checksums(checksums, output_file)
+
+    return checksums
+
+
+def verify_checksums(before_file: str, after_file: str, report_file: str = None,
+                    max_block: int = None) -> bool:
+    """
+    Convenience function: Compare two checksum files and print verification results.
+
+    Args:
+        before_file: Path to "before sync" checksum file
+        after_file: Path to "after sync" checksum file
+        report_file: Optional path to save detailed comparison report
+        max_block: Optional max block height to compare up to
+
+    Returns:
+        True if verification passed (all checksums match), False otherwise
+
+    Example:
+        passed = verify_checksums('checksums_before.json', 'checksums_after.json',
+                                 'verification_report.json')
+        if not passed:
+            print("Warning: Data integrity issue detected!")
+    """
+    db = DatabaseManager()
+    manager = ChecksumManager(db)
+
+    print(f"Comparing checksums from {before_file} and {after_file}...")
+
+    comparison = manager.compare_checksum_files(before_file, after_file, report_file)
+
+    return comparison['summary']['status'] == 'PASS'
+
+
 def main():
     """CLI interface for checksum operations"""
     import sys

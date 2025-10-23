@@ -36,13 +36,16 @@ def sync_currency_rates(db: DatabaseManager, pools, sync_block: Optional[int] = 
     return _sync_currency_rates(db, pools, sync_block=sync_block, min_height=min_height)
 
 
-def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None):
+def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
+                       sync_currency_rates: bool = True, sync_debts: bool = True):
     """
     Optimized sync routine using batch processing throughout.
 
     :param db: Database manager instance
     :param min_height: Minimum block height to sync historical data from
     :param sync_block: Block height when this sync was performed
+    :param sync_currency_rates: Whether to sync currency rates (default: True)
+    :param sync_debts: Whether to sync user pool debts (default: True)
     """
     print(f"Starting optimized full sync from height {min_height}")
 
@@ -55,9 +58,13 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     print("\n=== Step 1: Syncing all pools ===")
     sync_all_pools_batched(db, sync_block=sync_block)
 
-    # Step 2: Sync currency rates in batch
-    print("\n=== Step 2: Syncing currency rates ===")
-    sync_currency_rates_batched(db, pools, sync_block=sync_block)
+    # Step 2: Sync currency rates in batch (optional)
+    if sync_currency_rates:
+        print("\n=== Step 2: Syncing currency rates ===")
+        sync_currency_rates_batched(db, pools, sync_block=sync_block)
+    else:
+        print("\n=== Step 2: Skipping currency rates (not scheduled this loop) ===")
+
     # Step 3: Process historical data for each pool
     print("\n=== Step 3: Syncing historical data ===")
     for i, pool in enumerate(pools, 1):
@@ -81,9 +88,12 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
 
-    # Step 4: Sync user pool debts
-    print("\n=== Step 4: Syncing user pool debts ===")
-    sync_all_user_pool_debts(db, pools, sync_block=sync_block)
+    # Step 4: Sync user pool debts (optional)
+    if sync_debts:
+        print("\n=== Step 4: Syncing user pool debts ===")
+        sync_all_user_pool_debts(db, pools, sync_block=sync_block)
+    else:
+        print("\n=== Step 4: Skipping user pool debts (not scheduled this loop) ===")
 
     print("\n=== Full sync complete ===")
 
@@ -108,7 +118,8 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
             sync_user_lend_data(db, pool, min_height=min_height, sync_block=sync_block)
 
 
-def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None) -> bool:
+def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None,
+                         sync_currency_rates: bool = True, sync_debts: bool = True) -> bool:
     """
     Perform incremental sync starting from the lowest sync_block in the database.
     This allows for efficient incremental updates without re-processing all historical data.
@@ -116,6 +127,8 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
     Args:
         db: Database manager instance
         current_block_height: Current blockchain block height to use as sync_block
+        sync_currency_rates: Whether to sync currency rates (default: True)
+        sync_debts: Whether to sync user pool debts (default: True)
 
     Returns:
         True if sync was successful, False otherwise
@@ -148,7 +161,8 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         # Step 4: Perform incremental sync using existing optimized sync
         success = True
         try:
-            sync_all_optimized(db, min_height=min_height, sync_block=current_block_height)
+            sync_all_optimized(db, min_height=min_height, sync_block=current_block_height,
+                             sync_currency_rates=sync_currency_rates, sync_debts=sync_debts)
         except Exception as e:
             print(f"Error during sync_all_optimized: {e}")
             success = False

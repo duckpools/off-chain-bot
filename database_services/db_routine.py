@@ -1,82 +1,67 @@
 from database.db_manager import DatabaseManager
 from database_services.sync_services import sync_all, sync_from_last_update
-from database_services.checksum_services import ChecksumManager
 from helpers.node_calls import current_height
+import time
 
 
-def db_routine(verify=True):
+def db_routine(full_sync=False):
     """
-    Run database sync routine with optional integrity verification.
+    Run database sync routine.
 
     Args:
-        verify: If True, creates checksums before/after sync and verifies data integrity.
-                This adds overhead but ensures old data wasn't corrupted during sync.
-                Creates three files:
-                  - checksums_before_sync.json
-                  - checksums_after_sync.json
-                  - sync_verification_report.json
+        full_sync: If True, calls sync_all for a complete sync.
+                   If False (default), runs sync_from_last_update in a continuous loop,
+                   with selective syncing:
+                   - Currency rates: synced every 3rd loop
+                   - Borrow debts info: synced every 5th loop
 
-    Raises:
-        Exception: If verify=True and data integrity check fails
+    Note: For checksum verification, use the functions in checksum_services:
+          - create_checksums_file() to scan DB and write checksums
+          - verify_checksums() to compare two checksum files
     """
     db = DatabaseManager()
 
-    if verify:
-        checksummer = ChecksumManager(db)
-
-        # Get current sync state before running sync
-        current_sync_block = db.get_highest_sync_block()
+    if full_sync:
         print("=" * 70)
-        print("CREATING PRE-SYNC CHECKSUMS")
-        print("=" * 70)
-        print(f"Capturing database state up to block {current_sync_block}...\n")
-
-        # Create "before" checksums
-        before_checksums = checksummer.create_checksums(sync_block=current_sync_block)
-        checksummer.save_checksums(before_checksums, 'checksums_before_sync.json')
-
+        print("RUNNING FULL SYNC")
+        print("=" * 70 + "\n")
+        sync_all(db, sync_block=current_height())
         print("\n" + "=" * 70)
-        print("RUNNING SYNC")
+        print("✓ FULL SYNC COMPLETE")
+        print("=" * 70 + "\n")
+    else:
+        print("=" * 70)
+        print("STARTING CONTINUOUS INCREMENTAL SYNC")
+        print("=" * 70)
+        print("Currency rates: synced every 3rd loop")
+        print("Borrow debts: synced every 5th loop")
         print("=" * 70 + "\n")
 
-    # Run the actual sync
-    sync_from_last_update(db, current_block_height=current_height())
-    #sync_all(db, sync_block=current_height())
+        loop_counter = 0
+        while True:
+            loop_counter += 1
+            print(f"\n{'='*70}")
+            print(f"SYNC LOOP #{loop_counter}")
+            print(f"{'='*70}")
 
-    if verify:
-        # Create "after" checksums for the SAME block range
-        # (This verifies old data wasn't modified)
-        print("\n" + "=" * 70)
-        print("CREATING POST-SYNC CHECKSUMS")
-        print("=" * 70)
-        print(f"Recapturing database state up to block {current_sync_block}...\n")
+            # Determine what to sync this loop
+            sync_currency = (loop_counter % 3 == 0)
+            sync_debts = (loop_counter % 5 == 0)
 
-        after_checksums = checksummer.create_checksums(sync_block=current_sync_block)
-        checksummer.save_checksums(after_checksums, 'checksums_after_sync.json')
+            print(f"Currency rates: {'YES' if sync_currency else 'NO'}")
+            print(f"Borrow debts: {'YES' if sync_debts else 'NO'}")
+            print()
 
-        # Compare checksums
-        print("\n" + "=" * 70)
-        print("VERIFYING DATA INTEGRITY")
-        print("=" * 70 + "\n")
-
-        comparison = checksummer.compare_checksum_files(
-            'checksums_before_sync.json',
-            'checksums_after_sync.json',
-            'sync_verification_report.json'
-        )
-
-        # Raise exception if verification failed
-        if comparison['summary']['status'] != 'PASS':
-            raise Exception(
-                "Data integrity verification FAILED! "
-                "Old data was modified during sync. "
-                "Check sync_verification_report.json for details."
+            # Run sync with current block height
+            success = sync_from_last_update(
+                db,
+                current_block_height=current_height(),
+                sync_currency_rates=sync_currency,
+                sync_debts=sync_debts
             )
 
-        new_sync_block = db.get_highest_sync_block()
-        print("\n" + "=" * 70)
-        print("✓ DATA INTEGRITY VERIFICATION SUCCESSFUL")
-        print("=" * 70)
-        print(f"  Old data (blocks 0-{current_sync_block}) verified unchanged")
-        print(f"  New data added (blocks {current_sync_block + 1}-{new_sync_block})")
-        print("=" * 70 + "\n")
+            if success:
+                print(f"\n✓ Loop #{loop_counter} complete")
+            else:
+                print(f"\n✗ Loop #{loop_counter} failed")
+
