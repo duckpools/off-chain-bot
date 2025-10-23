@@ -148,13 +148,22 @@ def sync_user_lend_positions(
 
     # Step 4: Get initial positions for all affected addresses
     address_pool_pairs = [(addr, pool_nft) for addr in all_affected_addresses]
-    initial_positions = db.get_latest_positions_batch(address_pool_pairs)
+
+    # FIX: Don't load positions from DB during full_scan to avoid corruption
+    if full_scan or min_height == 0:
+        # Full scan starts from 0, ignore existing DB data
+        initial_positions = {}
+        print("Full scan mode: Starting all positions from 0")
+    else:
+        # Incremental sync: load existing positions from DB
+        initial_positions = db.get_latest_positions_batch(address_pool_pairs)
+        print(f"Incremental sync: Loaded {len(initial_positions)} existing positions")
 
     # Step 5: Process all transactions chronologically and build final dataset
     current_positions = defaultdict(float)  # {address: current_position_tokens}
     final_batch_data = []  # List of (address, pool_nft, block_height, timestamp, position_tokens, position_value, sync_block)
 
-    # Initialize current positions with database values
+    # Initialize current positions with database values (or 0 for full_scan)
     for address in all_affected_addresses:
         initial_position = float(initial_positions.get((address, pool_nft), 0))
         current_positions[address] = initial_position
