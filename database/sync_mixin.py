@@ -266,6 +266,59 @@ class SyncMixin:
             print(f"Error getting sync_block summary: {e}")
             return {}
 
+    def update_all_sync_blocks(self, new_sync_block: int) -> Dict[str, int]:
+        """
+        Update ALL sync_block values across all tables to a new value.
+        This should be called after a successful sync operation to mark all data
+        as being synced to the new block height.
+
+        This ensures referential integrity - all related data across tables
+        will have consistent sync_block values representing the same blockchain state.
+
+        Args:
+            new_sync_block: The new sync_block value to set for all rows in all tables
+
+        Returns:
+            Dictionary mapping table names to number of rows updated
+        """
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    tables = [
+                        'addresses', 'pools',
+                        'currency_rates', 'pool_data_historical',
+                        'transactions', 'user_lend_positions_historical',
+                        'user_deposits_historical', 'user_portfolio_snapshots',
+                        'user_pool_debts'
+                    ]
+
+                    affected_rows = {}
+                    total_updated = 0
+
+                    print(f"\n=== Updating all sync_blocks to {new_sync_block} ===")
+
+                    for table in tables:
+                        try:
+                            query = f"UPDATE {table} SET sync_block = %s"
+                            cur.execute(query, (new_sync_block,))
+                            rows_updated = cur.rowcount
+                            affected_rows[table] = rows_updated
+                            total_updated += rows_updated
+
+                            if rows_updated > 0:
+                                print(f"  {table}: {rows_updated} rows updated")
+                        except Exception as e:
+                            print(f"  Error updating sync_block in {table}: {e}")
+                            affected_rows[table] = 0
+
+                    conn.commit()
+                    print(f"=== Total: {total_updated} rows updated across {len(tables)} tables ===\n")
+                    return affected_rows
+
+        except Exception as e:
+            print(f"Error updating all sync_blocks: {e}")
+            return {}
+
     def clear_sync_blocks_before(self, before_block: int) -> Dict[str, int]:
         """
         Clear sync_block values that are before a certain block height.

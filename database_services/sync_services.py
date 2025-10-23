@@ -153,7 +153,14 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
             print(f"Error during sync_all_optimized: {e}")
             success = False
 
-        # Step 5: Get updated sync summary
+        # Step 5: Update all sync_blocks to the new current_block_height
+        # This ensures all tables have consistent sync_block values
+        if success:
+            print("\n=== Updating Sync Blocks ===")
+            update_results = db.update_all_sync_blocks(current_block_height)
+            print(f"Sync block update results: {update_results}")
+
+        # Step 6: Get updated sync summary
         if success:
             updated_summary = db.get_sync_block_summary()
             print(f"Sync summary after update: {updated_summary}")
@@ -199,6 +206,12 @@ def resync_from_block(db: DatabaseManager, from_block: int, current_block_height
         except Exception as e:
             print(f"Error during resync: {e}")
             success = False
+
+        # Update all sync_blocks after successful resync
+        if success:
+            print("\n=== Updating Sync Blocks ===")
+            update_results = db.update_all_sync_blocks(current_block_height)
+            print(f"Sync block update results: {update_results}")
 
         if success:
             print("=== Re-sync Complete ===")
