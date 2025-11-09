@@ -285,7 +285,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	}}.size == 1 // Possibly can replace with context var
 
 	if (fQuotes.size > 0) {{
-		val fQuote = fQuotes(0)
+		val fQuote = fQuotes.getOrElse(0, SELF)
 		val quoteReport = fQuote.R4[Coll[Long]].get
 		val quotePrice = quoteReport(1)
 		val iThresholdQuoted = quoteReport(2)
@@ -300,7 +300,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		}} 
 
 		if (fCollaterals.size > 0) {{
-			val fCollateral = fCollaterals(0)
+			val fCollateral = fCollaterals.getOrElse(0, SELF)
 			val collateralIndex = OUTPUTS.map{{
 				(b: Box) => b.id
 			}}.indexOf(fCollateral.id, 0)
@@ -332,7 +332,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			)
 			if (fRepayments.size > 0) {{
 				// Partial Repay and Automated Actions
-				val fRepayment = fRepayments(0)		
+				val fRepayment = fRepayments.getOrElse(0, SELF)		
 
 				val fRepaymentValue = fRepayment.value
 				val fRepaymentBorrowTokens = fRepayment.tokens(0)
@@ -426,7 +426,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				(b: Box) => b.id
 			}}.indexOf(SELF.id, 0)
 			val isQuotedBoxValid = collateralIndex == fQuote.R9[Coll[Int]].get(0) * -1 - 1
-			val fRepayment = fRepayments(0)
+			val fRepayment = fRepayments.getOrElse(0, SELF)
 
 			val fRepaymentValue = fRepayment.value
 			val fRepaymentBorrowTokens = fRepayment.tokens(0)
@@ -436,7 +436,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			val fRepaymentCommon = (
 				fRepaymentValue >= MinimumTransactionFee &&
 				fRepaymentBorrowTokens._1 == currentBorrowTokens._1 &&
-				fRepaymentLoanTokens._1 == PoolCurrencyId
+				fRepaymentLoanTokens._1 == PoolCurrencyId &&
+				fRepayment.id != SELF.id
 			)	
 
 			val liquidationAllowed = (
@@ -457,10 +458,10 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val validRepayment = repaymentAmount.toBigInt >= totalOwed.toBigInt + ((quotePrice - totalOwed.toBigInt) * iPenalty.toBigInt / PenaltyDenom.toBigInt)
 				val borrowBox = OUTPUTS.filter{{
 					(b: Box) => b.propositionBytes == currentBorrower
-				}}(0)
+				}}.getOrElse(0, SELF)
 				val validBorrowerShare = borrowBox.tokens(0)._2.toBigInt >= borrowerShare
 				val validBorrowerShareId = borrowBox.tokens(0)._1 == PoolCurrencyId
-				validRepayment && validBorrowerShare && validBorrowerShareId
+				validRepayment && validBorrowerShare && validBorrowerShareId && borrowBox.id != SELF.id
 			}}   
 
 			val liquidate = sigmaProp(
@@ -477,7 +478,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	}} else {{
 		val fRepayment = OUTPUTS.filter{{
 			(b: Box) => blake2b256(b.propositionBytes) == RepaymentContractScript
-		}}(0)
+		}}.getOrElse(0, SELF)
 
 		val fRepaymentValue = fRepayment.value
 		val fRepaymentBorrowTokens = fRepayment.tokens(0)
@@ -487,23 +488,29 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		val fRepaymentCommon = (
 			fRepaymentValue >= MinimumBoxValue + MinimumTransactionFee &&
 			fRepaymentBorrowTokens._1 == currentBorrowTokens._1 &&
-			fRepaymentLoanTokens._1 == PoolCurrencyId
+			fRepaymentLoanTokens._1 == PoolCurrencyId &&
+			fRepayment.id != SELF.id
 		)	
 
 		// Extract values from borrowerBox
 		val borrowBox = OUTPUTS.filter{{
 			(b: Box) => b.propositionBytes == currentBorrower
-		}}(0)	
+		}}.getOrElse(0, SELF)	
 		val borrowerValue = borrowBox.value
 
 		val validBorrowerCollateral = (
 			borrowerValue >= currentValue - MinimumTransactionFee &&
-			borrowBox.tokens == iCollateralTokens
+			borrowBox.tokens == iCollateralTokens &&
+			borrowBox.id != SELF.id
 		)
 
 		val repayment = sigmaProp(
 			// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
-			true
+			fRepaymentCommon &&
+			fRepaymentBorrowTokens._2 == currentBorrowTokens._2 &&
+			fRepaymentLoanTokens._2 > totalOwed &&
+			validBorrowerCollateral &&
+			isOnlyOneCollateralInput
 		)
 		repayment
 	}}
