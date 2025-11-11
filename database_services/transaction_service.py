@@ -313,7 +313,7 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
         if is_proxy_match(input_address, pool, "proxy_lend"):
             transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
             break
-        elif input_address == pool["proxy_withdraw"]:
+        elif is_proxy_match(input_address, pool, "proxy_withdraw"):
             transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
             break
         elif input_address == pool["proxy_borrow"]:
