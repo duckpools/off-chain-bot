@@ -20,7 +20,7 @@ def process_withdraw_proxy_box_v1(pool, box, latest_tx):
     circulating_tokens = int(MAX_LP_TOKENS - held_tokens)
     final_circulating = circulating_tokens - user_gives
     held_erg1 = ceil(final_circulating * (held_erg0 + borrowed) / circulating_tokens - borrowed) + 1
-    total_entitled = held_erg0 - held_erg1 - TX_FEE
+    total_entitled = held_erg0 - held_erg1
     service_fee = max(ceil(calculate_service_fee(total_entitled, pool["thresholds"])), MIN_BOX_VALUE)
     user_gets = total_entitled - service_fee
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
@@ -67,14 +67,6 @@ def process_withdraw_proxy_box_v1(pool, box, latest_tx):
                         "R5": "0400",
                         "R6": "0400",
                         "R7": "0e20" + box["boxId"]
-                    }
-                },
-                {
-                    "address": node_address,
-                    "value": MIN_BOX_VALUE,
-                    "assets": [
-                    ],
-                    "registers": {
                     }
                 }
             ],
