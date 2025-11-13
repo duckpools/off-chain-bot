@@ -492,24 +492,29 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			fRepayment.id != SELF.id
 		)	
 
-		// Extract values from borrowerBox
-		val borrowBox = OUTPUTS.filter{{
-			(b: Box) => b.propositionBytes == currentBorrower
-		}}.getOrElse(0, SELF)	
-		val borrowerValue = borrowBox.value
-
-		val validBorrowerCollateral = (
-			borrowerValue >= currentValue - MinimumTransactionFee &&
-			borrowBox.tokens == iCollateralTokens &&
-			borrowBox.id != SELF.id
-		)
-
+        val nftProofGiven = INPUTS.filter{{
+            (b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFT
+        }}.size > 0
+        
+        val validUseOfCollateral = if (nftProofGiven) {{
+            true
+        }} else {{
+            val borrowBox = OUTPUTS.filter{{
+                (b: Box) => b.propositionBytes == currentBorrower
+            }}.getOrElse(0, SELF)
+            val borrowerValue = borrowBox.value
+            (
+                borrowerValue >= currentValue - MinimumTransactionFee &&
+                borrowBox.tokens == iCollateralTokens &&
+                borrowBox.id != SELF.id
+            )
+        }}
 		val repayment = sigmaProp(
 			// Complete Repayment Checks (Borrow Token Amount, Loan Token Amount*)
 			fRepaymentCommon &&
 			fRepaymentBorrowTokens._2 == currentBorrowTokens._2 &&
 			fRepaymentLoanTokens._2 > totalOwed &&
-			validBorrowerCollateral &&
+			validUseOfCollateral &&
 			isOnlyOneCollateralInput
 		)
 		repayment
