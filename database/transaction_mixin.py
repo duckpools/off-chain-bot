@@ -9,6 +9,8 @@ class TransactionMixin:
                            transaction_type: str,
                            amount: float,
                            fee_paid: Optional[int] = None,
+                           borrow_apy: Optional[float] = None,
+                           interest_paid: Optional[float] = None,
                            block_height: Optional[int] = None,
                            timestamp: Optional[int] = None,
                            sync_block: Optional[int] = None) -> Optional[str]:
@@ -47,15 +49,17 @@ class TransactionMixin:
                     # Upsert transaction
                     upsert_sql = """
                     INSERT INTO transactions
-                      (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp, sync_block)
+                      (id, address_id, pool_nft, type, amount, fee_paid, borrow_apy, interest_paid, block_height, timestamp, sync_block)
                     VALUES
-                      (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                      (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                       SET address_id  = EXCLUDED.address_id,
                           pool_nft     = EXCLUDED.pool_nft,
                           type         = EXCLUDED.type,
                           amount       = EXCLUDED.amount,
                           fee_paid     = EXCLUDED.fee_paid,
+                          borrow_apy   = EXCLUDED.borrow_apy,
+                          interest_paid = EXCLUDED.interest_paid,
                           block_height = EXCLUDED.block_height,
                           timestamp    = EXCLUDED.timestamp,
                           sync_block   = EXCLUDED.sync_block
@@ -63,8 +67,8 @@ class TransactionMixin:
                     """
 
                     params = (
-                        transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, block_height,
-                        timestamp, sync_block)
+                        transaction_id, address_id, pool_nft, transaction_type, amount, fee_paid, borrow_apy,
+                        interest_paid, block_height, timestamp, sync_block)
                     cur.execute(upsert_sql, params)
                     result = cur.fetchone()
 
@@ -86,6 +90,8 @@ class TransactionMixin:
                             - transaction_type: str
                             - amount: float
                             - fee_paid: Optional[int]
+                            - borrow_apy: Optional[float]
+                            - interest_paid: Optional[float]
                             - block_height: Optional[int]
                             - timestamp: Optional[int]
                             - sync_block: Optional[int]
@@ -157,6 +163,8 @@ class TransactionMixin:
                             tx_data['transaction_type'],
                             tx_data['amount'],
                             tx_data.get('fee_paid'),
+                            tx_data.get('borrow_apy'),
+                            tx_data.get('interest_paid'),
                             tx_data.get('block_height'),
                             tx_data.get('timestamp'),
                             tx_data.get('sync_block')
@@ -166,15 +174,17 @@ class TransactionMixin:
                     if transaction_params:
                         upsert_sql = """
                         INSERT INTO transactions
-                          (id, address_id, pool_nft, type, amount, fee_paid, block_height, timestamp, sync_block)
+                          (id, address_id, pool_nft, type, amount, fee_paid, borrow_apy, interest_paid, block_height, timestamp, sync_block)
                         VALUES
-                          (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                          (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
                           SET address_id  = EXCLUDED.address_id,
                               pool_nft     = EXCLUDED.pool_nft,
                               type         = EXCLUDED.type,
                               amount       = EXCLUDED.amount,
                               fee_paid     = EXCLUDED.fee_paid,
+                              borrow_apy   = EXCLUDED.borrow_apy,
+                              interest_paid = EXCLUDED.interest_paid,
                               block_height = EXCLUDED.block_height,
                               timestamp    = EXCLUDED.timestamp,
                               sync_block   = EXCLUDED.sync_block

@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, Any
 
 from consts import FEE_ADDRESS_LIST
 from database.db_manager import DatabaseManager
+from database_services.data_aggregation.pool_stats import borrow_apy as calculate_borrow_apy
 from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
 
@@ -102,6 +103,73 @@ def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
     return amount, fee_amount
 
 
+def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
+    """
+    Calculate interest paid for repayment transactions.
+    Interest = amount_repaid - decrease_in_borrow_tokens
+
+    The borrow tokens (assets[2] in pool box) represent the principal owed.
+    When a repayment occurs, the borrow tokens decrease by the principal amount,
+    and the difference between amount repaid and this decrease is the interest.
+
+    Args:
+        tx: The outer transaction containing the pool box
+        amount_repaid: The amount paid back (already in friendly units)
+        pool: Pool configuration
+
+    Returns:
+        Interest paid in friendly units, or None if cannot be calculated
+    """
+    try:
+        pool_address = pool["pool"]
+        input_pool_box = None
+        output_pool_box = None
+
+        # Find pool box in inputs
+        for input_box in tx.get("inputs", []):
+            if input_box.get("address", "") == pool_address:
+                input_pool_box = input_box
+                break
+
+        # Find pool box in outputs
+        for output_box in tx.get("outputs", []):
+            if output_box.get("address", "") == pool_address:
+                output_pool_box = output_box
+                break
+
+        if not input_pool_box or not output_pool_box:
+            print(f"Could not find pool boxes for interest calculation")
+            return None
+
+        # Extract borrow tokens (assets[2]) from pool boxes
+        input_assets = input_pool_box.get("assets", [])
+        output_assets = output_pool_box.get("assets", [])
+
+        if len(input_assets) <= 2 or len(output_assets) <= 2:
+            print(f"Pool boxes missing borrow tokens at assets[2]")
+            return None
+
+        input_borrow_tokens = input_assets[2].get("amount", 0)
+        output_borrow_tokens = output_assets[2].get("amount", 0)
+
+        # Calculate decrease in borrow tokens (principal repaid)
+        borrow_tokens_decrease_raw = input_borrow_tokens - output_borrow_tokens
+
+        # Convert to friendly units
+        decimals = pool["decimals"]
+        principal_repaid_friendly = borrow_tokens_decrease_raw / (10 ** decimals)
+
+        # Interest = amount repaid - principal repaid
+        interest_paid = amount_repaid - principal_repaid_friendly
+
+        # Return interest if positive, otherwise 0
+        return max(interest_paid, 0.0)
+
+    except Exception as e:
+        print(f"Error calculating interest paid: {e}")
+        return None
+
+
 def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
     """
     Determines lend transaction and extracts address from R4 and calculates amount.
@@ -130,10 +198,11 @@ def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tup
     return transaction_type, address, amount, fee
 
 
-def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float]:
+def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
     """
     Determines borrow transaction and extracts address from R4 and calculates amount.
-    Returns: ("borrow", address, amount)
+    Also calculates the borrow APY at the time of transaction.
+    Returns: ("borrow", address, amount, borrow_apy)
     """
     transaction_type = "borrow"
     address = None
@@ -141,14 +210,23 @@ def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict) -> tuple
         address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
 
     amount, fee = calculate_amount_difference(tx, pool)
-    return transaction_type, address, amount
+
+    # Calculate borrow APY from pool box
+    apy = None
+    try:
+        apy = calculate_borrow_apy(pool, pool_box)
+    except Exception as e:
+        print(f"Error calculating borrow APY: {e}")
+
+    return transaction_type, address, amount, apy
 
 
 def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
-    str, Optional[str], float]:
+    str, Optional[str], float, Optional[float]]:
     """
     Determines partial repayment transaction and extracts address from collateral box R4 and calculates amount.
-    Returns: ("partial_repayment", address, amount)
+    Also calculates interest paid by comparing amount repaid to borrow token decrease.
+    Returns: ("partial_repayment", address, amount, interest_paid)
     """
     transaction_type = "partial_repayment"
     address = None
@@ -162,30 +240,45 @@ def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict,
 
     # Use outer transaction for amount calculation
     amount, fee = calculate_amount_difference(outer_tx, pool)
-    return transaction_type, address, amount
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
-    str, Optional[str], float]:
+    str, Optional[str], float, Optional[float]]:
     """
     Determines full repayment transaction and extracts address from R5 and calculates amount.
-    Returns: ("repayment", address, amount)
+    Also calculates interest paid by comparing amount repaid to borrow token decrease.
+    Returns: ("repayment", address, amount, interest_paid)
     """
     transaction_type = "repayment"
     address = None
+
     if "additionalRegisters" in input_box and "R5" in input_box["additionalRegisters"]:
         address = tree_to_address(input_box["additionalRegisters"]["R5"]["renderedValue"])
 
     # Use outer transaction for amount calculation
     amount, fee = calculate_amount_difference(outer_tx, pool)
-    return transaction_type, address, amount
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
-    str, Optional[str], float]:
+    str, Optional[str], float, Optional[float]]:
     """
     Determines liquidation transaction by finding collateral box and extracting address from R4 and calculates amount.
-    Returns: ("liquidation", address, amount)
+    Also calculates interest paid by comparing amount repaid to borrow token decrease.
+    Returns: ("liquidation", address, amount, interest_paid)
     """
     transaction_type = "liquidation"
     address = None
@@ -199,19 +292,25 @@ def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: 
 
     # Use outer transaction for amount calculation
     amount, fee = calculate_amount_difference(outer_tx, pool)
-    return transaction_type, address, amount
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
-    Optional[str], Optional[str], float, Optional[int], Optional[int]]:
+    Optional[str], Optional[str], float, Optional[float], Optional[int], Optional[int]]:
     """
     Determines the specific type of repayment transaction by analyzing the repayment box's transaction.
-    Returns: (transaction_type, address, amount, block_height, timestamp) where transaction_type is 'partial_repayment', 'repayment', 'liquidation', or None
+    Returns: (transaction_type, address, amount, interest_paid, block_height, timestamp) where transaction_type is 'partial_repayment', 'repayment', 'liquidation', or None
     """
     repayment_tx = fetch_transaction_data(repayment_box_tx_id)
     if not repayment_tx or "inputs" not in repayment_tx:
         print(f"Failed to fetch repayment transaction data for {repayment_box_tx_id}")
-        return None, None, 0.0, None, None
+        return None, None, 0.0, None, None, None
 
     # Extract block_height and timestamp from repayment transaction
     block_height = repayment_tx.get("inclusionHeight")
@@ -223,15 +322,15 @@ def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dic
 
         # Check for partial repayment
         if repay_input_address == pool["proxy_partial_repay"]:
-            transaction_type, address, amount = determine_partial_repayment_transaction(repay_input, repayment_tx,
+            transaction_type, address, amount, interest_paid = determine_partial_repayment_transaction(repay_input, repayment_tx,
                                                                                         outer_tx, pool)
-            return transaction_type, address, amount, block_height, timestamp
+            return transaction_type, address, amount, interest_paid, block_height, timestamp
 
         # Check for full repayment
         elif repay_input_address == pool["proxy_repay"]:
-            transaction_type, address, amount = determine_full_repayment_transaction(repay_input, repayment_tx,
+            transaction_type, address, amount, interest_paid = determine_full_repayment_transaction(repay_input, repayment_tx,
                                                                                      outer_tx, pool)
-            return transaction_type, address, amount, block_height, timestamp
+            return transaction_type, address, amount, interest_paid, block_height, timestamp
 
         # Check for liquidation by looking for collateral DEX NFTs
         else:
@@ -240,27 +339,27 @@ def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dic
                 # Check if this token ID matches any collateral DEX NFT
                 for collateral_key, collateral_info in pool.get("collateral_supported", {}).items():
                     if token_id == collateral_info.get("dex_nft"):
-                        transaction_type, address, amount = determine_liquidation_transaction(repayment_tx, outer_tx,
+                        transaction_type, address, amount, interest_paid = determine_liquidation_transaction(repayment_tx, outer_tx,
                                                                                               pool)
-                        return transaction_type, address, amount, block_height, timestamp
+                        return transaction_type, address, amount, interest_paid, block_height, timestamp
 
-    return None, None, 0.0, None, None
+    return None, None, 0.0, None, None, None
 
 
 def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[
-    Optional[str], Optional[str], float, Optional[str], Optional[int], Optional[int]]:
+    Optional[str], Optional[str], float, Optional[float], Optional[str], Optional[int], Optional[int]]:
     """
-    Determines repayment transaction type and extracts address, amount, transaction_id, block_height, and timestamp.
-    Returns: (transaction_type, address, amount, transaction_id, block_height, timestamp)
+    Determines repayment transaction type and extracts address, amount, interest_paid, transaction_id, block_height, and timestamp.
+    Returns: (transaction_type, address, amount, interest_paid, transaction_id, block_height, timestamp)
     """
     repayment_box_tx_id = input_box.get("outputTransactionId")
     if repayment_box_tx_id:
-        transaction_type, address, amount, block_height, timestamp = determine_repayment_type(repayment_box_tx_id, tx,
+        transaction_type, address, amount, interest_paid, block_height, timestamp = determine_repayment_type(repayment_box_tx_id, tx,
                                                                                               pool)
-        return transaction_type, address, amount, repayment_box_tx_id, block_height, timestamp
+        return transaction_type, address, amount, interest_paid, repayment_box_tx_id, block_height, timestamp
     else:
         print(f"No outputTransactionId found for repayment input box")
-        return None, None, 0.0, None, None, None
+        return None, None, 0.0, None, None, None, None
 
 
 def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
@@ -301,6 +400,8 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     address = None
     amount = 0.0
     fee = 0
+    borrow_apy = None
+    interest_paid = None
     final_tx_id = tx_id  # Default to main transaction ID
     block_height = main_block_height
     timestamp = main_timestamp
@@ -317,11 +418,11 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
             transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
             break
         elif input_address == pool["proxy_borrow"]:
-            transaction_type, address, amount = determine_borrow_transaction(input_box, tx, pool)
+            transaction_type, address, amount, borrow_apy = determine_borrow_transaction(input_box, tx, pool, pool_box)
             break
         elif input_address == pool["repayment"]:
             # For repayments, use inner transaction data
-            transaction_type, address, amount, final_tx_id, block_height, timestamp = determine_repayment_transaction(
+            transaction_type, address, amount, interest_paid, final_tx_id, block_height, timestamp = determine_repayment_transaction(
                 input_box, tx, pool)
             if transaction_type:
                 # Check if inner transaction is above min_height
@@ -338,7 +439,21 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     amount_friendly = amount / (10 ** decimals)
     # Fees are in pool token, use pool decimals (ERG has decimals=9, tokens have their own)
     fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
-
+    print("single tx",
+    {
+        'transaction_id': final_tx_id,
+        'address': address or "unknown_address",
+        'pool_nft': pool["POOL_NFT"],
+        'transaction_type': transaction_type,
+        'amount': amount_friendly,
+        'fee_paid': fee_friendly,
+        'borrow_apy': borrow_apy,
+        'interest_paid': interest_paid,
+        'block_height': block_height,
+        'timestamp': timestamp,
+        'sync_block': sync_block
+    }
+    )
     return {
         'transaction_id': final_tx_id,
         'address': address or "unknown_address",
@@ -346,6 +461,8 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
         'transaction_type': transaction_type,
         'amount': amount_friendly,
         'fee_paid': fee_friendly,
+        'borrow_apy': borrow_apy,
+        'interest_paid': interest_paid,
         'block_height': block_height,
         'timestamp': timestamp,
         'sync_block': sync_block
@@ -375,6 +492,8 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, mi
             transaction_type=transaction_data['transaction_type'],
             amount=transaction_data['amount'],
             fee_paid=transaction_data['fee_paid'],
+            borrow_apy=transaction_data.get('borrow_apy'),
+            interest_paid=transaction_data.get('interest_paid'),
             block_height=transaction_data['block_height'],
             timestamp=transaction_data['timestamp'],
             sync_block=transaction_data['sync_block']

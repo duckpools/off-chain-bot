@@ -67,6 +67,8 @@ CREATE TABLE transactions (
     type transaction_type NOT NULL,
     amount NUMERIC NOT NULL,
     fee_paid NUMERIC,
+    borrow_apy NUMERIC,
+    interest_paid NUMERIC,
     block_height BIGINT,
     timestamp BIGINT,
     sync_block BIGINT,
