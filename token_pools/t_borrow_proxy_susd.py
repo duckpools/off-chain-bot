@@ -235,7 +235,7 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
                         "R6": encode_long(100000000),
                         "R7": box["additionalRegisters"]["R8"]["serializedValue"],
                         "R8": box["additionalRegisters"]["R7"]["serializedValue"],
-                        "R9": encode_long_tuple([aggregateThreshold, penalty, bufferGap, minimumValue, 0])
+                        "R9": encode_long_tuple([aggregateThreshold, penalty, bufferGap, minimumValue, 0, current_height() + 5, iReport[7], iReport[8]]),
                     }
                 },
                 {
@@ -261,7 +261,7 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
                         }
                     ],
                     "registers": {
-                        "R4": encode_long_tuple([borrowLimit, liquidation_value, aggregateThreshold, penalty, minimumValue, bufferGap, 0]),
+                        "R4": encode_long_tuple([borrowLimit, liquidation_value, aggregateThreshold, penalty, minimumValue, bufferGap, 0, iReport[7], iReport[8]]),
                         "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
                         "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": "1100",
