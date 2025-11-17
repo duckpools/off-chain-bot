@@ -5,12 +5,80 @@ from database.db_manager import DatabaseManager
 
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
-# ── Add/maintain any hardcoded USD prices here ────────────────────────────────
-# Keys are CoinGecko IDs; values are USD floats/ints.
-HARD_CODED_PRICES: Dict[str, float] = {
-    "spf": 0.0
-}
-# ─────────────────────────────────────────────────────────────────────────────
+
+def get_price_from_dex(pool: dict, db, currency_id: str) -> Optional[float]:
+    print("CALLLING HERE")
+    """
+    Get price from DEX by calculating the ratio of ERG value to token amount.
+
+    Args:
+        pool: Pool configuration containing DEX information
+        db: Database manager instance to fetch ERG native price
+        currency_id: The currency ID to get price for
+
+    Returns:
+        USD price from DEX, or None if unavailable
+    """
+    from helpers.platform_functions import get_dex_box
+
+    try:
+        # Get the DEX NFT from pool configuration
+        # For token pools, the collateral is ERG, so we get the dex_nft from there
+        dex_nft = None
+        collateral_supported = pool.get("collateral_supported", {})
+
+        # Try to find the dex_nft in collateral_supported
+        for collateral_type, collateral_info in collateral_supported.items():
+            if isinstance(collateral_info, dict) and "dex_nft" in collateral_info:
+                dex_nft = collateral_info["dex_nft"]
+                break
+
+        if not dex_nft:
+            print(f"No DEX NFT found for {currency_id}")
+            return None
+
+        # Fetch the DEX box
+        dex_box = get_dex_box(dex_nft)
+        if not dex_box:
+            print(f"Could not fetch DEX box for {currency_id}")
+            return None
+
+        # Extract ERG value (in nanoERG) and token amount
+        erg_value = float(dex_box["value"])  # ERG in nanoERG (9 decimals)
+
+        # The token is in assets[2] (assets[0] is NFT, assets[1] is LP tokens)
+        if len(dex_box["assets"]) < 3:
+            print(f"DEX box does not have expected asset structure for {currency_id}")
+            return None
+
+        token_amount = float(dex_box["assets"][2]["amount"])
+
+        # Get token decimals from pool config
+        token_decimals = pool.get("decimals", 0)
+        erg_decimals = 9
+
+        # Calculate price in ERG (accounting for decimals)
+        # price_in_erg = (erg_value / 10^9) / (token_amount / 10^token_decimals)
+        # Simplified: price_in_erg = (erg_value * 10^token_decimals) / (token_amount * 10^9)
+        price_in_erg = (erg_value * (10 ** token_decimals)) / (token_amount * (10 ** erg_decimals))
+
+        # Get ERG native price in USD from database
+        currency_rates = db.get_currency_rates()
+        erg_usd_price = currency_rates.get("erg...native")
+
+        if erg_usd_price is None:
+            print(f"Could not fetch ERG native price from database")
+            return None
+
+        # Calculate USD price
+        usd_price = price_in_erg * erg_usd_price
+
+        print(f"Calculated DEX price for {currency_id}: ${usd_price:.6f} (ERG price: ${erg_usd_price:.6f}, ratio: {price_in_erg:.6f} ERG)")
+        return usd_price
+
+    except Exception as e:
+        print(f"Error getting price from DEX for {currency_id}: {e}")
+        return None
 
 
 def fetch_usd_prices(asset_ids: list):
@@ -43,14 +111,20 @@ def fetch_usd_prices(asset_ids: list):
     return None
 
 
-def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Optional[int] = None, min_height: int = 0) -> Dict[str, str]:
+def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Optional[int] = None, min_height: int = 0,
+                        sync_dex_pools: bool = True) -> Dict[str, str]:
     """Sync USD currency rates for all pooled assets (latest only).
 
-    - Uses HARD_CODED_PRICES for any matching CoinGecko IDs
-    - Fetches remaining prices from CoinGecko
-    - Hardcoded values override API values
+    - Fetches prices from CoinGecko API
     - Only inserts new rate if >= 5 minutes since last timestamp
     - Returns a per-CURRENCY_ID status dict
+
+    Args:
+        db: Database manager instance
+        pools: List of pool configurations
+        sync_block: Block height when this sync was performed
+        min_height: Minimum block height
+        sync_dex_pools: Whether to sync DEX pool prices (default: True)
     """
     print("Starting USD currency rates sync (latest only)...")
 
@@ -73,14 +147,25 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
     except Exception as e:
         print(f"Error checking recent currency updates: {e}")
 
-    # Collect distinct CoinGecko IDs (excluding recently synced ones)
+    # Collect distinct CoinGecko IDs (excluding recently synced ones and DEX-priced assets)
     coingecko_ids: List[str] = []
     pools_to_process = []
     for pool in pools:
         currency_id = pool.get("CURRENCY_ID_DB")
         if currency_id in assets_to_skip:
             continue
+
+        # Skip DEX-priced pools if DEX syncing is disabled
+        if pool.get("get_price_from_dex") and not sync_dex_pools:
+            print(f"Skipping DEX pool {currency_id}: DEX syncing not scheduled this loop")
+            continue
+
         pools_to_process.append(pool)
+
+        # Skip CoinGecko collection if this pool uses DEX pricing
+        if pool.get("get_price_from_dex"):
+            continue
+
         cg = pool.get("coingecko")
         if cg and cg not in coingecko_ids:
             coingecko_ids.append(cg)
@@ -100,26 +185,11 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
 
     print(f"Found coingecko IDs: {coingecko_ids}")
 
-    # Split into hardcoded vs to-fetch
-    hardcoded_ids = [cg for cg in coingecko_ids if cg in HARD_CODED_PRICES]
-    to_fetch_ids = [cg for cg in coingecko_ids if cg not in HARD_CODED_PRICES]
-
-    if hardcoded_ids:
-        print(f"Using hardcoded prices for: {hardcoded_ids}")
-
-    # Fetch remaining from API, only if needed
-    api_prices: Dict[str, float] = {}
-    if to_fetch_ids:
-        print(f"Fetching USD prices for: {to_fetch_ids}")
-        api_prices = fetch_usd_prices(to_fetch_ids) or {}
-        if not api_prices and to_fetch_ids:
-            print("Failed to fetch some/all prices from CoinGecko (non-hardcoded)")
-
-    # Merge with hardcoded overriding API  # CHANGED: ensure hardcoded has precedence
-    prices: Dict[str, float] = {}
-    prices.update(api_prices)
-    for cg in hardcoded_ids:
-        prices[cg] = HARD_CODED_PRICES[cg]
+    # Fetch prices from API
+    print(f"Fetching USD prices for: {coingecko_ids}")
+    prices: Dict[str, float] = fetch_usd_prices(coingecko_ids) or {}
+    if not prices:
+        print("Failed to fetch prices from CoinGecko")
 
     # If nothing at all, report failures for pools that had coingecko + currency IDs
     if not prices:
@@ -143,34 +213,38 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
         if not currency_id:
             print("Skipping pool with missing CURRENCY_ID")
             continue
-        if not coingecko_id:
-            print(f"Skipping {currency_id} - missing CoinGecko ID")
-            results[currency_id] = 'skipped'
-            continue
 
         try:
-            usd_price = prices.get(coingecko_id)
+            # Check if this pool should use DEX pricing instead of CoinGecko
+            if pool.get("get_price_from_dex"):
+                usd_price = get_price_from_dex(pool, db, currency_id)
+                source = "DEX"
+            else:
+                if not coingecko_id:
+                    print(f"Skipping {currency_id} - missing CoinGecko ID")
+                    results[currency_id] = 'skipped'
+                    continue
+                usd_price = prices.get(coingecko_id)
+                source = f"cg:{coingecko_id}"
 
             # CHANGED: allow 0.0 as a valid price (only reject None or negative)
             if usd_price is None or usd_price < 0:
-                print(f"Skipping {currency_id} (cg:{coingecko_id}) - no valid price")
+                print(f"Skipping {currency_id} ({source}) - no valid price")
                 results[currency_id] = 'skipped'
                 continue
 
             # Insert new rate with timestamp
             success = db.insert_currency_rate(currency_id, float(usd_price), current_timestamp, sync_block)
 
-            # CHANGED: source detection—hardcoded overrides API, so report correctly
-            src = "hardcoded" if coingecko_id in HARD_CODED_PRICES else "api"
             if success:
-                print(f"✓ Updated {currency_id} (cg:{coingecko_id}, {src}): ${float(usd_price):.6f}")
+                print(f"✓ Updated {currency_id} ({source}): ${float(usd_price):.6f}")
                 results[currency_id] = 'success'
             else:
-                print(f"✗ Failed to save {currency_id} (cg:{coingecko_id}, {src})")
+                print(f"✗ Failed to save {currency_id} ({source})")
                 results[currency_id] = 'failed'
 
         except Exception as e:
-            print(f"✗ Error processing {currency_id} (cg:{coingecko_id}): {e}")
+            print(f"✗ Error processing {currency_id} ({source}): {e}")
             results[currency_id] = 'failed'
 
     # Summary
@@ -180,9 +254,16 @@ def sync_currency_rates(db: DatabaseManager, pools: List[dict], sync_block: Opti
     return results
 
 
-def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None):
+def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional[int] = None,
+                                sync_dex_pools: bool = True):
     """
     Sync USD currency rates using batch processing (latest only with 5-minute check).
+
+    Args:
+        db: Database manager instance
+        pools: List of pool configurations
+        sync_block: Block height when this sync was performed
+        sync_dex_pools: Whether to sync DEX pool prices (default: True)
     """
     print("Starting batch currency rates sync (latest only)...")
 
@@ -205,14 +286,25 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
     except Exception as e:
         print(f"Error checking recent currency updates: {e}")
 
-    # Collect distinct CoinGecko IDs (excluding recently synced)
+    # Collect distinct CoinGecko IDs (excluding recently synced and DEX-priced assets)
     coingecko_ids = []
     pools_to_process = []
     for pool in pools:
         currency_id = pool.get("CURRENCY_ID_DB")
         if currency_id in assets_to_skip:
             continue
+
+        # Skip DEX-priced pools if DEX syncing is disabled
+        if pool.get("get_price_from_dex") and not sync_dex_pools:
+            print(f"Skipping DEX pool {currency_id}: DEX syncing not scheduled this loop")
+            continue
+
         pools_to_process.append(pool)
+
+        # Skip CoinGecko collection if this pool uses DEX pricing
+        if pool.get("get_price_from_dex"):
+            continue
+
         cg = pool.get("coingecko")
         if cg and cg not in coingecko_ids:
             coingecko_ids.append(cg)
@@ -228,24 +320,9 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
 
     print(f"Found coingecko IDs: {coingecko_ids}")
 
-    # Split into hardcoded vs to-fetch
-    hardcoded_ids = [cg for cg in coingecko_ids if cg in HARD_CODED_PRICES]
-    to_fetch_ids = [cg for cg in coingecko_ids if cg not in HARD_CODED_PRICES]
-
-    if hardcoded_ids:
-        print(f"Using hardcoded prices for: {hardcoded_ids}")
-
-    # Fetch remaining from API
-    api_prices = {}
-    if to_fetch_ids:
-        print(f"Fetching USD prices for: {to_fetch_ids}")
-        api_prices = fetch_usd_prices(to_fetch_ids) or {}
-
-    # Merge prices
-    prices = {}
-    prices.update(api_prices)
-    for cg in hardcoded_ids:
-        prices[cg] = HARD_CODED_PRICES[cg]
+    # Fetch prices from API
+    print(f"Fetching USD prices for: {coingecko_ids}")
+    prices = fetch_usd_prices(coingecko_ids) or {}
 
     if not prices:
         print("No prices resolved")
@@ -259,10 +336,16 @@ def sync_currency_rates_batched(db: DatabaseManager, pools, sync_block: Optional
         currency_id = pool.get("CURRENCY_ID_DB")
         coingecko_id = pool.get("coingecko")
 
-        if not currency_id or not coingecko_id:
+        if not currency_id:
             continue
 
-        usd_price = prices.get(coingecko_id)
+        # Check if this pool should use DEX pricing instead of CoinGecko
+        if pool.get("get_price_from_dex"):
+            usd_price = get_price_from_dex(pool, db, currency_id)
+        else:
+            if not coingecko_id:
+                continue
+            usd_price = prices.get(coingecko_id)
 
         if usd_price is None or usd_price < 0:
             results[currency_id] = 'skipped'
@@ -368,12 +451,6 @@ def sync_currency_all_time(db: DatabaseManager, pools: List[dict], from_timestam
 
         if not currency_id or not coingecko_id:
             print(f"Skipping pool - missing CURRENCY_ID_DB or coingecko")
-            continue
-
-        # Check if hardcoded price
-        if coingecko_id in HARD_CODED_PRICES:
-            print(f"Skipping {currency_id} (cg:{coingecko_id}) - using hardcoded price, no historical data")
-            results[currency_id] = 0
             continue
 
         print(f"Fetching historical prices for {currency_id} (cg:{coingecko_id})...")

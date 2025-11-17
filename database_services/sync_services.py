@@ -37,7 +37,8 @@ def sync_currency_rates(db: DatabaseManager, pools, sync_block: Optional[int] = 
 
 
 def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
-                       sync_currency_rates: bool = True, sync_debts: bool = True):
+                       sync_currency_rates: bool = True, sync_debts: bool = True,
+                       sync_dex_pools: bool = True):
     """
     Optimized sync routine using batch processing throughout.
 
@@ -46,6 +47,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     :param sync_block: Block height when this sync was performed
     :param sync_currency_rates: Whether to sync currency rates (default: True)
     :param sync_debts: Whether to sync user pool debts (default: True)
+    :param sync_dex_pools: Whether to sync DEX pool prices (default: True)
     """
     print(f"Starting optimized full sync from height {min_height}")
 
@@ -61,7 +63,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     # Step 2: Sync currency rates in batch (optional)
     if sync_currency_rates:
         print("\n=== Step 2: Syncing currency rates ===")
-        sync_currency_rates_batched(db, pools, sync_block=sync_block)
+        sync_currency_rates_batched(db, pools, sync_block=sync_block, sync_dex_pools=sync_dex_pools)
     else:
         print("\n=== Step 2: Skipping currency rates (not scheduled this loop) ===")
 
@@ -119,7 +121,8 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
 
 
 def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None,
-                         sync_currency_rates: bool = True, sync_debts: bool = True) -> bool:
+                         sync_currency_rates: bool = True, sync_debts: bool = True,
+                         sync_dex_pools: bool = True) -> bool:
     """
     Perform incremental sync starting from the lowest sync_block in the database.
     This allows for efficient incremental updates without re-processing all historical data.
@@ -129,6 +132,7 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         current_block_height: Current blockchain block height to use as sync_block
         sync_currency_rates: Whether to sync currency rates (default: True)
         sync_debts: Whether to sync user pool debts (default: True)
+        sync_dex_pools: Whether to sync DEX pool prices (default: True)
 
     Returns:
         True if sync was successful, False otherwise
@@ -162,7 +166,8 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         success = True
         try:
             sync_all_optimized(db, min_height=min_height, sync_block=current_block_height,
-                             sync_currency_rates=sync_currency_rates, sync_debts=sync_debts)
+                             sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
+                             sync_dex_pools=sync_dex_pools)
         except Exception as e:
             print(f"Error during sync_all_optimized: {e}")
             success = False

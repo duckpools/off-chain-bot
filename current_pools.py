@@ -11,6 +11,7 @@ current_pools = [
         "genesis_height": 1074473,
         "LendTokenSupply": 9000000001000000,
         "coingecko": "ergo",
+        "get_price_from_dex": False,
         "decimals": 9,
 
         # ERG MAIN ADDRESSES
@@ -78,6 +79,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "sigusd",
+        "get_price_from_dex": False,
         "decimals": 2,
 
         # SIGUSD MAIN ADDRESSES
@@ -130,6 +132,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "quacks",
+        "get_price_from_dex": False,
         "decimals": 6,
 
         # QUACKS MAIN ADDRESSES
@@ -186,6 +189,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "sigrsv",
+        "get_price_from_dex": False,
         "decimals": 0,
 
         # sigRSV MAIN ADDRESSES
@@ -241,6 +245,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "rosen-bridge",
+        "get_price_from_dex": False,
         "decimals": 3,
 
         # RSN MAIN ADDRESSES
@@ -296,6 +301,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "cardano",
+        "get_price_from_dex": False,
         "decimals": 6,
 
         # rsADA MAIN ADDRESSES
@@ -351,6 +357,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "spf",
+        "get_price_from_dex": True,
         "decimals": 6,
 
         # SPF MAIN ADDRESSES
@@ -406,6 +413,7 @@ current_pools = [
         "BorrowTokenSupply": 9000000000000000,
         "LendTokenSupply": 9000000000000010,
         "coingecko": "bitcoin",
+        "get_price_from_dex": False,
         "decimals": 8,
 
         # rsBTC MAIN ADDRESSES
