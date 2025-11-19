@@ -110,12 +110,88 @@ def get_total_value_locked() -> float:
 
 def get_quacks_holders() -> int:
     """
-    Get number of QUACKS token holders.
+    Get number of QUACKS token holders by counting unique addresses
+    holding the QUACKS token from the Ergo blockchain.
 
     Returns:
-        Number of holders (hardcoded for now)
+        Number of unique holders, or 0 if failed
     """
-    return 1250
+    token_id = "089990451bb430f05a85f4ef3bcb6ebf852b3d6ee68d86d78658b9ccef20074f"
+    base_url = f"https://api.ergoplatform.com/api/v1/boxes/unspent/byTokenId/{token_id}"
+
+    print(f"\n=== Fetching QUACKS Holders ===")
+    print(f"API URL: {base_url}")
+
+    unique_addresses = set()
+    limit = 100  # Number of items per request (API maximum)
+    offset = 0
+    total_items_fetched = 0
+
+    try:
+        while True:
+            # Make API request with pagination
+            params = {"limit": limit, "offset": offset}
+            print(f"\nFetching page: offset={offset}, limit={limit}")
+
+            for attempt in range(3):
+                try:
+                    response = requests.get(base_url, params=params, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    print(f"API Response status: {response.status_code}")
+                    break
+                except Exception as e:
+                    print(f"Ergo API error (attempt {attempt + 1}/3): {e}")
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s
+                    else:
+                        print(f"Failed to fetch QUACKS holders after 3 attempts")
+                        return 0
+
+            items = data.get('items', [])
+            total_in_response = data.get('total', 'unknown')
+            print(f"Items in this page: {len(items)}, Total in API: {total_in_response}")
+
+            # If no items returned, we've fetched all data
+            if not items:
+                print("No more items, stopping pagination")
+                break
+
+            total_items_fetched += len(items)
+
+            # Extract unique addresses from each box
+            addresses_before = len(unique_addresses)
+            for item_idx, item in enumerate(items):
+                address = item.get('address')
+                if address:
+                    unique_addresses.add(address)
+                    print(f"  Box {item_idx}: {address}")
+                else:
+                    print(f"  Box {item_idx}: No address found")
+
+            addresses_after = len(unique_addresses)
+            print(f"Added {addresses_after - addresses_before} new unique addresses (total now: {addresses_after})")
+
+            # Move to next page
+            offset += limit
+
+            # If we received fewer items than the limit, we're done
+            if len(items) < limit:
+                print(f"Received {len(items)} items (less than limit {limit}), stopping pagination")
+                break
+
+        holder_count = len(unique_addresses)
+        print(f"\n=== Summary ===")
+        print(f"Total items fetched: {total_items_fetched}")
+        print(f"Unique QUACKS token holders: {holder_count}")
+        print("=" * 50 + "\n")
+        return holder_count
+
+    except Exception as e:
+        print(f"Error fetching QUACKS holders: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
 
 
 def calculate_monthly_volume(db: DatabaseManager, current_all_time_volume: float) -> float:
