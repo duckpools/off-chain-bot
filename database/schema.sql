@@ -141,6 +141,18 @@ CREATE TABLE user_pool_debts (
     FOREIGN KEY (pool_nft) REFERENCES pools(nft)
 );
 
+-- ========== HEADLINE STATS ==========
+CREATE TABLE headlinestats (
+    id SERIAL PRIMARY KEY,
+    all_time_volume NUMERIC NOT NULL DEFAULT 0,
+    total_value_locked NUMERIC NOT NULL DEFAULT 0,
+    quacks_holders BIGINT NOT NULL DEFAULT 0,
+    monthly_volume NUMERIC NOT NULL DEFAULT 0,
+    timestamp BIGINT NOT NULL,
+    sync_block BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========================================
 -- CONSOLIDATED INDEXES (matching actual database)
 -- ========================================
@@ -219,6 +231,12 @@ CREATE INDEX idx_user_pool_debts_pool_nft ON user_pool_debts(pool_nft);
 -- Composite index for direct lookup
 CREATE INDEX idx_user_pool_debts_address_pool ON user_pool_debts(address_id, pool_nft);
 
+-- ========== HEADLINE STATS INDEXES ==========
+-- Primary index for time-based queries (DESC for most recent first)
+CREATE INDEX idx_headlinestats_timestamp ON headlinestats(timestamp DESC);
+-- Created_at index for database insertion tracking
+CREATE INDEX idx_headlinestats_created_at ON headlinestats(created_at DESC);
+
 -- ========================================
 -- MAINTENANCE-FREE VIEWS
 -- ========================================
@@ -279,7 +297,7 @@ LEFT JOIN LATERAL (
 -- ========================================
 
 /*
-TABLES: 9 total
+TABLES: 10 total
 - addresses (+ sync_block)
 - pools (+ sync_block)
 - currency_rates (+ sync_block)
@@ -289,8 +307,9 @@ TABLES: 9 total
 - user_deposits_historical (+ sync_block)
 - user_portfolio_snapshots (+ sync_block)
 - user_pool_debts (+ sync_block)
+- headlinestats (+ sync_block)
 
-INDEXES: 40 total (consolidated and optimized)
+INDEXES: 42 total (consolidated and optimized)
 - addresses: 2 indexes
 - pools: 3 indexes
 - currency_rates: 2 indexes
@@ -300,6 +319,7 @@ INDEXES: 40 total (consolidated and optimized)
 - user_deposits_historical: 3 indexes
 - user_portfolio_snapshots: 6 indexes
 - user_pool_debts: 3 indexes
+- headlinestats: 2 indexes
 - (Plus system-generated primary key and unique constraint indexes)
 
 VIEWS: 3 maintenance-free views (updated to include sync_block)

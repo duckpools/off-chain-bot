@@ -10,6 +10,7 @@ from database_services.debt_services import sync_all_user_pool_debts
 from helpers.platform_functions import get_all_boxes_by_token_id
 from database_services.currency_services import sync_currency_rates as _sync_currency_rates, \
     sync_currency_rates_batched
+from database_services.headline_stats_services import insert_headline_stats
 
 
 def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
@@ -50,6 +51,10 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     :param sync_dex_pools: Whether to sync DEX pool prices (default: True)
     """
     print(f"Starting optimized full sync from height {min_height}")
+
+    # Insert headline stats at the start of sync
+    print("\n=== Step 0: Recording headline stats ===")
+    insert_headline_stats(db, sync_block=sync_block)
 
     pools = current_pools[:]
     full_scan = False
@@ -140,6 +145,10 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
     try:
         print("=== Starting Sync From Last Update ===")
 
+        # Insert headline stats at the start of sync
+        print("\n=== Step 0: Recording headline stats ===")
+        insert_headline_stats(db, sync_block=current_block_height)
+
         # Step 1: Get the lowest sync_block across all tables
         min_height = db.get_lowest_sync_block()
 
@@ -209,6 +218,10 @@ def resync_from_block(db: DatabaseManager, from_block: int, current_block_height
     """
     try:
         print(f"=== Starting Re-sync From Block {from_block} ===")
+
+        # Insert headline stats at the start of resync
+        print("\n=== Step 0: Recording headline stats ===")
+        insert_headline_stats(db, sync_block=current_block_height)
 
         # Step 1: Clear sync_blocks before the target block
         cleared_summary = db.clear_sync_blocks_before(from_block)
