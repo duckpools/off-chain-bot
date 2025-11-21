@@ -5,21 +5,21 @@ from database.db_manager import DatabaseManager
 from current_pools import current_pools
 
 
-def calculate_all_time_volume(db: DatabaseManager) -> float:
+def calculate_all_time_volume(db: DatabaseManager) -> Dict[str, float]:
     """
     Calculate all-time volume across all pools by summing all transaction amounts
-    and converting them to USD.
+    grouped by pooled asset.
 
     Args:
         db: Database manager instance
 
     Returns:
-        Total all-time volume in USD
+        Dictionary mapping pooled_asset to total volume (e.g., {"ERG": 12345.67, "SigUSD": 98765.43})
     """
     try:
         # Get all transactions from database
         query = """
-            SELECT t.pool_nft, t.amount, p.pooled_asset
+            SELECT t.amount, p.pooled_asset
             FROM transactions t
             JOIN pools p ON t.pool_nft = p.nft
         """
@@ -27,60 +27,31 @@ def calculate_all_time_volume(db: DatabaseManager) -> float:
 
         if not transactions:
             print("No transactions found for volume calculation")
-            return 0.0
+            return {}
 
-        # Group transactions by pool and sum amounts
-        pool_volumes: Dict[str, float] = {}
-        pool_assets: Dict[str, str] = {}
+        # Group transactions by pooled_asset and sum amounts
+        asset_volumes: Dict[str, float] = {}
 
         for tx in transactions:
-            pool_nft = tx['pool_nft']
             amount = float(tx['amount'])
             pooled_asset = tx['pooled_asset']
 
-            if pool_nft not in pool_volumes:
-                pool_volumes[pool_nft] = 0.0
-                pool_assets[pool_nft] = pooled_asset
+            if pooled_asset not in asset_volumes:
+                asset_volumes[pooled_asset] = 0.0
 
-            pool_volumes[pool_nft] += amount
+            asset_volumes[pooled_asset] += amount
 
-        # Create a mapping of pool NFT to pool config for quick lookup
-        pool_config_map = {pool.get('POOL_NFT'): pool for pool in current_pools if 'POOL_NFT' in pool}
-
-        # Print amounts for each pool (already in friendly format from DB)
-        print("\n=== Pool Transaction Sums ===")
-        for pool_nft, amount in pool_volumes.items():
-            pooled_asset = pool_assets.get(pool_nft, "unknown")
-            print(f"Pool {pool_nft[:16]}... ({pooled_asset}): {amount:,.2f} units")
+        # Print amounts for each asset
+        print("\n=== All-Time Volume by Asset ===")
+        for pooled_asset, amount in asset_volumes.items():
+            print(f"{pooled_asset}: {amount:,.2f} units")
         print("=" * 50 + "\n")
 
-        # Convert to USD and sum
-        total_volume_usd = 0.0
-
-        for pool_nft, total_amount in pool_volumes.items():
-            # Get latest USD rate for this asset
-            pooled_asset = pool_assets[pool_nft]
-            rate_query = """
-                SELECT usd_rate
-                FROM currency_rates
-                WHERE pooled_asset = %s
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            rate_result = db.execute_query(rate_query, (pooled_asset,))
-
-            if rate_result and len(rate_result) > 0:
-                usd_rate = float(rate_result[0]['usd_rate'])
-                volume_usd = total_amount * usd_rate
-                total_volume_usd += volume_usd
-            else:
-                print(f"Warning: No USD rate found for {pooled_asset}, skipping pool {pool_nft}")
-
-        return total_volume_usd
+        return asset_volumes
 
     except Exception as e:
         print(f"Error calculating all-time volume: {e}")
-        return 0.0
+        return {}
 
 
 def get_total_value_locked() -> float:
@@ -170,60 +141,6 @@ def get_quacks_holders() -> int:
         return 0
 
 
-def calculate_monthly_volume(db: DatabaseManager, current_all_time_volume: float) -> float:
-    """
-    Calculate monthly volume by comparing current all-time volume with volume from
-    1 month ago (or oldest available entry).
-
-    Args:
-        db: Database manager instance
-        current_all_time_volume: Current all-time volume
-
-    Returns:
-        Monthly volume in USD
-    """
-    try:
-        # Calculate timestamp for 1 month ago (30 days)
-        current_timestamp = int(time.time())
-        one_month_ago = current_timestamp - (30 * 24 * 60 * 60)
-
-        # Query for first entry at least 1 month old
-        query = """
-            SELECT all_time_volume, timestamp
-            FROM headlinestats
-            WHERE timestamp <= %s
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """
-        result = db.execute_query(query, (one_month_ago,))
-
-        if result and len(result) > 0:
-            old_volume = float(result[0]['all_time_volume'])
-            monthly_volume = current_all_time_volume - old_volume
-            return max(0.0, monthly_volume)  # Ensure non-negative
-
-        # If no entry at least 1 month old, try to get oldest entry
-        oldest_query = """
-            SELECT all_time_volume, timestamp
-            FROM headlinestats
-            ORDER BY timestamp ASC
-            LIMIT 1
-        """
-        oldest_result = db.execute_query(oldest_query)
-
-        if oldest_result and len(oldest_result) > 0:
-            old_volume = float(oldest_result[0]['all_time_volume'])
-            monthly_volume = current_all_time_volume - old_volume
-            return max(0.0, monthly_volume)  # Ensure non-negative
-
-        # No historical data available
-        return 0.0
-
-    except Exception as e:
-        print(f"Error calculating monthly volume: {e}")
-        return 0.0
-
-
 def insert_headline_stats(db: DatabaseManager, sync_block: Optional[int] = None) -> Optional[int]:
     """
     Insert headline statistics into the database.
@@ -240,8 +157,8 @@ def insert_headline_stats(db: DatabaseManager, sync_block: Optional[int] = None)
         current_timestamp = int(time.time())
 
         # Calculate real metrics
-        print("Calculating all-time volume...")
-        all_time_volume = calculate_all_time_volume(db)
+        print("Calculating all-time volume by asset...")
+        all_time_volume_by_asset = calculate_all_time_volume(db)
 
         print("Fetching total value locked from DefiLlama...")
         total_value_locked = get_total_value_locked()
@@ -249,16 +166,12 @@ def insert_headline_stats(db: DatabaseManager, sync_block: Optional[int] = None)
         print("Getting QUACKS holders count...")
         quacks_holders = get_quacks_holders()
 
-        print("Calculating monthly volume...")
-        monthly_volume = calculate_monthly_volume(db, all_time_volume)
-
-        print(f"Metrics calculated - Volume: ${all_time_volume:.2f}, TVL: ${total_value_locked:.2f}, Holders: {quacks_holders}, Monthly: ${monthly_volume:.2f}")
+        print(f"Metrics calculated - TVL: ${total_value_locked:.2f}, Holders: {quacks_holders}")
 
         result = db.insert_headlinestats(
-            all_time_volume=all_time_volume,
+            all_time_volume_by_asset=all_time_volume_by_asset,
             total_value_locked=total_value_locked,
             quacks_holders=quacks_holders,
-            monthly_volume=monthly_volume,
             timestamp=current_timestamp,
             sync_block=sync_block
         )

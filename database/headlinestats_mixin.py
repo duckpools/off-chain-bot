@@ -1,22 +1,21 @@
-from typing import Optional
+from typing import Optional, Dict
+import json
 
 
 class HeadlinestatsMixin:
     def insert_headlinestats(self,
-                            all_time_volume: float,
+                            all_time_volume_by_asset: Dict[str, float],
                             total_value_locked: float,
                             quacks_holders: int,
-                            monthly_volume: float,
                             timestamp: int,
                             sync_block: Optional[int] = None) -> Optional[int]:
         """
         Insert a new headline stats record (historical tracking).
 
         Args:
-            all_time_volume: Total volume across all time
+            all_time_volume_by_asset: Dictionary mapping pooled_asset to total volume
             total_value_locked: Current total value locked
             quacks_holders: Number of QUACKS token holders
-            monthly_volume: Volume for the current/previous month
             timestamp: Unix timestamp when this data was recorded
             sync_block: Block height when this data was synced
 
@@ -25,12 +24,12 @@ class HeadlinestatsMixin:
         """
         try:
             insert_query = """
-                INSERT INTO headlinestats (all_time_volume, total_value_locked, quacks_holders, monthly_volume, timestamp, sync_block)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO headlinestats (all_time_volume_by_asset, total_value_locked, quacks_holders, timestamp, sync_block)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             """
 
-            params = (all_time_volume, total_value_locked, quacks_holders, monthly_volume, timestamp, sync_block)
+            params = (json.dumps(all_time_volume_by_asset), total_value_locked, quacks_holders, timestamp, sync_block)
             result = self.execute_insert(insert_query, params, return_id=True)
 
             return result

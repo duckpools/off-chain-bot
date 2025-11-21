@@ -144,10 +144,9 @@ CREATE TABLE user_pool_debts (
 -- ========== HEADLINE STATS ==========
 CREATE TABLE headlinestats (
     id SERIAL PRIMARY KEY,
-    all_time_volume NUMERIC NOT NULL DEFAULT 0,
+    all_time_volume_by_asset JSONB NOT NULL DEFAULT '{}'::jsonb,
     total_value_locked NUMERIC NOT NULL DEFAULT 0,
     quacks_holders BIGINT NOT NULL DEFAULT 0,
-    monthly_volume NUMERIC NOT NULL DEFAULT 0,
     timestamp BIGINT NOT NULL,
     sync_block BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
