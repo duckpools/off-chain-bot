@@ -153,7 +153,7 @@ def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optio
         output_borrow_tokens = output_assets[2].get("amount", 0)
 
         # Calculate decrease in borrow tokens (principal repaid)
-        borrow_tokens_decrease_raw = input_borrow_tokens - output_borrow_tokens
+        borrow_tokens_decrease_raw = output_borrow_tokens - input_borrow_tokens
 
         # Convert to friendly units
         decimals = pool["decimals"]

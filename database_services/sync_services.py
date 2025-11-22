@@ -1,4 +1,5 @@
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from current_pools import current_pools
 from database.db_manager import DatabaseManager
 from database_services.pool_services import sync_pool_interest_data, sync_all_pools, sync_all_pools_batched, \
@@ -103,6 +104,134 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         print("\n=== Step 4: Skipping user pool debts (not scheduled this loop) ===")
 
     print("\n=== Full sync complete ===")
+
+
+def _process_single_pool(pool_info):
+    """
+    Process a single pool's historical data in parallel.
+
+    :param pool_info: Tuple of (db, pool, min_height, sync_block, full_scan, pool_index, total_pools)
+    :return: Tuple of (pool_nft, success, error_message)
+    """
+    db, pool, min_height, sync_block, full_scan, pool_index, total_pools = pool_info
+    pool_nft = pool['POOL_NFT']
+
+    try:
+        print(f"\n[Thread {pool_index}/{total_pools}] Processing pool: {pool_nft}")
+
+        # Get all boxes once
+        pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
+
+        if not pool_boxes:
+            print(f"[Thread {pool_index}/{total_pools}] No boxes found above height {min_height} for pool {pool_nft}")
+        else:
+            print(f"[Thread {pool_index}/{total_pools}] Found {len(pool_boxes)} boxes to process")
+            # Use batched versions for everything
+            sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
+            sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
+                                            sync_block=sync_block)
+
+        # User lend data - already optimized with batching
+        sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
+        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+        sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
+        sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+
+        print(f"[Thread {pool_index}/{total_pools}] Completed pool: {pool_nft}")
+        return (pool_nft, True, None)
+
+    except Exception as e:
+        error_msg = f"Error processing pool {pool_nft}: {str(e)}"
+        print(f"[Thread {pool_index}/{total_pools}] {error_msg}")
+        return (pool_nft, False, error_msg)
+
+
+def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
+                      sync_currency_rates: bool = True, sync_debts: bool = True,
+                      sync_dex_pools: bool = True, max_workers: int = 6):
+    """
+    Parallel sync routine using ThreadPoolExecutor for pool processing.
+
+    :param db: Database manager instance
+    :param min_height: Minimum block height to sync historical data from
+    :param sync_block: Block height when this sync was performed
+    :param sync_currency_rates: Whether to sync currency rates (default: True)
+    :param sync_debts: Whether to sync user pool debts (default: True)
+    :param sync_dex_pools: Whether to sync DEX pool prices (default: True)
+    :param max_workers: Maximum number of parallel workers (default: 6)
+    """
+    print(f"Starting PARALLEL sync from height {min_height} with {max_workers} workers")
+
+    # Insert headline stats at the start of sync
+    print("\n=== Step 0: Recording headline stats ===")
+    insert_headline_stats(db, sync_block=sync_block)
+
+    pools = current_pools[:]
+    full_scan = False
+    if min_height == 0:
+        full_scan = True
+
+    # Step 1: Sync all pools in batch
+    print("\n=== Step 1: Syncing all pools ===")
+    sync_all_pools_batched(db, sync_block=sync_block)
+
+    # Step 2: Sync currency rates in batch (optional)
+    if sync_currency_rates:
+        print("\n=== Step 2: Syncing currency rates ===")
+        sync_currency_rates_batched(db, pools, sync_block=sync_block, sync_dex_pools=sync_dex_pools)
+    else:
+        print("\n=== Step 2: Skipping currency rates (not scheduled this loop) ===")
+
+    # Step 3: Process historical data for each pool IN PARALLEL
+    print(f"\n=== Step 3: Syncing historical data (PARALLEL with {max_workers} workers) ===")
+
+    # Prepare work items for each pool
+    pool_tasks = [
+        (db, pool, min_height, sync_block, full_scan, i, len(pools))
+        for i, pool in enumerate(pools, 1)
+    ]
+
+    # Execute pool processing in parallel
+    failed_pools = []
+    successful_pools = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_pool = {executor.submit(_process_single_pool, task): task[1] for task in pool_tasks}
+
+        # Process completed tasks as they finish
+        for future in as_completed(future_to_pool):
+            pool = future_to_pool[future]
+            try:
+                pool_nft, success, error_msg = future.result()
+                if success:
+                    successful_pools.append(pool_nft)
+                else:
+                    failed_pools.append((pool_nft, error_msg))
+            except Exception as e:
+                pool_nft = pool['POOL_NFT']
+                error_msg = f"Unhandled exception: {str(e)}"
+                failed_pools.append((pool_nft, error_msg))
+                print(f"ERROR: Pool {pool_nft} raised exception: {e}")
+
+    # Report results
+    print(f"\n=== Step 3 Complete: {len(successful_pools)} successful, {len(failed_pools)} failed ===")
+    if failed_pools:
+        print("Failed pools:")
+        for pool_nft, error in failed_pools:
+            print(f"  - {pool_nft}: {error}")
+
+    # Step 4: Sync user pool debts (optional)
+    if sync_debts:
+        print("\n=== Step 4: Syncing user pool debts ===")
+        sync_all_user_pool_debts(db, pools, sync_block=sync_block)
+    else:
+        print("\n=== Step 4: Skipping user pool debts (not scheduled this loop) ===")
+
+    print("\n=== Full PARALLEL sync complete ===")
+
+    # Return True only if all pools succeeded
+    return len(failed_pools) == 0
 
 
 def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Optional[int] = None):

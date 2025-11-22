@@ -1,11 +1,11 @@
 from database.db_manager import DatabaseManager
-from database_services.sync_services import sync_all, sync_from_last_update
+from database_services.sync_services import sync_all, sync_from_last_update, sync_all_parallel
 from helpers.node_calls import current_height
 import time
 import os
 
 
-def db_routine(full_sync=False):
+def db_routine(full_sync=False, parallel_sync=False):
     """
     Run database sync routine.
 
@@ -15,6 +15,8 @@ def db_routine(full_sync=False):
                    with selective syncing:
                    - Currency rates: synced every 3rd loop
                    - Borrow debts info: synced every 5th loop
+        parallel_sync: If True, uses parallel pool processing for faster syncing.
+                      Only applies to full_sync mode. (default: False)
 
     Graceful Shutdown:
         To gracefully exit the sync loop (completing the current iteration):
@@ -31,9 +33,17 @@ def db_routine(full_sync=False):
 
     if full_sync:
         print("=" * 70)
-        print("RUNNING FULL SYNC")
+        if parallel_sync:
+            print("RUNNING FULL SYNC (PARALLEL MODE)")
+        else:
+            print("RUNNING FULL SYNC")
         print("=" * 70 + "\n")
-        sync_all(db, sync_block=current_height())
+
+        if parallel_sync:
+            sync_all_parallel(db, sync_block=current_height())
+        else:
+            sync_all(db, sync_block=current_height())
+
         print("\n" + "=" * 70)
         print("✓ FULL SYNC COMPLETE")
         print("=" * 70 + "\n")
