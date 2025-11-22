@@ -54,11 +54,12 @@ def db_routine(full_sync=False, parallel_sync=False):
         print("Currency rates: synced every 3rd loop")
         print("Borrow debts: synced every 5th loop")
         print("DEX pools: synced every 12th loop")
+        print("Headline stats: synced every 30th loop")
         print("Graceful shutdown: create 'shutdown.flag' file")
         print("=" * 70 + "\n")
 
         shutdown_flag_path = 'shutdown.flag'
-        loop_counter = -1
+        loop_counter = 0
         while True:
             loop_counter += 1
             print(f"\n{'='*70}")
@@ -69,10 +70,12 @@ def db_routine(full_sync=False, parallel_sync=False):
             sync_currency = (loop_counter % 3 == 0)
             sync_debts = (loop_counter % 5 == 0)
             sync_dex_pools = (loop_counter % 12 == 0)
+            sync_headline = (loop_counter % 30 == 0)
 
             print(f"Currency rates: {'YES' if sync_currency else 'NO'}")
             print(f"Borrow debts: {'YES' if sync_debts else 'NO'}")
             print(f"DEX pools: {'YES' if sync_dex_pools else 'NO'}")
+            print(f"Headline stats: {'YES' if sync_headline else 'NO'}")
             print()
 
             # Run sync with current block height
@@ -81,7 +84,8 @@ def db_routine(full_sync=False, parallel_sync=False):
                 current_block_height=current_height(),
                 sync_currency_rates=sync_currency,
                 sync_debts=sync_debts,
-                sync_dex_pools=sync_dex_pools
+                sync_dex_pools=sync_dex_pools,
+                sync_headline_stats=sync_headline
             )
 
             if success:
