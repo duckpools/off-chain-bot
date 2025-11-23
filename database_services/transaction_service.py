@@ -407,7 +407,6 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     timestamp = main_timestamp
 
     # Check each input to determine transaction type
-    print(tx)
     for input_box in tx["inputs"]:
         input_address = input_box.get("address", "")
         fee = 0
@@ -439,21 +438,7 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     amount_friendly = amount / (10 ** decimals)
     # Fees are in pool token, use pool decimals (ERG has decimals=9, tokens have their own)
     fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
-    print("single tx",
-    {
-        'transaction_id': final_tx_id,
-        'address': address or "unknown_address",
-        'pool_nft': pool["POOL_NFT"],
-        'transaction_type': transaction_type,
-        'amount': amount_friendly,
-        'fee_paid': fee_friendly,
-        'borrow_apy': borrow_apy,
-        'interest_paid': interest_paid,
-        'block_height': block_height,
-        'timestamp': timestamp,
-        'sync_block': sync_block
-    }
-    )
+
     return {
         'transaction_id': final_tx_id,
         'address': address or "unknown_address",
@@ -499,10 +484,7 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, mi
             sync_block=transaction_data['sync_block']
         )
 
-        if result:
-            print(
-                f"Successfully processed transaction {transaction_data['transaction_id']} of type {transaction_data['transaction_type']} for address {transaction_data['address']} with amount {transaction_data['amount']}")
-        else:
+        if not result:
             print(f"Failed to upsert transaction {transaction_data['transaction_id']}")
 
 
@@ -532,12 +514,11 @@ def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block
         # Process batch when it reaches batch_size
         if len(transactions_batch) >= batch_size:
             success_count = db.batch_upsert_transactions(transactions_batch)
-            print(f"Processed batch of {len(transactions_batch)} transactions, {success_count} successful")
             transactions_batch = []
 
     # Process any remaining transactions in the final batch
     if transactions_batch:
         success_count = db.batch_upsert_transactions(transactions_batch)
-        print(f"Processed final batch of {len(transactions_batch)} transactions, {success_count} successful")
 
-    print(f"Total transactions processed: {processed_count}")
+    if processed_count > 0:
+        print(f"  Transactions: {processed_count} processed ✓")

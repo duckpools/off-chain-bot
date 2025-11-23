@@ -24,22 +24,18 @@ def get_all_collateral_boxes(collateral_address: str, limit: int = 100) -> list:
     all_boxes = []
     offset = 0
 
-    print(f"Fetching collateral boxes from {collateral_address}...")
-
     while True:
         boxes = get_unspent_boxes_by_address(collateral_address, limit=limit, offset=offset)
         if not boxes:
             break
 
         all_boxes.extend(boxes)
-        print(f"  Fetched {len(boxes)} boxes (offset={offset}, total so far={len(all_boxes)})")
 
         if len(boxes) < limit:  # Last page reached
             break
 
         offset += limit
 
-    print(f"Total collateral boxes fetched: {len(all_boxes)}")
     return all_boxes
 
 
@@ -126,18 +122,14 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
     collateral_address = pool["collateral"]
     version = pool["version"]
 
-    print(f"Processing pool {pool_nft} (version {version})")
-
     # Step 1: Fetch all collateral boxes (active loans) using pagination
     try:
         collateral_boxes = get_all_collateral_boxes(collateral_address)
-        print(f"Found {len(collateral_boxes)} collateral boxes")
     except Exception as e:
         print(f"Error fetching collateral boxes for pool {pool_nft}: {e}")
         return []
 
     if not collateral_boxes:
-        print(f"No active loans found for pool {pool_nft}")
         return []
 
     # Step 2: Fetch shared data once per pool based on version
@@ -228,7 +220,6 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
 
     # Step 4: Convert to list of tuples
     debts_list = [(addr, pool, debt) for (addr, pool), debt in debts.items()]
-    print(f"Calculated debts for {len(debts_list)} unique addresses under pool {pool_nft}")
 
     return debts_list
 
@@ -246,23 +237,19 @@ def sync_user_pool_debts(db: DatabaseManager, pool: dict, sync_block: Optional[i
         Number of records upserted
     """
     pool_nft = pool["POOL_NFT"]
-    print(f"\n=== Syncing debts for pool {pool_nft} ===")
 
     # Step 1: Clear all existing debt entries for this pool
     # This ensures repaid loans are removed from the database
     rows_deleted = db.delete_pool_debts(pool_nft)
-    print(f"Cleared {rows_deleted} existing debt entries for pool {pool_nft}")
 
     # Step 2: Get all current active debts for this pool
     debts_data = get_user_debts_for_pool(pool)
 
     if not debts_data:
-        print(f"No active debts found for pool {pool_nft}")
         return 0
 
     # Step 3: Batch insert fresh debt data
     num_upserted = db.batch_upsert_user_pool_debts(debts_data, sync_block)
-    print(f"Inserted {num_upserted} active debt records for pool {pool_nft}")
 
     return num_upserted
 
@@ -279,25 +266,20 @@ def sync_all_user_pool_debts(db: DatabaseManager, pools: list, sync_block: Optio
     Returns:
         Total number of records upserted across all pools
     """
-    print("\n" + "="*50)
-    print("SYNCING USER POOL DEBTS FOR ALL POOLS")
-    print("="*50)
-
     total_upserted = 0
 
     for i, pool in enumerate(pools, 1):
         pool_nft = pool.get("POOL_NFT", "unknown")
-        print(f"\nProcessing pool {i}/{len(pools)}: {pool_nft}")
+        pool_nft_short = pool_nft[:8] + "..."
 
         try:
             num_upserted = sync_user_pool_debts(db, pool, sync_block)
             total_upserted += num_upserted
+            print(f"  Pool {i}/{len(pools)} ({pool_nft_short}): {num_upserted} debts ✓")
         except Exception as e:
-            print(f"Error syncing debts for pool {pool_nft}: {e}")
+            print(f"  Pool {i}/{len(pools)} ({pool_nft_short}): ERROR - {e}")
             continue
 
-    print("\n" + "="*50)
-    print(f"DEBT SYNC COMPLETE: {total_upserted} total records upserted")
-    print("="*50 + "\n")
+    print(f"  Total debt records: {total_upserted} ✓")
 
     return total_upserted

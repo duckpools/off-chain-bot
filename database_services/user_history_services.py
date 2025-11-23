@@ -29,8 +29,6 @@ def sync_user_lend_positions(
     # Determine the starting height (min_height) based on full_scan parameter
     if full_scan:
         min_height = 0
-        print(f"Starting FULL SCAN for pool {pool_nft} with lend token {lend_token_id}")
-        print(f"Scanning from height: 0 (full scan requested)")
     else:
         # Check sync_block consistency for this pool in user_lend_positions_historical
         consistent_sync_block = db.get_pool_sync_block_for_table('user_lend_positions_historical', pool_nft)
@@ -38,28 +36,15 @@ def sync_user_lend_positions(
         if consistent_sync_block is None:
             # Inconsistent sync_blocks found, need to do full scan
             min_height = 0
-            print(f"Starting FULL SCAN for pool {pool_nft} due to inconsistent sync_blocks")
-            print(f"Scanning from height: 0 (inconsistent sync_blocks detected)")
         else:
             # Use the consistent sync_block as min_height
             min_height = consistent_sync_block
-            if min_height > 0:
-                print(f"Starting INCREMENTAL SYNC for pool {pool_nft} with lend token {lend_token_id}")
-                print(f"Scanning from height: {min_height} (last consistent sync_block)")
-            else:
-                print(f"Starting INITIAL SYNC for pool {pool_nft} with lend token {lend_token_id}")
-                print(f"Scanning from height: 0 (no previous sync data)")
-
-    print(f"Pool address: {pool_address}")
 
     # Call: get_all_boxes_by_token_id with min_height
     boxes_response = get_all_boxes_by_token_id(lend_token_id, min_height=min_height)
 
     if not boxes_response:
-        print("No boxes found or invalid response")
         return
-
-    print(f"Found {len(boxes_response)} boxes to process")
 
     # Step 1: Collect all transaction data and sort chronologically
     transactions_data = []
@@ -104,19 +89,12 @@ def sync_user_lend_positions(
     # Sort transactions chronologically
     transactions_data.sort(key=lambda x: (x['block_height'], x['timestamp']))
 
-    print(f"Collected {len(transactions_data)} transactions, {len(unique_block_heights)} unique block heights")
-
     # Determine the actual sync_block to use
     if sync_block is None:
         sync_block = max_block_height
-        if sync_block > min_height:
-            print(f"Will update sync_block to: {sync_block} (max processed height)")
-    else:
-        print(f"Will update sync_block to: {sync_block} (provided)")
 
     # Step 2: Batch query for pool data (lend token values)
     pool_data_map = db.get_pool_data_batch(pool_nft, list(unique_block_heights))
-    print(f"Retrieved lend token values for {len(pool_data_map)} block heights")
 
     # Step 3: Get initial positions for all addresses that will be affected
     all_affected_addresses = set()
@@ -144,8 +122,6 @@ def sync_user_lend_positions(
                         all_affected_addresses.add(address)
                         break
 
-    print(f"Found {len(all_affected_addresses)} addresses affected by transactions")
-
     # Step 4: Get initial positions for all affected addresses
     address_pool_pairs = [(addr, pool_nft) for addr in all_affected_addresses]
 
@@ -153,11 +129,9 @@ def sync_user_lend_positions(
     if full_scan or min_height == 0:
         # Full scan starts from 0, ignore existing DB data
         initial_positions = {}
-        print("Full scan mode: Starting all positions from 0")
     else:
         # Incremental sync: load existing positions from DB
         initial_positions = db.get_latest_positions_batch(address_pool_pairs)
-        print(f"Incremental sync: Loaded {len(initial_positions)} existing positions")
 
     # Step 5: Process all transactions chronologically and build final dataset
     current_positions = defaultdict(float)  # {address: current_position_tokens}
@@ -167,19 +141,12 @@ def sync_user_lend_positions(
     for address in all_affected_addresses:
         initial_position = float(initial_positions.get((address, pool_nft), 0))
         current_positions[address] = initial_position
-        if initial_position > 0 and not full_scan:
-            print(f"  Loaded existing position for {address[:20]}...: {initial_position}")
-
-    print("Processing transactions chronologically...")
 
     for i, tx_data in enumerate(transactions_data):
         transaction_id = tx_data['transaction_id']
         block_height = tx_data['block_height']
         timestamp = tx_data['timestamp']
         transaction_data = tx_data['transaction_data']
-
-        if i % 100 == 0:
-            print(f"Processing transaction {i + 1}/{len(transactions_data)} - {transaction_id}")
 
         # Track position changes per address for this transaction
         address_inputs = defaultdict(float)  # {address: total_input_tokens}
@@ -265,14 +232,10 @@ def sync_user_lend_positions(
                 sync_block
             ))
 
-    print(f"Generated {len(final_batch_data)} position updates")
-
     # Step 6: Consolidate duplicates before batch insert
     # Since constraint is (address_id, pool_nft, block_height), we need to keep only the latest
     # record for each address/pool/block combination
     if final_batch_data:
-        print("Consolidating duplicate records...")
-
         # Group by (address, pool_nft, block_height) and keep the latest timestamp
         consolidated_data = {}
         for record in final_batch_data:
@@ -284,15 +247,7 @@ def sync_user_lend_positions(
                 consolidated_data[key] = record
 
         final_consolidated_data = list(consolidated_data.values())
-        print(f"Consolidated to {len(final_consolidated_data)} unique records")
-
-        print("Performing batch upsert...")
         successful_inserts = db.batch_upsert_user_lend_positions_historical(final_consolidated_data, sync_block)
-        print(f"Successfully inserted/updated {successful_inserts} position records")
-    else:
-        print("No position updates to perform")
-
-    print(f"Sync completed at block {sync_block}")
 
 
 def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
@@ -329,7 +284,6 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
                 transactions = cur.fetchall()
 
                 if not transactions:
-                    print(f"No transactions found for pool {pool_nft} at/after height {min_height}")
                     return True
 
                 # Track cumulative amounts per address
@@ -438,7 +392,6 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optiona
                 rows_affected = cur.rowcount
                 conn.commit()
 
-                print(f"Successfully upserted {rows_affected} portfolio snapshots for pool {pool_nft}")
                 return True
 
     except Exception as e:

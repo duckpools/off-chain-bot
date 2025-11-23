@@ -65,9 +65,6 @@ def db_routine(full_sync=False, parallel_sync=False):
         loop_counter = 0
         while True:
             loop_counter += 1
-            print(f"\n{'='*70}")
-            print(f"SYNC LOOP #{loop_counter}")
-            print(f"{'='*70}")
 
             # Determine what to sync this loop
             sync_currency = (loop_counter % 3 == 0)
@@ -75,11 +72,9 @@ def db_routine(full_sync=False, parallel_sync=False):
             sync_dex_pools = (loop_counter % 12 == 0)
             sync_headline = (loop_counter % 30 == 0)
 
-            print(f"Currency rates: {'YES' if sync_currency else 'NO'}")
-            print(f"Borrow debts: {'YES' if sync_debts else 'NO'}")
-            print(f"DEX pools: {'YES' if sync_dex_pools else 'NO'}")
-            print(f"Headline stats: {'YES' if sync_headline else 'NO'}")
-            print()
+            print(f"\n{'='*70}")
+            print(f"LOOP #{loop_counter} | Currency:{'YES' if sync_currency else 'NO'} Debts:{'YES' if sync_debts else 'NO'} DEX:{'YES' if sync_dex_pools else 'NO'} Stats:{'YES' if sync_headline else 'NO'}")
+            print(f"{'='*70}")
 
             # Run sync with current block height
             success = sync_from_last_update(

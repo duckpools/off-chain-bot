@@ -23,14 +23,10 @@ def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Opt
 
 
 def sync_all_historical_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
-    print(f"Starting historical data sync from height {min_height}")
     pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
     if pool_boxes:
         sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height)
         sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
-        pass
-    else:
-        print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
 
 
 def sync_currency_rates(db: DatabaseManager, pools, sync_block: Optional[int] = None, min_height: int = 0):
@@ -78,25 +74,28 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     # Step 3: Process historical data for each pool
     print("\n=== Step 3: Syncing historical data ===")
     for i, pool in enumerate(pools, 1):
-        print(f"\nProcessing pool {i}/{len(pools)}: {pool['POOL_NFT']}")
+        pool_nft_short = pool['POOL_NFT'][:8] + "..."
+        print(f"\nPool {i}/{len(pools)} ({pool_nft_short}):", end=" ", flush=True)
 
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
 
         if not pool_boxes:
-            print(f"No boxes found above height {min_height} for pool {pool['POOL_NFT']}")
+            print(f"No boxes found")
         else:
-            print(f"Found {len(pool_boxes)} boxes to process")
             # Use batched versions for everything
             sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
             sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
                                             sync_block=sync_block)
+            print("Interest ✓", end=" ", flush=True)
 
         # User lend data - already optimized with batching
         sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
         add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
+        print("Positions ✓", end=" ", flush=True)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+        print("Complete ✓")
 
     # Step 4: Sync user pool debts (optional)
     if sync_debts:
@@ -117,34 +116,35 @@ def _process_single_pool(pool_info):
     """
     db, pool, min_height, sync_block, full_scan, pool_index, total_pools = pool_info
     pool_nft = pool['POOL_NFT']
+    pool_nft_short = pool_nft[:8] + "..."
 
     try:
-        print(f"\n[Thread {pool_index}/{total_pools}] Processing pool: {pool_nft}")
+        print(f"[Thread {pool_index}/{total_pools}] {pool_nft_short}:", end=" ", flush=True)
 
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
 
         if not pool_boxes:
-            print(f"[Thread {pool_index}/{total_pools}] No boxes found above height {min_height} for pool {pool_nft}")
+            print(f"No boxes found")
         else:
-            print(f"[Thread {pool_index}/{total_pools}] Found {len(pool_boxes)} boxes to process")
             # Use batched versions for everything
             sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
             sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
                                             sync_block=sync_block)
+            print("Interest ✓", end=" ", flush=True)
 
         # User lend data - already optimized with batching
         sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
         add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
+        print("Positions ✓", end=" ", flush=True)
         sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
-
-        print(f"[Thread {pool_index}/{total_pools}] Completed pool: {pool_nft}")
+        print("Complete ✓")
         return (pool_nft, True, None)
 
     except Exception as e:
         error_msg = f"Error processing pool {pool_nft}: {str(e)}"
-        print(f"[Thread {pool_index}/{total_pools}] {error_msg}")
+        print(f"\n[Thread {pool_index}/{total_pools}] ERROR: {error_msg}")
         return (pool_nft, False, error_msg)
 
 

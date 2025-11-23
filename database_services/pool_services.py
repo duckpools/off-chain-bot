@@ -151,8 +151,6 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
     :param batch_size: Number of records to process in each batch
     :param sync_block: Block height when this data was synced
     """
-    print(f"Starting batch pool interest sync for {pool['POOL_NFT']}...")
-
     batch_data = []
     processed_count = 0
 
@@ -213,7 +211,6 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
             # Process batch when it reaches batch_size
             if len(batch_data) >= batch_size:
                 success_count = db.batch_upsert_pool_data_historical(batch_data)
-                print(f"Processed batch of {len(batch_data)} pool data records, {success_count} successful")
                 batch_data = []
 
         except Exception as e:
@@ -223,6 +220,3 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
     # Process any remaining data in the final batch
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
-        print(f"Processed final batch of {len(batch_data)} pool data records, {success_count} successful")
-
-    print(f"Total pool data records processed: {processed_count}")
