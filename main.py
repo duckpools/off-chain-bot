@@ -4,6 +4,7 @@ from bootstrapping.pool_creation import create_pool, allAddressesWithBoxes, boot
 from consts import BorrowTokenDenomination
 from contracts.quacks import generate_repayment_script, generate_collateral_script, generate_pool_script, \
     generate_interest_script, generate_logic_script
+from database_services.db_routine import db_routine
 from helpers.platform_functions import update_pools_in_file
 from helpers.serializer import bytesLike, blake2b256, encode_bigint, encode_long, hex_to_base58
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
@@ -39,6 +40,7 @@ col = hex_to_base58(blake2b256(bytesLike(address_to_tree('HuMJCQzmJNTcbratSHhJa8
 print(generate_pool_script(col, childBoxNft, parameterBoxNft, [2000, 200000]))
 dsd"""
 
+db_routine(full_sync=False, parallel_sync=True)
 
 logger = set_logger(__name__)
 if __name__ == "__main__":

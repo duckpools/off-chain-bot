@@ -150,7 +150,8 @@ def _process_single_pool(pool_info):
 
 def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
                       sync_currency_rates: bool = True, sync_debts: bool = True,
-                      sync_dex_pools: bool = True, max_workers: int = 6):
+                      sync_dex_pools: bool = True, sync_headline_stats: bool = True,
+                      max_workers: int = 6):
     """
     Parallel sync routine using ThreadPoolExecutor for pool processing.
 
@@ -160,13 +161,15 @@ def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[in
     :param sync_currency_rates: Whether to sync currency rates (default: True)
     :param sync_debts: Whether to sync user pool debts (default: True)
     :param sync_dex_pools: Whether to sync DEX pool prices (default: True)
+    :param sync_headline_stats: Whether to sync headline stats (default: True)
     :param max_workers: Maximum number of parallel workers (default: 6)
     """
     print(f"Starting PARALLEL sync from height {min_height} with {max_workers} workers")
 
     # Insert headline stats at the start of sync
-    print("\n=== Step 0: Recording headline stats ===")
-    insert_headline_stats(db, sync_block=sync_block)
+    if sync_headline_stats:
+        print("\n=== Step 0: Recording headline stats ===")
+        insert_headline_stats(db, sync_block=sync_block)
 
     pools = current_pools[:]
     full_scan = False
@@ -258,7 +261,8 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
 
 def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None,
                          sync_currency_rates: bool = True, sync_debts: bool = True,
-                         sync_dex_pools: bool = True, sync_headline_stats: bool = True) -> bool:
+                         sync_dex_pools: bool = True, sync_headline_stats: bool = True,
+                         parallel_sync: bool = False) -> bool:
     """
     Perform incremental sync starting from the lowest sync_block in the database.
     This allows for efficient incremental updates without re-processing all historical data.
@@ -270,6 +274,7 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         sync_debts: Whether to sync user pool debts (default: True)
         sync_dex_pools: Whether to sync DEX pool prices (default: True)
         sync_headline_stats: Whether to sync headline stats (default: True)
+        parallel_sync: If True, uses parallel pool processing for faster syncing (default: False)
 
     Returns:
         True if sync was successful, False otherwise
@@ -302,11 +307,16 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         # Step 4: Perform incremental sync using existing optimized sync
         success = True
         try:
-            sync_all_optimized(db, min_height=min_height, sync_block=current_block_height,
-                             sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
-                             sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats)
+            if parallel_sync:
+                sync_all_parallel(db, min_height=min_height, sync_block=current_block_height,
+                                sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
+                                sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats)
+            else:
+                sync_all_optimized(db, min_height=min_height, sync_block=current_block_height,
+                                 sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
+                                 sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats)
         except Exception as e:
-            print(f"Error during sync_all_optimized: {e}")
+            print(f"Error during sync: {e}")
             success = False
 
         # Step 5: Update all sync_blocks to the new current_block_height

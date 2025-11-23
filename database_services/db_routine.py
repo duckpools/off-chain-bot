@@ -16,7 +16,7 @@ def db_routine(full_sync=False, parallel_sync=False):
                    - Currency rates: synced every 3rd loop
                    - Borrow debts info: synced every 5th loop
         parallel_sync: If True, uses parallel pool processing for faster syncing.
-                      Only applies to full_sync mode. (default: False)
+                      Applies to both full_sync and incremental sync modes. (default: False)
 
     Graceful Shutdown:
         To gracefully exit the sync loop (completing the current iteration):
@@ -49,7 +49,10 @@ def db_routine(full_sync=False, parallel_sync=False):
         print("=" * 70 + "\n")
     else:
         print("=" * 70)
-        print("STARTING CONTINUOUS INCREMENTAL SYNC")
+        if parallel_sync:
+            print("STARTING CONTINUOUS INCREMENTAL SYNC (PARALLEL MODE)")
+        else:
+            print("STARTING CONTINUOUS INCREMENTAL SYNC")
         print("=" * 70)
         print("Currency rates: synced every 3rd loop")
         print("Borrow debts: synced every 5th loop")
@@ -85,7 +88,8 @@ def db_routine(full_sync=False, parallel_sync=False):
                 sync_currency_rates=sync_currency,
                 sync_debts=sync_debts,
                 sync_dex_pools=sync_dex_pools,
-                sync_headline_stats=sync_headline
+                sync_headline_stats=sync_headline,
+                parallel_sync=parallel_sync
             )
 
             if success:
