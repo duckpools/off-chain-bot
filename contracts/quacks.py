@@ -194,6 +194,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 		val minimumLoanAmount = quoteReport(6)
 		val shortLoanFee = quoteReport(7)
 		val shortLoanDuration = quoteReport(8)
+		val maxBorrowAmount = quoteReport(9)
 		val finalBorrowedFromPool = successorBorrowTokensCirculating * borrowTokenValue / BorrowTokenDenomination
 		val isUnderBorrowLimit = finalBorrowedFromPool < borrowLimit
 		val isQuotedBoxValid = collateralIndex == fQuote.R9[Coll[Int]].get(0) - 1
@@ -208,7 +209,7 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 			loanSettingsRecorded(6) == shortLoanFee &&
 			loanSettingsRecorded(7) == shortLoanDuration
 		)
-		
+		val isUnderMaxBorrowAmount = loanAmount <= maxBorrowAmount
 		val isCorrectCollateralAmount = quotePrice >= loanAmount.toBigInt * threshold.toBigInt / LiquidationThresholdDenomination.toBigInt
 		val isCorrectBufferHeight = bufferLiquidationHeight == defaultBufferHeight
 		
@@ -231,7 +232,8 @@ def generate_pool_script(collateralContractScript, childBoxNft, parameterBoxNft)
 			isUnderBorrowLimit &&
 			isQuotedBoxValid &&
 			isAboveMinimumValue &&
-			isValidSettings
+			isValidSettings &&
+			isUnderMaxBorrowAmount
 		)	
 	}} else {{
 		false
@@ -694,6 +696,7 @@ def generate_logic_script():
 	val iMinimumLoanAmount = iReport(6)
     val iShortLoanFee = iReport(7)
     val iShortLoanDuration = iReport(8)
+    val iMaxBorrowAmount = iReport(9)
 	
 	val iDexNfts = SELF.R5[Coll[Coll[Byte]]].get
 	val iAssetThresholds = SELF.R6[Coll[Long]].get
@@ -708,6 +711,7 @@ def generate_logic_script():
 	val fMinimumLoanAmount = fReport(6)
     val fShortLoanFee = fReport(7)
     val fShortLoanDuration = fReport(8)
+    val fMaxBorrowAmount = fReport(9)
     
 	val fDexNfts = outLogic.R5[Coll[Coll[Byte]]].get
 	val primaryDexNft = fDexNfts(0)
@@ -806,8 +810,8 @@ def generate_logic_script():
 		)
 	}}
 
-	val validAggregateThreshold = aggregateThreshold / LargeMultiplier == fAggregateThreshold 
-	val validPenalty = fAggregatePenalty == 30L // Static Penalty as an example
+	val validAggregateThreshold = aggregateThreshold / LargeMultiplier == max(fAggregateThreshold, 1001L)
+	val validPenalty = max(min(fAggregatePenalty, 1000L), 0L) == 30L // Static Penalty as an example
 
 	val xAssets = primaryDexBox.value.toBigInt
 	val yAssets = primaryDexBox.tokens(2)._2.toBigInt
@@ -820,26 +824,41 @@ def generate_logic_script():
 	val isValidPrimaryDexBox = primaryDexBox.tokens(0)._1 == primaryDexNft
 
 	val validQuote = quotePrice == fQuotePrice
-
-	sigmaProp(
-		scriptRetained &&
-		quoteSettingsRetained &&
-		validQuote &&
-		validPenalty &&
-		validAggregateThreshold &&
-		allAssetsCounted &&
-		assetsOrderedCorrectly &&
-		dInsMatchesAssetsSize &&
-		matchingOrderedListSize &&
-		correctNumberOfZeroes &&
-		iBorrowLimit == fBorrowLimit &&
-		iMinimumValue == fMinimumValue &&
-		iBufferGap == fBufferGap &&
-		iMinimumLoanAmount == fMinimumLoanAmount &&
+	
+    val closurePath = sigmaProp(
+        SELF.propositionBytes == outLogic.propositionBytes &&
+        SELF.value == outLogic.value &&
+        SELF.tokens == outLogic.tokens &&
+        fBorrowLimit == 0 &&
+        iMinimumValue == fMinimumValue &&
+        iBufferGap == fBufferGap &&
+        iMinimumLoanAmount == fMinimumLoanAmount &&
+        iShortLoanDuration == fShortLoanDuration && 
         iShortLoanFee == fShortLoanFee &&
-        iShortLoanDuration == fShortLoanDuration &&
-		isValidPrimaryDexBox
-	)
+        iDexNfts == fDexNfts &&
+        iAssetThresholds == fAssetThresholds
+    ) && PK("9i9RhfdHQA2bHA8GqWKkYevp3nozASRjJfFkh29utjNL9gqE7Q7")
+
+    closurePath || sigmaProp(
+        scriptRetained &&
+        quoteSettingsRetained &&
+        validQuote &&
+        validPenalty &&
+        validAggregateThreshold &&
+        allAssetsCounted &&
+        assetsOrderedCorrectly &&
+        dInsMatchesAssetsSize &&
+        matchingOrderedListSize &&
+        correctNumberOfZeroes &&
+        iBorrowLimit == max(fBorrowLimit, 0L) &&
+        iMinimumValue == max(fMinimumValue, 4000000L) &&
+        iBufferGap == max(fBufferGap, 1L) &&
+        iMinimumLoanAmount == max(fMinimumLoanAmount, 0L) &&
+        iShortLoanFee == max(min(fShortLoanFee, 1000L), 0L) &&
+        iShortLoanDuration == max(fShortLoanDuration, 0L) &&
+        iMaxBorrowAmount == max(fMaxBorrowAmount, 0L) &&
+        isValidPrimaryDexBox
+    )
 }}''')
 
 
