@@ -24,7 +24,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
     borrower_share = math.floor(((collateral_value - total_due) * (PENALTY_DENOMINATION - liquidation_penalty)) / PENALTY_DENOMINATION)
     user = tree_to_address(box["additionalRegisters"]["R4"]["renderedValue"])
 
-    logic_box = get_logic_box(pool["logic_settings"][0]["address"], pool["logic_settings"][0]["nft"])
+    logic_box = get_logic_box(pool["quotes"][0]["quoteScript"], pool["quotes"][0]["quoteNFT"])
     liquidation_forced = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0]
     liquidation_buffer = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[1]
     dummy_box = get_dummy_box(dummy_script)
@@ -96,7 +96,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": pool["logic_settings"][0]["dex_fee_serialized"]
+                        "R4": pool["quotes"][0]["primarySupportedCollateral"]["dexFeeSerialized"]
                     }
                 },
                 {
@@ -132,7 +132,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     }
                 },
                 {
-                    "address": pool["logic_settings"][0]["address"],
+                    "address": pool["quotes"][0]["quoteScript"],
                     "value": MIN_BOX_VALUE,
                     "assets": [
                         {
@@ -174,7 +174,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                         }
                     ],
                     "registers": {
-                        "R4": pool["logic_settings"][0]["dex_fee_serialized"]
+                        "R4": pool["quotes"][0]["primarySupportedCollateral"]["dexFeeSerialized"]
                     }
                 },
                 {
@@ -222,7 +222,7 @@ def create_transaction_to_sign(pool, dex_box, box, dex_initial_val, dex_tokens, 
                     }
                 },
                 {
-                    "address": pool["logic_settings"][0]["address"],
+                    "address": pool["quotes"][0]["quoteScript"],
                     "value": MIN_BOX_VALUE,
                     "assets": [
                         {
@@ -268,11 +268,11 @@ def get_dex_box_and_tokens(transaction, nft):
 
 
 def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, interest_box, dummy_script):
-    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["logic_settings"][0]["dex_nft"])
+    dex_box, lp_tokens, dex_box_address = get_dex_box_and_tokens(sig_usd_tx, pool["quotes"][0]["primarySupportedCollateral"]["DEXNFT"])
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = box["value"] - MIN_BOX_VALUE - 3 * TX_FEE
-    dex_fee = pool["logic_settings"][0]["dex_fee"]
+    dex_fee = pool["quotes"][0]["primarySupportedCollateral"]["dexFee"]
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
 			((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
 			(tokens_to_liquidate * dex_fee)))
@@ -307,7 +307,7 @@ def t_liquidation_job_v2(pool, dummy_script, height):
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     if len(unspent_proxy_boxes) > 0:
         for box in unspent_proxy_boxes:
-            liquidation_response = liquidation_allowed_susd(box, interest_box, pool["logic_settings"][0]["dex_nft"], pool["liquidation_threshold"][0], height)
+            liquidation_response = liquidation_allowed_susd(box, interest_box, pool["quotes"][0]["primarySupportedCollateral"]["DEXNFT"], pool["liquidation_threshold"][0], height)
             if liquidation_response[0] == True:
                 transaction_id = box["transactionId"]
                 logger.debug(f"Liquidation Proxy Transaction Id: {transaction_id}")

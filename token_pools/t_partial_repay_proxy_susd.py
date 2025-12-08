@@ -141,16 +141,16 @@ def process_repay_partial_proxy_box_v2(pool, box, empty):
         return
 
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
-    dex_nft = pool["logic_settings"][0]["dex_nft"]
+    dex_nft = pool["quotes"][0]["primarySupportedCollateral"]["DEXNFT"]
     dex_box = get_dex_box(dex_nft)
-    logic_box = get_logic_box(pool["logic_settings"][0]["address"], pool["logic_settings"][0]["nft"])
+    logic_box = get_logic_box(pool["quotes"][0]["quoteScript"], pool["quotes"][0]["quoteNFT"])
     iReport = json.loads(logic_box["additionalRegisters"]["R4"]["renderedValue"])
 
 
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = int(whole_collateral_box["value"]) - 5000000
-    dex_fee = pool["logic_settings"][0]["dex_fee"]
+    dex_fee = pool["quotes"][0]["primarySupportedCollateral"]["dexFee"]
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
                               ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
                                (tokens_to_liquidate * dex_fee)))
@@ -199,7 +199,7 @@ def process_repay_partial_proxy_box_v2(pool, box, empty):
 
                 },
                 {
-                    "address": pool["logic_settings"][0]["address"],
+                    "address": pool["quotes"][0]["quoteScript"],
                     "value": MIN_BOX_VALUE,
                     "assets": [
                         {

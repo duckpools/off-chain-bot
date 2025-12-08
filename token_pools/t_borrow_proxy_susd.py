@@ -157,7 +157,7 @@ def process_borrow_proxy_box_v1(pool, box, latest_tx, fee=TX_FEE):
 def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
     pool_box, borrowedTokens = latest_pool_info(pool, latest_tx)
     collateral_supplied = box["value"] - MIN_BOX_VALUE - TX_FEE
-    dex_box = get_dex_box(pool["logic_settings"][0]["dex_nft"])
+    dex_box = get_dex_box(pool["quotes"][0]["primarySupportedCollateral"]["DEXNFT"])
     interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
     request_amounts = json.loads(box["additionalRegisters"]["R5"]["renderedValue"])
     amount_to_borrow = request_amounts[0]
@@ -170,13 +170,13 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
     user_tree = box["additionalRegisters"]["R4"]["renderedValue"]
     final_borrowed = borrowedTokens + loanBorrowTokens
     pool_param_box = get_pool_param_box(pool["parameter"], pool["PARAMETER_NFT"])
-    logic_box = get_logic_box(pool["logic_settings"][0]["address"], pool["logic_settings"][0]["nft"])
+    logic_box = get_logic_box(pool["quotes"][0]["quoteScript"], pool["quotes"][0]["quoteNFT"])
     net_height = current_height() - 20
 
     dex_initial_val = dex_box["value"]
     dex_tokens = dex_box["assets"][2]["amount"]
     tokens_to_liquidate = collateral_supplied - 5000000
-    dex_fee = pool["logic_settings"][0]["dex_fee"]
+    dex_fee = pool["quotes"][0]["primarySupportedCollateral"]["dexFee"]
     liquidation_value = floor((dex_tokens * tokens_to_liquidate * dex_fee) /
                               ((dex_initial_val + floor((dex_initial_val * 2 / 100))) * 1000 +
                                (tokens_to_liquidate * dex_fee)))
@@ -252,7 +252,7 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
                     }
                 },
                 {
-                    "address": pool["logic_settings"][0]["address"],
+                    "address": pool["quotes"][0]["quoteScript"],
                     "value": MIN_BOX_VALUE,
                     "assets": [
                         {
