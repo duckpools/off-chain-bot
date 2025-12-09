@@ -391,8 +391,6 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
     # Build R7 (ordered asset amounts) and R8 (ordered asset IDs) for logic box output
     # From logic_script: fOrderedAssetAmounts = outLogic.R7, fOrderedQuotedAssetIds = outLogic.R8
     if has_secondary:
-        print(ordered_amounts)
-        print(ordered_asset_ids)
         r7_value = encode_long_tuple(ordered_amounts)
         r8_value = bad_encode_arr(ordered_asset_ids)
     else:
@@ -403,10 +401,6 @@ def process_borrow_proxy_box_v2(pool, box, latest_tx, fee=TX_FEE):
     # boxIndex = 2 means OUTPUTS(1) which is the collateral box
     # dexStartIndex = 2 means CONTEXT.dataInputs(2) which is where the primary DEX is
     r9_indices = [2, 2]  # Collateral is output index 1 (1+1=2), primary DEX is data input index 2
-    print(encode_coll_int(r9_indices))
-    print([aggregateThreshold, penalty, bufferGap, minimumValue, 0, current_height() + 5, iReport[7], iReport[8]])
-    print([borrowLimit, quote_price, aggregateThreshold, penalty, minimumValue, bufferGap, 0, iReport[7], iReport[8], iReport[9]])
-
     transaction_to_sign = \
         {
             "requests": [
