@@ -22,11 +22,31 @@ pools = [
     'PARAMETER_NFT': '92be8cd848c7cdcde2c5b57d933a8e37af7b0443342b8f07a237c145561916f1',
     'INTEREST_PARAMETER_NFT': '6d873d82d5201bfcb81da2835ed77160af84288aaee1ec5dab3a0babd51b4e19',
     'LEND_TOKEN': '6a78927332833e1cc974dc3023802307214bff20fe187ba21bf2118e67a95a10',
-    'quotes': [{'quoteNFT': 'd82a3ad5af62a4c4fa2f142dac14024151f1a4a2ad134c8e3d1313b3be8d75c3',
+    'quotes': [
+        {'quoteNFT': 'd82a3ad5af62a4c4fa2f142dac14024151f1a4a2ad134c8e3d1313b3be8d75c3',
                 'quoteScript': '2GHGXUgJzMYF4HN31PTotrY2azq2t1ueHJABDHu7qYmYHesuDwXARy5xG2FXoSL7Cqk6Cw9rsRtPHb7KTkv9w91ADPrwgz4LfevwpkPLHb5ajsMZsTxyor7PLiL8aHXj1igzrLo4J25njxxepzvaGRbNayLWir9YcHCd3JCo13BLfg7AM1kpU6rc2G45wPZw3geEGxYkQzhMr6qtKmCxuwUqbGmosYAcpSzBa2AmsUBsDTVaEkcZD5CKK95cLoWpbPAakGt1sspx5QeLyfBUguiaLnLNPMbtvVGyfTgG6tMFh7aG5EXP1wQBFBSwLCwEecQNQVQaVBkrQzhHNyUnmcehopGB54JMMfGQDvGMmLjQzLtnTcpVGVV1T3tbyHY5ifGTxcQ1KTDRWoGSr2nn1F2dHAoUbeN3YSffEvaF6kLKsaW1oYCDWzfRPsnD9AwgAiL2YyCxbQbmsF3N8DCgaUoBnRKLuUzGcdDooZH5gTV7JN68i9xjEkFAGmiFYVHSYdgxGgrDuH8rhhJMyJJn9ypU7R8wgEG5C1s3rXcCtpWypZr2XL4swMi9GkNgvLYKF47jEw9DprQLa9d1JVgUfNijbr6hQdbcmbEvcBL4QWTRfp7ifvConoNLCahLZhM6DMfmDgpMEYbxshRbUpX3pHXkLUctNbHZfyQVrcNMFUbDqPYbVhrjDyKYMYzFpLYjRo6StdSajfY86ZXQtZvCC9PsZZuhmnQrXmZd9RzJriQpFB5qweMm8McXep9Lnmf1FezNSVDwpRJve213Gz3Xm7psLCnCLWHqWcwyHGNGGwSPEZ83KrEpZyyxX9bALUN7icRTK9pNsCSPSs4qjreYgLgu6EjaoL3HazWSFKYf6k5cJuDfDpWZen198X1y7snBcG2piTBYTsKxhgbyPHpNgcE4vhgQ7Uw2so13ekYHMdcjtSkNRYyxDJCLQqzn5M34dXvtosoqGgKveGjYVa9qqW5TzQgpyVtwGCVfsXnYu4hvLjc5PX2NG9dmVaTH8yMTt7RgHeiGzRzhsEhRXynMcH1nrSRj2sW9pK9mgefmp6TPXiFSPAQgBib9zbBuCYJaW1iLvwnFU8kT9K379ek8DJkGXqfq32kRaH6WkW1NMpRSxnCSgPRcADajvv1uJZKkqBQkrHEZrg3ASKL9WM4LwpCy2VHzeEikuGmFmbqHRSUEo5uUXRCmaPzghThLNo6CVXXpGRRFCUebX2DeBkCAQ6fcVJ3Kyt6JLmpWsZieMvf3ybZgju3oBfquSYcnRFkcBgdiMV74MGi2QJzqi3bNRU24HkZztM4YHCfSNvMpmSLjJn6Q1ZCobkYNjxtLFqcy8nrrDYPAdvcKBFG9MUWRk5Ha9Bn1p9ZoMUuNtUTcKQfhWb7SdHFoi2Dc6roqraRGhWuHcgoYCXZAs6vALTHmcJGDfN7KVRM4wVi93mrHz4vrrmPEuaF29kFfhZrqW119f1pVtnjAS9siNtRtXM2u587h1g7jpgbz2ay88oQLmU4QFRueXBYRZHiLbNoz7wNYqSTkxMTAtKLd4HAscLMyeLU3unyuVC3bvBAzWozYE4Toci1eNGFJJrvoNVg2Nu1ebC8k3EpBXZWRDvriNWuNLf97PhUKPcF8mktU5qzqTPAs6E7GNqbQGpXisVQ8CWs5y5c1Aw7PUgnukMxjoERuaxvvwpV8z4aL',
                 'primarySupportedCollateral': {
                     'DEXNFT': '46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1', 'dexFee': 997,
-                    'dexFeeSerialized': '04ca0f'}, 'secondarySupportedCollateral': []}],
+                    'dexFeeSerialized': '04ca0f'}, 'secondarySupportedCollateral': []},
+{'quoteNFT': '5ea1955e9e14a38089df97d592f30659c06470d76f008a6177a22bdc0ba3db1b',
+                'quoteScript': '2GHGXUgJzMYF4HN31PTotrY2azq2t1ueHJABDHu7qYmYHesuDwXARy5xG2FXoSL7Cqk6Cw9rsRtPHb7KTkv9w91ADPrwgz4LfevwpkPLHb5ajsMZsTxyor7PLiL8aHXj1igzrLo4J25njxxepzvaGRbNayLWir9YcHCd3JCo13BLfg7AM1kpU6rc2G45wPZw3geEGxYkQzhMr6qtKmCxuwUqbGmosYAcpSzBa2AmsUBsDTVaEkcZD5CKK95cLoWpbPAakGt1sspx5QeLyfBUguiaLnLNPMbtvVGyfTgG6tMFh7aG5EXP1wQBFBSwLCwEecQNQVQaVBkrQzhHNyUnmcehopGB54JMMfGQDvGMmLjQzLtnTcpVGVV1T3tbyHY5ifGTxcQ1KTDRWoGSr2nn1F2dHAoUbeN3YSffEvaF6kLKsaW1oYCDWzfRPsnD9AwgAiL2YyCxbQbmsF3N8DCgaUoBnRKLuUzGcdDooZH5gTV7JN68i9xjEkFAGmiFYVHSYdgxGgrDuH8rhhJMyJJn9ypU7R8wgEG5C1s3rXcCtpWypZr2XL4swMi9GkNgvLYKF47jEw9DprQLa9d1JVgUfNijbr6hQdbcmbEvcBL4QWTRfp7ifvConoNLCahLZhM6DMfmDgpMEYbxshRbUpX3pHXkLUctNbHZfyQVrcNMFUbDqPYbVhrjDyKYMYzFpLYjRo6StdSajfY86ZXQtZvCC9PsZZuhmnQrXmZd9RzJriQpFB5qweMm8McXep9Lnmf1FezNSVDwpRJve213Gz3Xm7psLCnCLWHqWcwyHGNGGwSPEZ83KrEpZyyxX9bALUN7icRTK9pNsCSPSs4qjreYgLgu6EjaoL3HazWSFKYf6k5cJuDfDpWZen198X1y7snBcG2piTBYTsKxhgbyPHpNgcE4vhgQ7Uw2so13ekYHMdcjtSkNRYyxDJCLQqzn5M34dXvtosoqGgKveGjYVa9qqW5TzQgpyVtwGCVfsXnYu4hvLjc5PX2NG9dmVaTH8yMTt7RgHeiGzRzhsEhRXynMcH1nrSRj2sW9pK9mgefmp6TPXiFSPAQgBib9zbBuCYJaW1iLvwnFU8kT9K379ek8DJkGXqfq32kRaH6WkW1NMpRSxnCSgPRcADajvv1uJZKkqBQkrHEZrg3ASKL9WM4LwpCy2VHzeEikuGmFmbqHRSUEo5uUXRCmaPzghThLNo6CVXXpGRRFCUebX2DeBkCAQ6fcVJ3Kyt6JLmpWsZieMvf3ybZgju3oBfquSYcnRFkcBgdiMV74MGi2QJzqi3bNRU24HkZztM4YHCfSNvMpmSLjJn6Q1ZCobkYNjxtLFqcy8nrrDYPAdvcKBFG9MUWRk5Ha9Bn1p9ZoMUuNtUTcKQfhWb7SdHFoi2Dc6roqraRGhWuHcgoYCXZAs6vALTHmcJGDfN7KVRM4wVi93mrHz4vrrmPEuaF29kFfhZrqW119f1pVtnjAS9siNtRtXM2u587h1g7jpgbz2ay88oQLmU4QFRueXBYRZHiLbNoz7wNYqSTkxMTAtKLd4HAscLMyeLU3unyuVC3bvBAzWozYE4Toci1eNGFJJrvoNVg2Nu1ebC8k3EpBXZWRDvriNWuNLf97PhUKPcF8mktU5qzqTPAs6E7GNqbQGpXisVQ8CWs5y5c1Aw7PUgnukMxjoERuaxvvwpV8z4aL',
+                'primarySupportedCollateral': {
+                    'DEXNFT': '46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1', 'dexFee': 997,
+                    'dexFeeSerialized': '04ca0f'}, 'secondarySupportedCollateral': [
+            {
+                "assetTokenID": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04",
+                "DEXNFT": "9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec",
+                "dexFee": 995,
+                "dexFeeSerialized": '04c60f'
+            },
+            {
+                "assetTokenID": "8b08cdd5449a9592a9e79711d7d79249d7a03c535d17efaee83e216e80a44c4b",
+                "DEXNFT": "1b694b15467c62f0cd4525e368dbdea2329c713aa200b73df4a622e950551b40",
+                "dexFee": 995,
+                "dexFeeSerialized": '04c60f'
+            }
+        ]}
+               ],
 
     },
     {
