@@ -146,14 +146,22 @@ def process_repay_proxy_box_v2(pool, box, empty):
     except Exception:
         refund_repay_proxy_box(box)
 
+    # Check if there are additional assets beyond index 0 (which goes to pool repayment)
+    borrower_assets = []
+    if len(whole_collateral_box["assets"]) > 1:
+        for asset in whole_collateral_box["assets"][1:]:
+            borrower_assets.append({
+                "tokenId": asset["tokenId"],
+                "amount": asset["amount"]
+            })
+
     transaction_to_sign = \
         {
             "requests": [
                 {
                     "address": tree_to_address(borrower),
                     "value": whole_collateral_box["value"],
-                    "assets": [
-                    ],
+                    "assets": borrower_assets,
                     "registers": {
                         "R4": "0e20" + box["boxId"]
                     }
