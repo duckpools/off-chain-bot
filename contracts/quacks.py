@@ -433,7 +433,10 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 					isValidNewSettings &&
 					isOnlyOneCollateralInput &&
 					fBufferGap == iBufferGap &&
-					fMinimumValue == iMinimumValue
+					fMinimumValue == iMinimumValue &&
+                    fLoanSettings(5) == iLoanSettings(5) &&  // Preserve iBorrowHeight
+                    fLoanSettings(6) == iLoanSettings(6) &&  // Preserve shortLoanFee
+                    fLoanSettings(7) == iLoanSettings(7)     // Preserve shortLoanDuration
 				)
 				readyToLiquidate || resetLiquidate || adjustCollateral
 			}}
@@ -925,7 +928,7 @@ def generate_proxy_borrow_script(collateralScript, poolNFT, borrowTokenId, curre
         )
 
         val validBorrower = collateralBox.R4[Coll[Byte]].get == user
-        val validLoanSettings = userLoanSettings == collateralLoanSettings
+        val validLoanSettings = collateralLoanSettings(5) <= HEIGHT + 10
         val validQuoteNFT = userQuoteNft == currentQuoteNFT
         val validUserPk = userPk == collateralUserPk
 		val validSpendingNFT = spendingNFT == userSpendingNFT
