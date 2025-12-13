@@ -168,7 +168,7 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
             num_children = len(parent_interest_rates)
 
             for child in children:
-                child_index = int(child["additionalRegisters"]["R6"]["renderedValue"])
+                child_index = extract_number(child["additionalRegisters"]["R6"]["renderedValue"])
                 if child_index == num_children:
                     head_child = child
                     break

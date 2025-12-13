@@ -5,6 +5,7 @@ from database.db_manager import DatabaseManager
 from database_services.data_aggregation.pool_stats import borrow_apy as calculate_borrow_apy
 from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
+from helpers.serializer import extract_number
 
 
 # ========== is_proxy_match ==========
@@ -25,8 +26,19 @@ def is_proxy_match_v1(address: str, pool: dict, proxy_type: str) -> bool:
 
 
 def is_proxy_match_v2(address: str, pool: dict, proxy_type: str) -> bool:
-    """V2 implementation of is_proxy_match - to be implemented."""
-    raise NotImplementedError("V2 is_proxy_match logic not yet implemented")
+    """V2 implementation of is_proxy_match - same logic as V1."""
+    # Check current proxy
+    if address == pool.get(proxy_type):
+        return True
+
+    # Check legacy proxies (optional field)
+    legacy_key = f"{proxy_type}_legacy"
+    if legacy_key in pool:
+        legacy_list = pool[legacy_key]
+        if isinstance(legacy_list, list) and address in legacy_list:
+            return True
+
+    return False
 
 
 def is_proxy_match(address: str, pool: dict, proxy_type: str) -> bool:
@@ -116,8 +128,48 @@ def calculate_amount_difference_v1(tx: dict, pool: dict) -> tuple[float, int]:
 
 
 def calculate_amount_difference_v2(tx: dict, pool: dict) -> tuple[float, int]:
-    """V2 implementation of calculate_amount_difference - to be implemented."""
-    raise NotImplementedError("V2 calculate_amount_difference logic not yet implemented")
+    """V2 implementation of calculate_amount_difference - token-only pools."""
+    pool_address = pool["pool"]
+    input_pool_box = None
+    output_pool_box = None
+
+    # Find pool box in inputs
+    for input_box in tx.get("inputs", []):
+        if input_box.get("address", "") == pool_address:
+            input_pool_box = input_box
+            break
+
+    # Find pool box in outputs
+    for output_box in tx.get("outputs", []):
+        if output_box.get("address", "") == pool_address:
+            output_pool_box = output_box
+            break
+
+    if not input_pool_box or not output_pool_box:
+        print(f"Could not find pool boxes in inputs/outputs for pool address {pool_address}")
+        return 0.0, 0
+
+    # V2 is token-only, always use assets[3]
+    input_assets = input_pool_box.get("assets", [])
+    output_assets = output_pool_box.get("assets", [])
+
+    input_amount = input_assets[3].get("amount", 0) if len(input_assets) > 3 else 0
+    output_amount = output_assets[3].get("amount", 0) if len(output_assets) > 3 else 0
+    amount = abs(output_amount - input_amount)
+
+    # Calculate fee amount - use fee addresses from pool or FEE_ADDRESS_LIST
+    fee_amount = 0
+    fee_addresses = pool.get("fee_addresses", FEE_ADDRESS_LIST)
+
+    for output_box in tx.get("outputs", []):
+        output_address = output_box.get("address", "")
+        if output_address in fee_addresses:
+            # For token pools, get box assets[0] amount
+            assets = output_box.get("assets", [])
+            if len(assets) > 0:
+                fee_amount += assets[0].get("amount", 0)
+
+    return amount, fee_amount
 
 
 def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
@@ -191,8 +243,62 @@ def calculate_interest_paid_v1(tx: dict, amount_repaid: float, pool: dict) -> Op
 
 
 def calculate_interest_paid_v2(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
-    """V2 implementation of calculate_interest_paid - to be implemented."""
-    raise NotImplementedError("V2 calculate_interest_paid logic not yet implemented")
+    """V2 implementation of calculate_interest_paid - accounts for borrowTokenValue and short loan fee."""
+    from consts import BORROW_TOKEN_DENOMINATION
+    from helpers.platform_functions import get_interest_box
+
+    try:
+        pool_address = pool["pool"]
+        input_pool_box = None
+        output_pool_box = None
+
+        # Find pool box in inputs
+        for input_box in tx.get("inputs", []):
+            if input_box.get("address", "") == pool_address:
+                input_pool_box = input_box
+                break
+
+        # Find pool box in outputs
+        for output_box in tx.get("outputs", []):
+            if output_box.get("address", "") == pool_address:
+                output_pool_box = output_box
+                break
+
+        if not input_pool_box or not output_pool_box:
+            print(f"Could not find pool boxes for V2 interest calculation")
+            return None
+
+        # Extract borrow tokens (assets[2]) from pool boxes
+        input_assets = input_pool_box.get("assets", [])
+        output_assets = output_pool_box.get("assets", [])
+
+        if len(input_assets) <= 2 or len(output_assets) <= 2:
+            print(f"Pool boxes missing borrow tokens at assets[2]")
+            return None
+
+        input_borrow_tokens = input_assets[2].get("amount", 0)
+        output_borrow_tokens = output_assets[2].get("amount", 0)
+
+        # V2: borrow tokens returning to pool = principal repaid in token terms
+        borrow_tokens_returned = output_borrow_tokens - input_borrow_tokens
+
+        # Get borrowTokenValue from interest box to convert to actual value
+        interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
+        borrow_token_value = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
+
+        # Principal repaid in pool currency terms
+        principal_repaid_raw = borrow_tokens_returned * borrow_token_value / BORROW_TOKEN_DENOMINATION
+
+        decimals = pool["decimals"]
+        principal_repaid_friendly = principal_repaid_raw / (10 ** decimals)
+
+        # Interest = amount repaid - principal repaid (includes short loan fee if applicable)
+        interest_paid = amount_repaid - principal_repaid_friendly
+        return max(interest_paid, 0.0)
+
+    except Exception as e:
+        print(f"Error calculating V2 interest paid: {e}")
+        return None
 
 
 def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
@@ -234,8 +340,14 @@ def determine_lend_transaction_v1(input_box: dict, tx: dict, pool: dict) -> tupl
 
 
 def determine_lend_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
-    """V2 implementation of determine_lend_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_lend_transaction logic not yet implemented")
+    """V2 implementation of determine_lend_transaction - same as V1."""
+    transaction_type = "lend"
+    address = None
+    if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
+        address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
+
+    amount, fee = calculate_amount_difference(tx, pool)
+    return transaction_type, address, amount, fee
 
 
 def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
@@ -265,8 +377,14 @@ def determine_withdraw_transaction_v1(input_box: dict, tx: dict, pool: dict) -> 
 
 
 def determine_withdraw_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
-    """V2 implementation of determine_withdraw_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_withdraw_transaction logic not yet implemented")
+    """V2 implementation of determine_withdraw_transaction - same as V1."""
+    transaction_type = "withdraw"
+    address = None
+    if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
+        address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
+
+    amount, fee = calculate_amount_difference(tx, pool)
+    return transaction_type, address, amount, fee
 
 
 def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
@@ -304,8 +422,22 @@ def determine_borrow_transaction_v1(input_box: dict, tx: dict, pool: dict, pool_
 
 
 def determine_borrow_transaction_v2(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
-    """V2 implementation of determine_borrow_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_borrow_transaction logic not yet implemented")
+    """V2 implementation of determine_borrow_transaction - same as V1."""
+    transaction_type = "borrow"
+    address = None
+    if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
+        address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
+
+    amount, fee = calculate_amount_difference(tx, pool)
+
+    # Calculate borrow APY from pool box
+    apy = None
+    try:
+        apy = calculate_borrow_apy(pool, pool_box)
+    except Exception as e:
+        print(f"Error calculating V2 borrow APY: {e}")
+
+    return transaction_type, address, amount, apy
 
 
 def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
@@ -350,8 +482,26 @@ def determine_partial_repayment_transaction_v1(input_box: dict, repayment_tx: di
 
 def determine_partial_repayment_transaction_v2(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
-    """V2 implementation of determine_partial_repayment_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_partial_repayment_transaction logic not yet implemented")
+    """V2 implementation of determine_partial_repayment_transaction - collateral address from R4."""
+    transaction_type = "partial_repayment"
+    address = None
+
+    # Find collateral box in inputs, read borrower address from R4
+    for input_box_inner in repayment_tx["inputs"]:
+        if input_box_inner.get("address", "") == pool["collateral"]:
+            if "additionalRegisters" in input_box_inner and "R4" in input_box_inner["additionalRegisters"]:
+                address = tree_to_address(input_box_inner["additionalRegisters"]["R4"]["renderedValue"])
+                break
+
+    # Use outer transaction for amount calculation
+    amount, fee = calculate_amount_difference(outer_tx, pool)
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
@@ -393,8 +543,23 @@ def determine_full_repayment_transaction_v1(input_box: dict, repayment_tx: dict,
 
 def determine_full_repayment_transaction_v2(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
-    """V2 implementation of determine_full_repayment_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_full_repayment_transaction logic not yet implemented")
+    """V2 implementation of determine_full_repayment_transaction - address from proxy R5."""
+    transaction_type = "repayment"
+    address = None
+
+    # Address comes from repay proxy R5
+    if "additionalRegisters" in input_box and "R5" in input_box["additionalRegisters"]:
+        address = tree_to_address(input_box["additionalRegisters"]["R5"]["renderedValue"])
+
+    # Use outer transaction for amount calculation
+    amount, fee = calculate_amount_difference(outer_tx, pool)
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
@@ -440,8 +605,26 @@ def determine_liquidation_transaction_v1(repayment_tx: dict, outer_tx: dict, poo
 
 def determine_liquidation_transaction_v2(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
-    """V2 implementation of determine_liquidation_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_liquidation_transaction logic not yet implemented")
+    """V2 implementation of determine_liquidation_transaction - address from collateral R4."""
+    transaction_type = "liquidation"
+    address = None
+
+    # Find collateral box in inputs, read borrower address from R4
+    for input_box in repayment_tx["inputs"]:
+        if input_box.get("address", "") == pool["collateral"]:
+            if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
+                address = tree_to_address(input_box["additionalRegisters"]["R4"]["renderedValue"])
+                break
+
+    # Use outer transaction for amount calculation
+    amount, fee = calculate_amount_difference(outer_tx, pool)
+
+    # Calculate interest paid (need amount in friendly units for calculation)
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    interest_paid = calculate_interest_paid(outer_tx, amount_friendly, pool)
+
+    return transaction_type, address, amount, interest_paid
 
 
 def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
@@ -505,8 +688,48 @@ def determine_repayment_type_v1(repayment_box_tx_id: str, outer_tx: dict, pool: 
 
 def determine_repayment_type_v2(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
     Optional[str], Optional[str], float, Optional[float], Optional[int], Optional[int]]:
-    """V2 implementation of determine_repayment_type - to be implemented."""
-    raise NotImplementedError("V2 determine_repayment_type logic not yet implemented")
+    """V2 implementation of determine_repayment_type - uses proxy addresses and collateral check."""
+    repayment_tx = fetch_transaction_data(repayment_box_tx_id)
+    if not repayment_tx or "inputs" not in repayment_tx:
+        print(f"Failed to fetch repayment transaction data for {repayment_box_tx_id}")
+        return None, None, 0.0, None, None, None
+
+    # Extract block_height and timestamp from repayment transaction
+    block_height = repayment_tx.get("inclusionHeight")
+    timestamp = repayment_tx.get("timestamp")
+
+    collateral_address = pool["collateral"]
+
+    # Check for partial repayment proxy
+    for repay_input in repayment_tx["inputs"]:
+        repay_input_address = repay_input.get("address", "")
+
+        if repay_input_address == pool["proxy_partial_repay"]:
+            transaction_type, address, amount, interest_paid = determine_partial_repayment_transaction(
+                repay_input, repayment_tx, outer_tx, pool)
+            return transaction_type, address, amount, interest_paid, block_height, timestamp
+
+        elif repay_input_address == pool["proxy_repay"]:
+            transaction_type, address, amount, interest_paid = determine_full_repayment_transaction(
+                repay_input, repayment_tx, outer_tx, pool)
+            return transaction_type, address, amount, interest_paid, block_height, timestamp
+
+    # Check for liquidation: collateral in inputs but not in outputs
+    collateral_in_inputs = any(
+        inp.get("address", "") == collateral_address
+        for inp in repayment_tx.get("inputs", [])
+    )
+    collateral_in_outputs = any(
+        out.get("address", "") == collateral_address
+        for out in repayment_tx.get("outputs", [])
+    )
+
+    if collateral_in_inputs and not collateral_in_outputs:
+        transaction_type, address, amount, interest_paid = determine_liquidation_transaction(
+            repayment_tx, outer_tx, pool)
+        return transaction_type, address, amount, interest_paid, block_height, timestamp
+
+    return None, None, 0.0, None, None, None
 
 
 def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
@@ -540,8 +763,15 @@ def determine_repayment_transaction_v1(input_box: dict, tx: dict, pool: dict) ->
 
 def determine_repayment_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[
     Optional[str], Optional[str], float, Optional[float], Optional[str], Optional[int], Optional[int]]:
-    """V2 implementation of determine_repayment_transaction - to be implemented."""
-    raise NotImplementedError("V2 determine_repayment_transaction logic not yet implemented")
+    """V2 implementation of determine_repayment_transaction - same wrapper pattern as V1."""
+    repayment_box_tx_id = input_box.get("outputTransactionId")
+    if repayment_box_tx_id:
+        transaction_type, address, amount, interest_paid, block_height, timestamp = determine_repayment_type(
+            repayment_box_tx_id, tx, pool)
+        return transaction_type, address, amount, interest_paid, repayment_box_tx_id, block_height, timestamp
+    else:
+        print(f"No outputTransactionId found for repayment input box")
+        return None, None, 0.0, None, None, None, None
 
 
 def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[
@@ -644,8 +874,86 @@ def _process_single_transaction_v1(pool_box: dict, pool: dict, sync_block: int, 
 
 
 def _process_single_transaction_v2(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
-    """V2 implementation of _process_single_transaction - to be implemented."""
-    raise NotImplementedError("V2 _process_single_transaction logic not yet implemented")
+    """V2 implementation of _process_single_transaction - same structure as V1, uses V2 dispatchers."""
+    if pool_box["address"] != pool["pool"]:
+        return None
+
+    # Skip boxes below min_height
+    if pool_box.get("settlementHeight", 0) <= min_height:
+        return None
+
+    tx_id = pool_box["transactionId"]
+    tx = fetch_transaction_data(tx_id)
+
+    if not tx or "inputs" not in tx:
+        print(f"Failed to fetch transaction data for {tx_id}")
+        return None
+
+    # Extract block_height and timestamp from main transaction
+    main_block_height = tx.get("inclusionHeight")
+    main_timestamp = tx.get("timestamp")
+
+    # Skip if main transaction is below min_height
+    if main_block_height and main_block_height <= min_height:
+        return None
+
+    # Determine transaction type by checking input addresses
+    transaction_type = None
+    address = None
+    amount = 0.0
+    fee = 0
+    borrow_apy = None
+    interest_paid = None
+    final_tx_id = tx_id  # Default to main transaction ID
+    block_height = main_block_height
+    timestamp = main_timestamp
+
+    # Check each input to determine transaction type
+    for input_box in tx["inputs"]:
+        input_address = input_box.get("address", "")
+        fee = 0
+        if is_proxy_match(input_address, pool, "proxy_lend"):
+            transaction_type, address, amount, fee = determine_lend_transaction(input_box, tx, pool)
+            break
+        elif is_proxy_match(input_address, pool, "proxy_withdraw"):
+            transaction_type, address, amount, fee = determine_withdraw_transaction(input_box, tx, pool)
+            break
+        elif input_address == pool["proxy_borrow"]:
+            transaction_type, address, amount, borrow_apy = determine_borrow_transaction(input_box, tx, pool, pool_box)
+            break
+        elif input_address == pool["repayment"]:
+            # For repayments, use inner transaction data
+            transaction_type, address, amount, interest_paid, final_tx_id, block_height, timestamp = determine_repayment_transaction(
+                input_box, tx, pool)
+            if transaction_type:
+                # Check if inner transaction is above min_height
+                if block_height and block_height <= min_height:
+                    transaction_type = None
+                break
+
+    if not transaction_type:
+        print(f"Could not determine transaction type for {tx_id}")
+        return None
+
+    # Divide amount and fee by pool decimals to get user-friendly values
+    decimals = pool["decimals"]
+    amount_friendly = amount / (10 ** decimals)
+    # Fees are in pool token, use pool decimals
+    fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
+
+    return {
+        'transaction_id': final_tx_id,
+        'address': address or "unknown_address",
+        'pool_nft': pool["POOL_NFT"],
+        'transaction_type': transaction_type,
+        'amount': amount_friendly,
+        'fee_paid': fee_friendly,
+        'borrow_apy': borrow_apy,
+        'interest_paid': interest_paid,
+        'block_height': block_height,
+        'timestamp': timestamp,
+        'sync_block': sync_block
+    }
 
 
 def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
@@ -696,8 +1004,29 @@ def sync_transactions_v1(db: DatabaseManager, pool, pool_boxes, sync_block: int,
 
 
 def sync_transactions_v2(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
-    """V2 implementation of sync_transactions - to be implemented."""
-    raise NotImplementedError("V2 sync_transactions logic not yet implemented")
+    """V2 implementation of sync_transactions - same structure as V1, uses V2 dispatchers."""
+    for pool_box in pool_boxes:
+        transaction_data = _process_single_transaction(pool_box, pool, sync_block, min_height)
+        if not transaction_data:
+            continue
+
+        # Call upsert_transaction
+        result = db.upsert_transaction(
+            transaction_id=transaction_data['transaction_id'],
+            address=transaction_data['address'],
+            pool_nft=transaction_data['pool_nft'],
+            transaction_type=transaction_data['transaction_type'],
+            amount=transaction_data['amount'],
+            fee_paid=transaction_data['fee_paid'],
+            borrow_apy=transaction_data.get('borrow_apy'),
+            interest_paid=transaction_data.get('interest_paid'),
+            block_height=transaction_data['block_height'],
+            timestamp=transaction_data['timestamp'],
+            sync_block=transaction_data['sync_block']
+        )
+
+        if not result:
+            print(f"Failed to upsert transaction {transaction_data['transaction_id']}")
 
 
 def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
@@ -747,8 +1076,29 @@ def sync_transactions_batched_v1(db: DatabaseManager, pool, pool_boxes,  sync_bl
 
 
 def sync_transactions_batched_v2(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
-    """V2 implementation of sync_transactions_batched - to be implemented."""
-    raise NotImplementedError("V2 sync_transactions_batched logic not yet implemented")
+    """V2 implementation of sync_transactions_batched - same structure as V1, uses V2 dispatchers."""
+    transactions_batch = []
+    processed_count = 0
+
+    for pool_box in pool_boxes:
+        transaction_data = _process_single_transaction(pool_box, pool, sync_block, min_height)
+        if not transaction_data:
+            continue
+
+        transactions_batch.append(transaction_data)
+        processed_count += 1
+
+        # Process batch when it reaches batch_size
+        if len(transactions_batch) >= batch_size:
+            success_count = db.batch_upsert_transactions(transactions_batch)
+            transactions_batch = []
+
+    # Process any remaining transactions in the final batch
+    if transactions_batch:
+        success_count = db.batch_upsert_transactions(transactions_batch)
+
+    if processed_count > 0:
+        print(f"  V2 Transactions: {processed_count} processed")
 
 
 def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):

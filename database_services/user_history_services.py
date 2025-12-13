@@ -248,8 +248,9 @@ def sync_user_lend_positions_v2(
         full_scan: bool = True,
         sync_block: Optional[int] = None
 ):
-    """V2 implementation of sync_user_lend_positions - to be implemented."""
-    raise NotImplementedError("V2 sync_user_lend_positions logic not yet implemented")
+    """V2 implementation of sync_user_lend_positions - same logic as V1, LEND_TOKEN tracking works the same way."""
+    # V2 lend token tracking works the same way as V1
+    sync_user_lend_positions_v1(db, pool, full_scan, sync_block)
 
 
 def sync_user_lend_positions(
@@ -358,8 +359,9 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
 
 
 def sync_user_deposits_historical_v2(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
-    """V2 implementation of sync_user_deposits_historical - to be implemented."""
-    raise NotImplementedError("V2 sync_user_deposits_historical logic not yet implemented")
+    """V2 implementation of sync_user_deposits_historical - same as V1, aggregates transaction data."""
+    # V2 deposit tracking works the same way as V1
+    return sync_user_deposits_historical_v1(db, pool, sync_block, full_scan)
 
 
 def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
@@ -621,8 +623,9 @@ def add_granular_user_lend_positions(
 
 
 def sync_user_portfolio_snapshots_v2(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
-    """V2 implementation of sync_user_portfolio_snapshots - to be implemented."""
-    raise NotImplementedError("V2 sync_user_portfolio_snapshots logic not yet implemented")
+    """V2 implementation of sync_user_portfolio_snapshots - same as V1, uses existing lend positions and deposit history."""
+    # V2 portfolio snapshot works the same way as V1
+    return sync_user_portfolio_snapshots_v1(db, pool, sync_block)
 
 
 def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
@@ -644,4 +647,4 @@ def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optiona
     elif pool["version"] == 2:
         return sync_user_portfolio_snapshots_v2(db, pool, sync_block)
     else:
-        raise ValueError(f"Unknown pool version: {pool[\"version\"]}")
+        raise ValueError(f"Unknown pool version: {pool['version']}")

@@ -28,8 +28,27 @@ def update_pool_v1(db: DatabaseManager, pool, sync_block: int = None):
 
 
 def update_pool_v2(db: DatabaseManager, pool, sync_block: int = None):
-    """V2 implementation of update_pool - to be implemented."""
-    raise NotImplementedError("V2 pool update logic not yet implemented")
+    """V2 implementation of update_pool - token-only pools."""
+    pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
+    borrowed = total_borrowed(pool, pool_box)
+
+    # V2 is token-only, always use assets[3]
+    assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
+    total_lent = borrowed + assets_in_Pool
+
+    # Divide by pool decimals to get user-friendly values
+    decimals = pool["decimals"]
+    total_lent_friendly = total_lent / (10 ** decimals)
+    borrowed_friendly = borrowed / (10 ** decimals)
+
+    borrow_rate = borrow_apy(pool, pool_box)
+    lend_rate = lend_apy(pool, pool_box)
+
+    return db.upsert_pool(
+        pool["POOL_NFT"], pool["CURRENCY_ID_DB"],
+        total_lent_friendly, borrowed_friendly,
+        lend_rate, borrow_rate, sync_block
+    )
 
 
 def update_pool(db: DatabaseManager, pool, sync_block: int = None):
@@ -51,8 +70,10 @@ def sync_all_pools_v1(db: DatabaseManager, sync_block: int = None):
 
 
 def sync_all_pools_v2(db: DatabaseManager, sync_block: int = None):
-    """V2 implementation of sync_all_pools - to be implemented."""
-    raise NotImplementedError("V2 sync_all_pools logic not yet implemented")
+    """V2 implementation - sync all V2 pools."""
+    for pool in current_pools:
+        if pool.get("version") == 2:
+            update_pool(db, pool, sync_block)
 
 
 def sync_all_pools(db: DatabaseManager, sync_block: int = None):
@@ -115,8 +136,48 @@ def sync_all_pools_batched_v1(db: DatabaseManager, sync_block: int = None):
 
 
 def sync_all_pools_batched_v2(db: DatabaseManager, sync_block: int = None):
-    """V2 implementation of sync_all_pools_batched - to be implemented."""
-    raise NotImplementedError("V2 sync_all_pools_batched logic not yet implemented")
+    """V2 implementation of sync_all_pools_batched - token-only pools."""
+    print("Starting batch pool sync (V2)...")
+    pools_batch_data = []
+
+    for pool in current_pools:
+        if pool.get("version") != 2:
+            continue
+
+        try:
+            pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
+            borrowed = total_borrowed(pool, pool_box)
+
+            # V2 is token-only, always use assets[3]
+            assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
+            total_lent = borrowed + assets_in_Pool
+
+            decimals = pool["decimals"]
+            total_lent_friendly = total_lent / (10 ** decimals)
+            borrowed_friendly = borrowed / (10 ** decimals)
+
+            borrow_rate = borrow_apy(pool, pool_box)
+            lend_rate = lend_apy(pool, pool_box)
+
+            pools_batch_data.append((
+                pool["POOL_NFT"],
+                pool["CURRENCY_ID_DB"],
+                total_lent_friendly,
+                borrowed_friendly,
+                lend_rate,
+                borrow_rate,
+                sync_block
+            ))
+
+        except Exception as e:
+            print(f"Error processing V2 pool {pool['POOL_NFT']}: {e}")
+            continue
+
+    if pools_batch_data:
+        success_count = db.batch_upsert_pools(pools_batch_data)
+        print(f"Successfully updated {success_count}/{len(pools_batch_data)} V2 pools")
+    else:
+        print("No V2 pool data to update")
 
 
 def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
@@ -188,8 +249,53 @@ def sync_pool_interest_data_v1(db: DatabaseManager, pool, pool_boxes, min_height
 
 
 def sync_pool_interest_data_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
-    """V2 implementation of sync_pool_interest_data - to be implemented."""
-    raise NotImplementedError("V2 sync_pool_interest_data logic not yet implemented")
+    """V2 implementation of sync_pool_interest_data - token-only pools."""
+    for pool_box in pool_boxes:
+        if pool_box["address"] != pool["pool"]:
+            continue
+
+        # Skip boxes below min_height
+        if pool_box.get("settlementHeight", 0) <= min_height:
+            continue
+
+        borrowed = total_borrowed(pool, pool_box)
+        # V2 is token-only, always use assets[3]
+        assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
+        total_lent = borrowed + assets_in_Pool
+
+        # Divide by pool decimals to get user-friendly values
+        decimals = pool["decimals"]
+        total_lent_friendly = total_lent / (10 ** decimals)
+        borrowed_friendly = borrowed / (10 ** decimals)
+
+        lend_rate = lend_apy(pool, pool_box)
+        borrow_rate = borrow_apy(pool, pool_box)
+        utilization = pool_utilization(pool, pool_box)
+
+        # V2 lend_token_value calculation
+        lend_tokens_circulating = pool["LendTokenSupply"] - pool_box["assets"][1]["amount"]
+        lend_token_value = (assets_in_Pool + borrowed) / lend_tokens_circulating
+
+        try:
+            timestamp = get_transaction_timestamp(pool_box["transactionId"])
+        except Exception:
+            print("Error getting timestamp for pool box")
+            continue
+
+        print(db.upsert_pool_data_historical(
+            pool["POOL_NFT"],
+            pool_box["settlementHeight"],
+            pool_box["transactionId"],
+            lend_rate,
+            borrow_rate,
+            utilization,
+            total_lent_friendly,
+            borrowed_friendly,
+            timestamp,
+            pool_box["boxId"],
+            lend_token_value,
+            sync_block
+        ))
 
 
 def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
@@ -287,8 +393,76 @@ def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, mi
 
 def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
                                        sync_block: int = None):
-    """V2 implementation of sync_pool_interest_data_batched - to be implemented."""
-    raise NotImplementedError("V2 sync_pool_interest_data_batched logic not yet implemented")
+    """V2 implementation of sync_pool_interest_data_batched - token-only pools."""
+    batch_data = []
+    processed_count = 0
+
+    for pool_box in pool_boxes:
+        if pool_box["address"] != pool["pool"]:
+            continue
+
+        # Skip boxes below min_height
+        if pool_box.get("settlementHeight", 0) <= min_height:
+            continue
+
+        try:
+            # Calculate metrics
+            borrowed = total_borrowed(pool, pool_box)
+            # V2 is token-only, always use assets[3]
+            assets_in_Pool = pool_box["assets"][3]["amount"] - pool["InitializedPoolAmount"]
+            total_lent = borrowed + assets_in_Pool
+
+            # Divide by pool decimals to get user-friendly values
+            decimals = pool["decimals"]
+            total_lent_friendly = total_lent / (10 ** decimals)
+            borrowed_friendly = borrowed / (10 ** decimals)
+
+            lend_rate = lend_apy(pool, pool_box)
+            borrow_rate = borrow_apy(pool, pool_box)
+            utilization = pool_utilization(pool, pool_box)
+
+            # V2 lend_token_value calculation
+            lend_tokens_circulating = pool["LendTokenSupply"] - pool_box["assets"][1]["amount"]
+            lend_token_value = (assets_in_Pool + borrowed) / lend_tokens_circulating
+
+            try:
+                timestamp = get_transaction_timestamp(pool_box["transactionId"])
+            except Exception:
+                print(f"Error getting timestamp for pool box {pool_box['boxId']}, skipping")
+                continue
+
+            # Add to batch
+            box_sync_block = sync_block
+
+            batch_data.append((
+                pool["POOL_NFT"],
+                pool_box["settlementHeight"],
+                pool_box["transactionId"],
+                lend_rate,
+                borrow_rate,
+                utilization,
+                total_lent_friendly,
+                borrowed_friendly,
+                timestamp,
+                pool_box["boxId"],
+                lend_token_value,
+                box_sync_block
+            ))
+
+            processed_count += 1
+
+            # Process batch when it reaches batch_size
+            if len(batch_data) >= batch_size:
+                success_count = db.batch_upsert_pool_data_historical(batch_data)
+                batch_data = []
+
+        except Exception as e:
+            print(f"Error processing V2 pool box {pool_box.get('boxId', 'unknown')}: {e}")
+            continue
+
+    # Process any remaining data in the final batch
+    if batch_data:
+        success_count = db.batch_upsert_pool_data_historical(batch_data)
 
 
 def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
