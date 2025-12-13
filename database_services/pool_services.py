@@ -4,7 +4,8 @@ from database_services.data_aggregation.pool_stats import borrow_apy, total_borr
 from helpers.platform_functions import get_pool_box, get_transaction_timestamp
 
 
-def update_pool(db: DatabaseManager, pool, sync_block: int = None):
+def update_pool_v1(db: DatabaseManager, pool, sync_block: int = None):
+    """V1 implementation of update_pool - original logic."""
     # Business logic here
     pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
     borrowed = total_borrowed(pool, pool_box)
@@ -26,21 +27,50 @@ def update_pool(db: DatabaseManager, pool, sync_block: int = None):
                           sync_block)
 
 
-def sync_all_pools(db: DatabaseManager, sync_block: int = None):
+def update_pool_v2(db: DatabaseManager, pool, sync_block: int = None):
+    """V2 implementation of update_pool - to be implemented."""
+    raise NotImplementedError("V2 pool update logic not yet implemented")
+
+
+def update_pool(db: DatabaseManager, pool, sync_block: int = None):
+    """Dispatcher for update_pool based on pool version."""
+    if pool["version"] == 1:
+        return update_pool_v1(db, pool, sync_block)
+    elif pool["version"] == 2:
+        return update_pool_v2(db, pool, sync_block)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+def sync_all_pools_v1(db: DatabaseManager, sync_block: int = None):
+    """V1 implementation of sync_all_pools - original logic."""
     # Higher-level service function
+    for pool in current_pools:
+        if pool.get("version", 1) == 1:
+            update_pool(db, pool, sync_block)
+
+
+def sync_all_pools_v2(db: DatabaseManager, sync_block: int = None):
+    """V2 implementation of sync_all_pools - to be implemented."""
+    raise NotImplementedError("V2 sync_all_pools logic not yet implemented")
+
+
+def sync_all_pools(db: DatabaseManager, sync_block: int = None):
+    """Dispatcher for sync_all_pools - syncs all pools regardless of version."""
     for pool in current_pools:
         update_pool(db, pool, sync_block)
 
 
-def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
-    """
-    Sync all pools using batch processing for better performance.
-    """
-    print("Starting batch pool sync...")
+def sync_all_pools_batched_v1(db: DatabaseManager, sync_block: int = None):
+    """V1 implementation of sync_all_pools_batched - original logic."""
+    print("Starting batch pool sync (V1)...")
 
     pools_batch_data = []
 
     for pool in current_pools:
+        if pool.get("version", 1) != 1:
+            continue
+
         try:
             pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
 
@@ -79,21 +109,39 @@ def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
     # Batch insert/update all pools
     if pools_batch_data:
         success_count = db.batch_upsert_pools(pools_batch_data)
-        print(f"Successfully updated {success_count}/{len(pools_batch_data)} pools")
+        print(f"Successfully updated {success_count}/{len(pools_batch_data)} V1 pools")
     else:
-        print("No pool data to update")
+        print("No V1 pool data to update")
 
 
-def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
+def sync_all_pools_batched_v2(db: DatabaseManager, sync_block: int = None):
+    """V2 implementation of sync_all_pools_batched - to be implemented."""
+    raise NotImplementedError("V2 sync_all_pools_batched logic not yet implemented")
+
+
+def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
     """
-    Sync pool interest data for boxes above min_height.
-
-    :param db: Database manager instance
-    :param pool: Pool configuration
-    :param pool_boxes: List of pool boxes
-    :param min_height: Minimum block height to process (default: 0)
-    :param sync_block: Block height when this data was synced
+    Dispatcher for sync_all_pools_batched - syncs all pools using batch processing.
+    Processes V1 and V2 pools separately.
     """
+    print("Starting batch pool sync...")
+
+    # Process V1 pools
+    v1_pools = [p for p in current_pools if p.get("version", 1) == 1]
+    if v1_pools:
+        sync_all_pools_batched_v1(db, sync_block)
+
+    # Process V2 pools
+    v2_pools = [p for p in current_pools if p.get("version", 1) == 2]
+    if v2_pools:
+        try:
+            sync_all_pools_batched_v2(db, sync_block)
+        except NotImplementedError:
+            print("V2 pool sync not yet implemented, skipping V2 pools")
+
+
+def sync_pool_interest_data_v1(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
+    """V1 implementation of sync_pool_interest_data - original logic."""
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
             continue
@@ -139,18 +187,33 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0,
         ))
 
 
-def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
-                                    sync_block: int = None):
+def sync_pool_interest_data_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
+    """V2 implementation of sync_pool_interest_data - to be implemented."""
+    raise NotImplementedError("V2 sync_pool_interest_data logic not yet implemented")
+
+
+def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
     """
-    Sync pool interest data using batch processing.
+    Dispatcher for sync_pool_interest_data based on pool version.
+    Sync pool interest data for boxes above min_height.
 
     :param db: Database manager instance
     :param pool: Pool configuration
     :param pool_boxes: List of pool boxes
-    :param min_height: Minimum block height to process
-    :param batch_size: Number of records to process in each batch
+    :param min_height: Minimum block height to process (default: 0)
     :param sync_block: Block height when this data was synced
     """
+    if pool["version"] == 1:
+        return sync_pool_interest_data_v1(db, pool, pool_boxes, min_height, sync_block)
+    elif pool["version"] == 2:
+        return sync_pool_interest_data_v2(db, pool, pool_boxes, min_height, sync_block)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
+                                       sync_block: int = None):
+    """V1 implementation of sync_pool_interest_data_batched - original logic."""
     batch_data = []
     processed_count = 0
 
@@ -220,3 +283,30 @@ def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_h
     # Process any remaining data in the final batch
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
+
+
+def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
+                                       sync_block: int = None):
+    """V2 implementation of sync_pool_interest_data_batched - to be implemented."""
+    raise NotImplementedError("V2 sync_pool_interest_data_batched logic not yet implemented")
+
+
+def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
+                                    sync_block: int = None):
+    """
+    Dispatcher for sync_pool_interest_data_batched based on pool version.
+    Sync pool interest data using batch processing.
+
+    :param db: Database manager instance
+    :param pool: Pool configuration
+    :param pool_boxes: List of pool boxes
+    :param min_height: Minimum block height to process
+    :param batch_size: Number of records to process in each batch
+    :param sync_block: Block height when this data was synced
+    """
+    if pool["version"] == 1:
+        return sync_pool_interest_data_batched_v1(db, pool, pool_boxes, min_height, batch_size, sync_block)
+    elif pool["version"] == 2:
+        return sync_pool_interest_data_batched_v2(db, pool, pool_boxes, min_height, batch_size, sync_block)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")

@@ -5,22 +5,14 @@ from collections import defaultdict, OrderedDict
 from typing import Dict, List, Tuple, Optional
 
 
-def sync_user_lend_positions(
-        db: DatabaseManager,  # Assuming DatabaseManager includes SyncMixin
+# ========== sync_user_lend_positions ==========
+def sync_user_lend_positions_v1(
+        db: DatabaseManager,
         pool: dict,
         full_scan: bool = True,
         sync_block: Optional[int] = None
 ):
-    """
-    Sync user lend positions by processing all boxes for a pool's lend token
-    and updating position_tokens based on transaction inputs/outputs.
-
-    Args:
-        db: Database manager instance (with SyncMixin methods)
-        pool: Pool dictionary containing LEND_TOKEN, POOL_NFT, and pool address
-        full_scan: If True, always scan from height 0. If False, use sync_block from DB if consistent
-        sync_block: Optional block height to mark as the sync point for this update
-    """
+    """V1 implementation of sync_user_lend_positions - original logic."""
     # Get the lend token ID and pool NFT from the pool dict
     lend_token_id = pool["LEND_TOKEN"]
     pool_nft = pool["POOL_NFT"]
@@ -250,13 +242,44 @@ def sync_user_lend_positions(
         successful_inserts = db.batch_upsert_user_lend_positions_historical(final_consolidated_data, sync_block)
 
 
-def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
+def sync_user_lend_positions_v2(
+        db: DatabaseManager,
+        pool: dict,
+        full_scan: bool = True,
+        sync_block: Optional[int] = None
+):
+    """V2 implementation of sync_user_lend_positions - to be implemented."""
+    raise NotImplementedError("V2 sync_user_lend_positions logic not yet implemented")
+
+
+def sync_user_lend_positions(
+        db: DatabaseManager,
+        pool: dict,
+        full_scan: bool = True,
+        sync_block: Optional[int] = None
+):
     """
-    Synchronize user deposits historical data for a specific pool.
-    Processes all transactions for the pool in block height order and calculates
-    cumulative deposit/withdrawal amounts for each user.
-    Note: Transactions amounts and fees are already divided by decimals when stored.
+    Dispatcher for sync_user_lend_positions based on pool version.
+    Sync user lend positions by processing all boxes for a pool's lend token
+    and updating position_tokens based on transaction inputs/outputs.
+
+    Args:
+        db: Database manager instance (with SyncMixin methods)
+        pool: Pool dictionary containing LEND_TOKEN, POOL_NFT, and pool address
+        full_scan: If True, always scan from height 0. If False, use sync_block from DB if consistent
+        sync_block: Optional block height to mark as the sync point for this update
     """
+    if pool["version"] == 1:
+        return sync_user_lend_positions_v1(db, pool, full_scan, sync_block)
+    elif pool["version"] == 2:
+        return sync_user_lend_positions_v2(db, pool, full_scan, sync_block)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== sync_user_deposits_historical ==========
+def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
+    """V1 implementation of sync_user_deposits_historical - original logic."""
     pool_nft = pool["POOL_NFT"]
 
     try:
@@ -334,19 +357,30 @@ def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optiona
         return False
 
 
-def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
-    """
-    Alternative optimized version that does all the work in a single SQL operation.
-    This is the fastest approach as it avoids Python loops entirely.
+def sync_user_deposits_historical_v2(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
+    """V2 implementation of sync_user_deposits_historical - to be implemented."""
+    raise NotImplementedError("V2 sync_user_deposits_historical logic not yet implemented")
 
-    Args:
-        db: Database manager instance
-        pool: Pool configuration dictionary
-        sync_block: Block height when this data was synced
 
-    Returns:
-        True if sync was successful, False otherwise
+def sync_user_deposits_historical(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
     """
+    Dispatcher for sync_user_deposits_historical based on pool version.
+    Synchronize user deposits historical data for a specific pool.
+    Processes all transactions for the pool in block height order and calculates
+    cumulative deposit/withdrawal amounts for each user.
+    Note: Transactions amounts and fees are already divided by decimals when stored.
+    """
+    if pool["version"] == 1:
+        return sync_user_deposits_historical_v1(db, pool, sync_block, full_scan)
+    elif pool["version"] == 2:
+        return sync_user_deposits_historical_v2(db, pool, sync_block, full_scan)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== sync_user_portfolio_snapshots ==========
+def sync_user_portfolio_snapshots_v1(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
+    """V1 implementation of sync_user_portfolio_snapshots - original logic."""
     pool_nft = pool["POOL_NFT"]
 
     try:
@@ -584,3 +618,30 @@ def add_granular_user_lend_positions(
     except Exception as e:
         print(f"Error adding granular user lend positions for pool {pool_nft}: {e}")
         return False
+
+
+def sync_user_portfolio_snapshots_v2(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
+    """V2 implementation of sync_user_portfolio_snapshots - to be implemented."""
+    raise NotImplementedError("V2 sync_user_portfolio_snapshots logic not yet implemented")
+
+
+def sync_user_portfolio_snapshots(db: DatabaseManager, pool, sync_block: Optional[int] = None) -> bool:
+    """
+    Dispatcher for sync_user_portfolio_snapshots based on pool version.
+    Alternative optimized version that does all the work in a single SQL operation.
+    This is the fastest approach as it avoids Python loops entirely.
+
+    Args:
+        db: Database manager instance
+        pool: Pool configuration dictionary
+        sync_block: Block height when this data was synced
+
+    Returns:
+        True if sync was successful, False otherwise
+    """
+    if pool["version"] == 1:
+        return sync_user_portfolio_snapshots_v1(db, pool, sync_block)
+    elif pool["version"] == 2:
+        return sync_user_portfolio_snapshots_v2(db, pool, sync_block)
+    else:
+        raise ValueError(f"Unknown pool version: {pool[\"version\"]}")

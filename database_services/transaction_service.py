@@ -7,19 +7,9 @@ from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
 
 
-def is_proxy_match(address: str, pool: dict, proxy_type: str) -> bool:
-    """
-    Check if an address matches current or legacy proxy address.
-    Supports overlap period where both old and new proxies were valid.
-
-    Args:
-        address: Address to check
-        pool: Pool configuration dict
-        proxy_type: Type of proxy (e.g., 'proxy_lend', 'proxy_withdraw')
-
-    Returns:
-        True if address matches current or any legacy proxy of this type
-    """
+# ========== is_proxy_match ==========
+def is_proxy_match_v1(address: str, pool: dict, proxy_type: str) -> bool:
+    """V1 implementation of is_proxy_match - original logic."""
     # Check current proxy
     if address == pool.get(proxy_type):
         return True
@@ -34,14 +24,36 @@ def is_proxy_match(address: str, pool: dict, proxy_type: str) -> bool:
     return False
 
 
-def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
+def is_proxy_match_v2(address: str, pool: dict, proxy_type: str) -> bool:
+    """V2 implementation of is_proxy_match - to be implemented."""
+    raise NotImplementedError("V2 is_proxy_match logic not yet implemented")
+
+
+def is_proxy_match(address: str, pool: dict, proxy_type: str) -> bool:
     """
-    Calculates the amount difference between pool boxes in inputs and outputs.
-    Also calculates the fee paid to any address in FEE_ADDRESS_LIST.
-    Returns (amount, fee_amount) where:
-    - amount: absolute difference based on pool["is_Erg"] setting
-    - fee_amount: fee paid to fee addresses (0 if none found)
+    Dispatcher for is_proxy_match based on pool version.
+    Check if an address matches current or legacy proxy address.
+    Supports overlap period where both old and new proxies were valid.
+
+    Args:
+        address: Address to check
+        pool: Pool configuration dict
+        proxy_type: Type of proxy (e.g., 'proxy_lend', 'proxy_withdraw')
+
+    Returns:
+        True if address matches current or any legacy proxy of this type
     """
+    if pool["version"] == 1:
+        return is_proxy_match_v1(address, pool, proxy_type)
+    elif pool["version"] == 2:
+        return is_proxy_match_v2(address, pool, proxy_type)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== calculate_amount_difference ==========
+def calculate_amount_difference_v1(tx: dict, pool: dict) -> tuple[float, int]:
+    """V1 implementation of calculate_amount_difference - original logic."""
     pool_address = pool["pool"]
     input_pool_box = None
     output_pool_box = None
@@ -103,23 +115,31 @@ def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
     return amount, fee_amount
 
 
-def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
+def calculate_amount_difference_v2(tx: dict, pool: dict) -> tuple[float, int]:
+    """V2 implementation of calculate_amount_difference - to be implemented."""
+    raise NotImplementedError("V2 calculate_amount_difference logic not yet implemented")
+
+
+def calculate_amount_difference(tx: dict, pool: dict) -> tuple[float, int]:
     """
-    Calculate interest paid for repayment transactions.
-    Interest = amount_repaid - decrease_in_borrow_tokens
-
-    The borrow tokens (assets[2] in pool box) represent the principal owed.
-    When a repayment occurs, the borrow tokens decrease by the principal amount,
-    and the difference between amount repaid and this decrease is the interest.
-
-    Args:
-        tx: The outer transaction containing the pool box
-        amount_repaid: The amount paid back (already in friendly units)
-        pool: Pool configuration
-
-    Returns:
-        Interest paid in friendly units, or None if cannot be calculated
+    Dispatcher for calculate_amount_difference based on pool version.
+    Calculates the amount difference between pool boxes in inputs and outputs.
+    Also calculates the fee paid to any address in FEE_ADDRESS_LIST.
+    Returns (amount, fee_amount) where:
+    - amount: absolute difference based on pool["is_Erg"] setting
+    - fee_amount: fee paid to fee addresses (0 if none found)
     """
+    if pool["version"] == 1:
+        return calculate_amount_difference_v1(tx, pool)
+    elif pool["version"] == 2:
+        return calculate_amount_difference_v2(tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== calculate_interest_paid ==========
+def calculate_interest_paid_v1(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
+    """V1 implementation of calculate_interest_paid - original logic."""
     try:
         pool_address = pool["pool"]
         input_pool_box = None
@@ -170,11 +190,40 @@ def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optio
         return None
 
 
-def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+def calculate_interest_paid_v2(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
+    """V2 implementation of calculate_interest_paid - to be implemented."""
+    raise NotImplementedError("V2 calculate_interest_paid logic not yet implemented")
+
+
+def calculate_interest_paid(tx: dict, amount_repaid: float, pool: dict) -> Optional[float]:
     """
-    Determines lend transaction and extracts address from R4 and calculates amount.
-    Returns: ("lend", address, amount, fee)
+    Dispatcher for calculate_interest_paid based on pool version.
+    Calculate interest paid for repayment transactions.
+    Interest = amount_repaid - decrease_in_borrow_tokens
+
+    The borrow tokens (assets[2] in pool box) represent the principal owed.
+    When a repayment occurs, the borrow tokens decrease by the principal amount,
+    and the difference between amount repaid and this decrease is the interest.
+
+    Args:
+        tx: The outer transaction containing the pool box
+        amount_repaid: The amount paid back (already in friendly units)
+        pool: Pool configuration
+
+    Returns:
+        Interest paid in friendly units, or None if cannot be calculated
     """
+    if pool["version"] == 1:
+        return calculate_interest_paid_v1(tx, amount_repaid, pool)
+    elif pool["version"] == 2:
+        return calculate_interest_paid_v2(tx, amount_repaid, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_lend_transaction ==========
+def determine_lend_transaction_v1(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+    """V1 implementation of determine_lend_transaction - original logic."""
     transaction_type = "lend"
     address = None
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
@@ -184,11 +233,28 @@ def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[s
     return transaction_type, address, amount, fee
 
 
-def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+def determine_lend_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+    """V2 implementation of determine_lend_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_lend_transaction logic not yet implemented")
+
+
+def determine_lend_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
     """
-    Determines withdraw transaction and extracts address from R4 and calculates amount.
-    Returns: ("withdraw", address, amount, fee)
+    Dispatcher for determine_lend_transaction based on pool version.
+    Determines lend transaction and extracts address from R4 and calculates amount.
+    Returns: ("lend", address, amount, fee)
     """
+    if pool["version"] == 1:
+        return determine_lend_transaction_v1(input_box, tx, pool)
+    elif pool["version"] == 2:
+        return determine_lend_transaction_v2(input_box, tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_withdraw_transaction ==========
+def determine_withdraw_transaction_v1(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+    """V1 implementation of determine_withdraw_transaction - original logic."""
     transaction_type = "withdraw"
     address = None
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
@@ -198,12 +264,28 @@ def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tup
     return transaction_type, address, amount, fee
 
 
-def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
+def determine_withdraw_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
+    """V2 implementation of determine_withdraw_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_withdraw_transaction logic not yet implemented")
+
+
+def determine_withdraw_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[str, Optional[str], float, int]:
     """
-    Determines borrow transaction and extracts address from R4 and calculates amount.
-    Also calculates the borrow APY at the time of transaction.
-    Returns: ("borrow", address, amount, borrow_apy)
+    Dispatcher for determine_withdraw_transaction based on pool version.
+    Determines withdraw transaction and extracts address from R4 and calculates amount.
+    Returns: ("withdraw", address, amount, fee)
     """
+    if pool["version"] == 1:
+        return determine_withdraw_transaction_v1(input_box, tx, pool)
+    elif pool["version"] == 2:
+        return determine_withdraw_transaction_v2(input_box, tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_borrow_transaction ==========
+def determine_borrow_transaction_v1(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
+    """V1 implementation of determine_borrow_transaction - original logic."""
     transaction_type = "borrow"
     address = None
     if "additionalRegisters" in input_box and "R4" in input_box["additionalRegisters"]:
@@ -221,13 +303,30 @@ def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict, pool_box
     return transaction_type, address, amount, apy
 
 
-def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+def determine_borrow_transaction_v2(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
+    """V2 implementation of determine_borrow_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_borrow_transaction logic not yet implemented")
+
+
+def determine_borrow_transaction(input_box: dict, tx: dict, pool: dict, pool_box: dict) -> tuple[str, Optional[str], float, Optional[float]]:
+    """
+    Dispatcher for determine_borrow_transaction based on pool version.
+    Determines borrow transaction and extracts address from R4 and calculates amount.
+    Also calculates the borrow APY at the time of transaction.
+    Returns: ("borrow", address, amount, borrow_apy)
+    """
+    if pool["version"] == 1:
+        return determine_borrow_transaction_v1(input_box, tx, pool, pool_box)
+    elif pool["version"] == 2:
+        return determine_borrow_transaction_v2(input_box, tx, pool, pool_box)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_partial_repayment_transaction ==========
+def determine_partial_repayment_transaction_v1(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
-    """
-    Determines partial repayment transaction and extracts address from collateral box R4 and calculates amount.
-    Also calculates interest paid by comparing amount repaid to borrow token decrease.
-    Returns: ("partial_repayment", address, amount, interest_paid)
-    """
+    """V1 implementation of determine_partial_repayment_transaction - original logic."""
     transaction_type = "partial_repayment"
     address = None
 
@@ -249,13 +348,32 @@ def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict,
     return transaction_type, address, amount, interest_paid
 
 
-def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+def determine_partial_repayment_transaction_v2(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """V2 implementation of determine_partial_repayment_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_partial_repayment_transaction logic not yet implemented")
+
+
+def determine_partial_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
     """
-    Determines full repayment transaction and extracts address from R5 and calculates amount.
+    Dispatcher for determine_partial_repayment_transaction based on pool version.
+    Determines partial repayment transaction and extracts address from collateral box R4 and calculates amount.
     Also calculates interest paid by comparing amount repaid to borrow token decrease.
-    Returns: ("repayment", address, amount, interest_paid)
+    Returns: ("partial_repayment", address, amount, interest_paid)
     """
+    if pool["version"] == 1:
+        return determine_partial_repayment_transaction_v1(input_box, repayment_tx, outer_tx, pool)
+    elif pool["version"] == 2:
+        return determine_partial_repayment_transaction_v2(input_box, repayment_tx, outer_tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_full_repayment_transaction ==========
+def determine_full_repayment_transaction_v1(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """V1 implementation of determine_full_repayment_transaction - original logic."""
     transaction_type = "repayment"
     address = None
 
@@ -273,13 +391,32 @@ def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, ou
     return transaction_type, address, amount, interest_paid
 
 
-def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+def determine_full_repayment_transaction_v2(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """V2 implementation of determine_full_repayment_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_full_repayment_transaction logic not yet implemented")
+
+
+def determine_full_repayment_transaction(input_box: dict, repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
     str, Optional[str], float, Optional[float]]:
     """
-    Determines liquidation transaction by finding collateral box and extracting address from R4 and calculates amount.
+    Dispatcher for determine_full_repayment_transaction based on pool version.
+    Determines full repayment transaction and extracts address from R5 and calculates amount.
     Also calculates interest paid by comparing amount repaid to borrow token decrease.
-    Returns: ("liquidation", address, amount, interest_paid)
+    Returns: ("repayment", address, amount, interest_paid)
     """
+    if pool["version"] == 1:
+        return determine_full_repayment_transaction_v1(input_box, repayment_tx, outer_tx, pool)
+    elif pool["version"] == 2:
+        return determine_full_repayment_transaction_v2(input_box, repayment_tx, outer_tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_liquidation_transaction ==========
+def determine_liquidation_transaction_v1(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """V1 implementation of determine_liquidation_transaction - original logic."""
     transaction_type = "liquidation"
     address = None
 
@@ -301,12 +438,32 @@ def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: 
     return transaction_type, address, amount, interest_paid
 
 
-def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
+def determine_liquidation_transaction_v2(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """V2 implementation of determine_liquidation_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_liquidation_transaction logic not yet implemented")
+
+
+def determine_liquidation_transaction(repayment_tx: dict, outer_tx: dict, pool: dict) -> tuple[
+    str, Optional[str], float, Optional[float]]:
+    """
+    Dispatcher for determine_liquidation_transaction based on pool version.
+    Determines liquidation transaction by finding collateral box and extracting address from R4 and calculates amount.
+    Also calculates interest paid by comparing amount repaid to borrow token decrease.
+    Returns: ("liquidation", address, amount, interest_paid)
+    """
+    if pool["version"] == 1:
+        return determine_liquidation_transaction_v1(repayment_tx, outer_tx, pool)
+    elif pool["version"] == 2:
+        return determine_liquidation_transaction_v2(repayment_tx, outer_tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_repayment_type ==========
+def determine_repayment_type_v1(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
     Optional[str], Optional[str], float, Optional[float], Optional[int], Optional[int]]:
-    """
-    Determines the specific type of repayment transaction by analyzing the repayment box's transaction.
-    Returns: (transaction_type, address, amount, interest_paid, block_height, timestamp) where transaction_type is 'partial_repayment', 'repayment', 'liquidation', or None
-    """
+    """V1 implementation of determine_repayment_type - original logic."""
     repayment_tx = fetch_transaction_data(repayment_box_tx_id)
     if not repayment_tx or "inputs" not in repayment_tx:
         print(f"Failed to fetch repayment transaction data for {repayment_box_tx_id}")
@@ -346,12 +503,31 @@ def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dic
     return None, None, 0.0, None, None, None
 
 
-def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[
+def determine_repayment_type_v2(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
+    Optional[str], Optional[str], float, Optional[float], Optional[int], Optional[int]]:
+    """V2 implementation of determine_repayment_type - to be implemented."""
+    raise NotImplementedError("V2 determine_repayment_type logic not yet implemented")
+
+
+def determine_repayment_type(repayment_box_tx_id: str, outer_tx: dict, pool: dict) -> tuple[
+    Optional[str], Optional[str], float, Optional[float], Optional[int], Optional[int]]:
+    """
+    Dispatcher for determine_repayment_type based on pool version.
+    Determines the specific type of repayment transaction by analyzing the repayment box's transaction.
+    Returns: (transaction_type, address, amount, interest_paid, block_height, timestamp) where transaction_type is 'partial_repayment', 'repayment', 'liquidation', or None
+    """
+    if pool["version"] == 1:
+        return determine_repayment_type_v1(repayment_box_tx_id, outer_tx, pool)
+    elif pool["version"] == 2:
+        return determine_repayment_type_v2(repayment_box_tx_id, outer_tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== determine_repayment_transaction ==========
+def determine_repayment_transaction_v1(input_box: dict, tx: dict, pool: dict) -> tuple[
     Optional[str], Optional[str], float, Optional[float], Optional[str], Optional[int], Optional[int]]:
-    """
-    Determines repayment transaction type and extracts address, amount, interest_paid, transaction_id, block_height, and timestamp.
-    Returns: (transaction_type, address, amount, interest_paid, transaction_id, block_height, timestamp)
-    """
+    """V1 implementation of determine_repayment_transaction - original logic."""
     repayment_box_tx_id = input_box.get("outputTransactionId")
     if repayment_box_tx_id:
         transaction_type, address, amount, interest_paid, block_height, timestamp = determine_repayment_type(repayment_box_tx_id, tx,
@@ -362,17 +538,30 @@ def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tu
         return None, None, 0.0, None, None, None, None
 
 
-def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
-    """
-    Process a single pool box transaction and return transaction data or None if invalid.
-    Shared logic between sync_transactions and sync_transactions_batched.
+def determine_repayment_transaction_v2(input_box: dict, tx: dict, pool: dict) -> tuple[
+    Optional[str], Optional[str], float, Optional[float], Optional[str], Optional[int], Optional[int]]:
+    """V2 implementation of determine_repayment_transaction - to be implemented."""
+    raise NotImplementedError("V2 determine_repayment_transaction logic not yet implemented")
 
-    :param pool_box: Pool box data
-    :param pool: Pool configuration
-    :param min_height: Minimum block height to process
-    :param sync_block: Block height when this data was synced
-    :return: Transaction data dictionary or None
+
+def determine_repayment_transaction(input_box: dict, tx: dict, pool: dict) -> tuple[
+    Optional[str], Optional[str], float, Optional[float], Optional[str], Optional[int], Optional[int]]:
     """
+    Dispatcher for determine_repayment_transaction based on pool version.
+    Determines repayment transaction type and extracts address, amount, interest_paid, transaction_id, block_height, and timestamp.
+    Returns: (transaction_type, address, amount, interest_paid, transaction_id, block_height, timestamp)
+    """
+    if pool["version"] == 1:
+        return determine_repayment_transaction_v1(input_box, tx, pool)
+    elif pool["version"] == 2:
+        return determine_repayment_transaction_v2(input_box, tx, pool)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== _process_single_transaction ==========
+def _process_single_transaction_v1(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
+    """V1 implementation of _process_single_transaction - original logic."""
     if pool_box["address"] != pool["pool"]:
         return None
 
@@ -454,16 +643,34 @@ def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min
     }
 
 
-def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
-    """
-    Sync transactions for boxes above min_height.
+def _process_single_transaction_v2(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
+    """V2 implementation of _process_single_transaction - to be implemented."""
+    raise NotImplementedError("V2 _process_single_transaction logic not yet implemented")
 
-    :param db: Database manager instance
-    :param pool: Pool configuration
-    :param pool_boxes: List of pool boxes
-    :param min_height: Minimum block height to process (default: 0)
-    :param sync_block: Block height when this data was synced
+
+def _process_single_transaction(pool_box: dict, pool: dict, sync_block: int, min_height: int = 0) -> Optional[Dict[str, Any]]:
     """
+    Dispatcher for _process_single_transaction based on pool version.
+    Process a single pool box transaction and return transaction data or None if invalid.
+    Shared logic between sync_transactions and sync_transactions_batched.
+
+    :param pool_box: Pool box data
+    :param pool: Pool configuration
+    :param min_height: Minimum block height to process
+    :param sync_block: Block height when this data was synced
+    :return: Transaction data dictionary or None
+    """
+    if pool["version"] == 1:
+        return _process_single_transaction_v1(pool_box, pool, sync_block, min_height)
+    elif pool["version"] == 2:
+        return _process_single_transaction_v2(pool_box, pool, sync_block, min_height)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== sync_transactions ==========
+def sync_transactions_v1(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
+    """V1 implementation of sync_transactions - original logic."""
     for pool_box in pool_boxes:
         transaction_data = _process_single_transaction(pool_box, pool, sync_block, min_height)
         if not transaction_data:
@@ -488,18 +695,33 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, mi
             print(f"Failed to upsert transaction {transaction_data['transaction_id']}")
 
 
-def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
+def sync_transactions_v2(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
+    """V2 implementation of sync_transactions - to be implemented."""
+    raise NotImplementedError("V2 sync_transactions logic not yet implemented")
+
+
+def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0):
     """
-    Sync transactions for boxes above min_height using batched processing.
-    Processes transactions locally in batches and inserts them in bulk to reduce database calls.
+    Dispatcher for sync_transactions based on pool version.
+    Sync transactions for boxes above min_height.
 
     :param db: Database manager instance
     :param pool: Pool configuration
     :param pool_boxes: List of pool boxes
     :param min_height: Minimum block height to process (default: 0)
-    :param batch_size: Number of transactions to process in each batch (default: 500)
     :param sync_block: Block height when this data was synced
     """
+    if pool["version"] == 1:
+        return sync_transactions_v1(db, pool, pool_boxes, sync_block, min_height)
+    elif pool["version"] == 2:
+        return sync_transactions_v2(db, pool, pool_boxes, sync_block, min_height)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
+
+
+# ========== sync_transactions_batched ==========
+def sync_transactions_batched_v1(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
+    """V1 implementation of sync_transactions_batched - original logic."""
     transactions_batch = []
     processed_count = 0
 
@@ -522,3 +744,29 @@ def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block
 
     if processed_count > 0:
         print(f"  Transactions: {processed_count} processed ✓")
+
+
+def sync_transactions_batched_v2(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
+    """V2 implementation of sync_transactions_batched - to be implemented."""
+    raise NotImplementedError("V2 sync_transactions_batched logic not yet implemented")
+
+
+def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
+    """
+    Dispatcher for sync_transactions_batched based on pool version.
+    Sync transactions for boxes above min_height using batched processing.
+    Processes transactions locally in batches and inserts them in bulk to reduce database calls.
+
+    :param db: Database manager instance
+    :param pool: Pool configuration
+    :param pool_boxes: List of pool boxes
+    :param min_height: Minimum block height to process (default: 0)
+    :param batch_size: Number of transactions to process in each batch (default: 500)
+    :param sync_block: Block height when this data was synced
+    """
+    if pool["version"] == 1:
+        return sync_transactions_batched_v1(db, pool, pool_boxes, sync_block, min_height, batch_size)
+    elif pool["version"] == 2:
+        return sync_transactions_batched_v2(db, pool, pool_boxes, sync_block, min_height, batch_size)
+    else:
+        raise ValueError(f"Unknown pool version: {pool['version']}")
