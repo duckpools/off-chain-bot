@@ -425,25 +425,6 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                     "registers": {}
                 },
                 {
-                    "address": quote["quoteScript"],
-                    "value": logic_box["value"],
-                    "assets": [
-                        {
-                            "tokenId": logic_box["assets"][0]["tokenId"],
-                            "amount": 1
-                        }
-                    ],
-                    "registers": {
-                        "R4": encode_long_tuple([iReport[0], liquidation_value, aggregateThreshold, iReport[3],
-                                                 iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]]),
-                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
-                        "R7": r7_value,
-                        "R8": r8_value,
-                        "R9": r9_value
-                    }
-                },
-                {
                     "address": funding_box["address"],
                     "value": funder_erg_value,
                     "assets": funding_output_assets,
@@ -461,7 +442,6 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                 box_id_to_binary(spend_nft_box["boxId"]),
                 box_id_to_binary(funding_box["boxId"]),
                 box_id_to_binary(collateral_box["boxId"]),
-                box_id_to_binary(logic_box["boxId"])
             ],
             "dataInputsRaw": data_inputs_raw
         }
