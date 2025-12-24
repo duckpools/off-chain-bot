@@ -61,7 +61,6 @@ def get_spend_nft_boxes(pool):
 
     try:
         boxes = get_unspent_boxes_by_address(spend_nft_address)
-        print(boxes)
         return boxes
     except Exception as e:
         logger.error("Error fetching spend NFT boxes: %s", str(e))
@@ -254,12 +253,10 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         if not quote_fund_address:
             logger.warning("Quote missing quote_fund address")
             return None
-
         interest_box = get_interest_box(pool["interest"], pool["INTEREST_NFT"])
         if not interest_box:
             logger.warning("Interest box not found for automatic repayment")
             return None
-
         # Get primary DEX box
         primary_dex_nft = quote["primarySupportedCollateral"]["DEXNFT"]
         dex_box = get_dex_box(primary_dex_nft)
@@ -287,7 +284,6 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         # Handle secondary collateral
         secondary_collateral_config = quote.get("secondarySupportedCollateral", [])
         collateral_tokens = collateral_box["assets"][1:] if len(collateral_box["assets"]) > 1 else []
-
         secondary_erg_value = 0
         secondary_dex_boxes = []
         ordered_amounts = []
@@ -399,10 +395,9 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         for sec_dex in secondary_dex_boxes:
             data_inputs_raw.append(box_id_to_binary(sec_dex["boxId"]))
 
-        # Collateral ERG goes to funder (minus tx fees and repayment box value)
-        # Repayment box needs MIN_BOX_VALUE + TX_FEE, plus TX_FEE for transaction fee
-        funder_erg_value = funding_box["value"] + collateral_value - 2 * TX_FEE - MIN_BOX_VALUE
-        print(repayment_amount)
+        # Collateral ERG goes to funder (minus tx fees, repayment box value, and logic box value)
+        # Repayment box needs MIN_BOX_VALUE + TX_FEE, logic box needs logic_box["value"], plus TX_FEE for transaction fee
+        funder_erg_value = funding_box["value"] + collateral_value - MIN_BOX_VALUE - 2 * TX_FEE - logic_box["value"]
 
         # Build transaction
         # Inputs: spend_nft_box, funding_box, collateral_box, logic_box
@@ -425,6 +420,24 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                     "registers": {}
                 },
                 {
+                    "address": quote["quoteScript"],
+                    "value": logic_box["value"],
+                    "assets": [
+                        {
+                            "tokenId": logic_box["assets"][0]["tokenId"],
+                            "amount": 1
+                        }
+                    ],
+                    "registers": {
+                        "R4": encode_long_tuple([iReport[0], liquidation_value, aggregateThreshold, iReport[3], iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]]),
+                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
+                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": r7_value,
+                        "R8": r8_value,
+                        "R9": r9_value
+                    }
+                },
+                {
                     "address": funding_box["address"],
                     "value": funder_erg_value,
                     "assets": funding_output_assets,
@@ -434,14 +447,21 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                     "address": spend_nft_box["address"],
                     "value": spend_nft_box["value"],
                     "assets": spend_nft_box["assets"],
-                    "registers": {}
+                    "registers": {
+                        "R4": spend_nft_box["additionalRegisters"]["R4"]["serializedValue"],
+                        "R5": spend_nft_box["additionalRegisters"]["R5"]["serializedValue"],
+                        "R6": spend_nft_box["additionalRegisters"]["R6"]["serializedValue"],
+                        "R7": spend_nft_box["additionalRegisters"]["R7"]["serializedValue"],
+                        "R8": spend_nft_box["additionalRegisters"]["R8"]["serializedValue"],
+                    }
                 }
             ],
             "fee": TX_FEE,
             "inputsRaw": [
-                box_id_to_binary(spend_nft_box["boxId"]),
-                box_id_to_binary(funding_box["boxId"]),
-                box_id_to_binary(collateral_box["boxId"]),
+                box_id_to_binary(spend_nft_box["boxId"]),      # INPUTS(0)
+                box_id_to_binary(funding_box["boxId"]),         # INPUTS(1)
+                box_id_to_binary(collateral_box["boxId"]),      # INPUTS(2)
+                box_id_to_binary(logic_box["boxId"]),           # INPUTS(3)
             ],
             "dataInputsRaw": data_inputs_raw
         }
@@ -489,7 +509,6 @@ def automatic_repayment_job(pool):
         return
 
     logger.info("Found %d spend NFT boxes", len(spend_nft_boxes))
-
     for spend_nft_box in spend_nft_boxes:
         try:
             # Extract threshold from spend NFT box R6
@@ -516,7 +535,6 @@ def automatic_repayment_job(pool):
             else:
                 logger.warning("Unexpected R6 format: %s", type(threshold_data))
                 continue
-
             # Get spend NFT ID
             if not spend_nft_box.get("assets"):
                 continue
@@ -530,10 +548,9 @@ def automatic_repayment_job(pool):
 
             for collateral_box in collateral_boxes:
                 try:
-                    # Get quote NFT from collateral box R7
-                    quote_nft = collateral_box["additionalRegisters"]["R7"]["renderedValue"]
+                    # Get quote NFT from spend NFT box R7
+                    quote_nft = spend_nft_box["additionalRegisters"]["R7"]["renderedValue"]
                     quote = find_quote_by_nft(pool, quote_nft)
-
                     if not quote:
                         logger.debug("No matching quote found for NFT %s", quote_nft)
                         continue

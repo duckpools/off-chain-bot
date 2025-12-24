@@ -8,3 +8,4 @@ headers = {
 }
 node_pass = os.environ["WALLET_PASS"]
 node_address = "9i9RhfdHQA2bHA8GqWKkYevp3nozASRjJfFkh29utjNL9gqE7Q7"
+AUTOMATIC_PROCESSING_ENABLED = True

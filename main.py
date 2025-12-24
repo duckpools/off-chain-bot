@@ -1,15 +1,15 @@
 from time import sleep
 
-from bootstrapping.pool_creation import create_pool, allAddressesWithBoxes, bootstrap_logic_box
-from consts import BorrowTokenDenomination
 from contracts.quacks import generate_repayment_script, generate_collateral_script, generate_pool_script, \
     generate_interest_script, generate_logic_script
 from database_services.db_routine import db_routine
 from helpers.platform_functions import update_pools_in_file
 from helpers.serializer import bytesLike, blake2b256, encode_bigint, encode_long, hex_to_base58
+from token_pools.repayments.automatic_repayment_spend_nft import automatic_repayment_job
+from token_pools.repayments.t_repay_proxy_susd import t_repay_proxy_job
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from current_pools import current_pools
-from client_consts import node_address
+from client_consts import node_address, AUTOMATIC_PROCESSING_ENABLED
 from erg_pool.e_borrow_proxy import e_borrow_proxy_job
 from erg_pool.e_interest_rate import e_update_interest_rate
 from erg_pool.e_lend_proxy import e_lend_proxy_job
@@ -23,11 +23,12 @@ from token_pools.t_liquidation_susd import t_liquidation_job
 from logger import set_logger
 from token_pools.t_partial_repay_proxy_susd import t_partial_repay_proxy_job
 from erg_pool.e_repay_proxy import e_repay_proxy_job
-from token_pools.t_repay_proxy_susd import t_repay_proxy_job
+
 from erg_pool.e_repay_to_pool import e_repay_to_pool_job
 from token_pools.t_repay_to_pool_susd import t_repay_to_pool_job
 from erg_pool.e_withdraw_proxy import e_withdraw_proxy_job
 from token_pools.t_withdraw_proxy_sigusd import t_withdraw_proxy_job
+from bootstrapping.pool_creation import bootstrap_logic_box_flow
 
 
 try:
@@ -39,8 +40,6 @@ parameterBoxNft = hex_to_base58(('2a26e43b9bfb0045fdc83ed4a835f7dd37e32df3a73316
 col = hex_to_base58(blake2b256(bytesLike(address_to_tree('HuMJCQzmJNTcbratSHhJa8L67xXPNJUkm4yhHwqqgSeV747n3UBic42pYjLs6Uhwqq4E67CM5EjA8tASobNNt53FdLkGqAg5wJi9PipbtcLMxhq8zxa2etpyJfWeMKfY5GsA48EvsVMhDFH34nzekZngmPsNdDUCZK6qtvcL6fAhbtTAMxSp1kxcEnSv4PnKFGT9dCjApLhW9nQk6x8jFTJzgGCnWE7V7db9UA1iqasgTukNv5FExmyvULHQqFcFsHEi5GGkuAduh7vrsgn68vnhqSe4u8EVC7R2fvRBKmrKq4LBLkvJvasYYhaEmMupP2U3M1jJoEVEPk1Nhh5bKuXa6hNqAhGPMhfCdLTwy8WUMugVmLVCc2wum658itYxmcTQ3P54P4yLf2sSKQcAGKcVKJFh1GmpvTUWhifJUc3TQL3yizEZ61ezcyj7r3y2JEhYBRLjerrC1nhuCnHevEdFRDjuHQULimWGWSfsWnA5x2bVJBLNMiokYN8aDYzWRZMiyyb1f4nYiw5aFmLLRtJtncqDbCofY32ZGH1nytd3xpzSKgJNYBXJnSmccGZzaRLh6nAS6WBpDFsiemSpLfqnQL4Yp3BnUaANybXnq9ZWvNaGhashn6e7pUy6BfEpQmrRejb7ncXNxNuLpX1X4XE74D6XMsfHjh8YQ12fADa77SQnABZWSoQzqXRy3dUswhXXZUCC6p3qvBpg7mpyYNtjyaCZD7LW2SoVsxkmcfrVdMnVGD9VkC2DjD796m9RzQnHzHMi2jK3A7rpmSPy1jGkL6EG6ADHJ8itsUwrkmfcV8tW3aHEiZQrzCprv98GkSHkQfHMNs5mZKR8dAEPwbuKPr8iqMC4jCPqq2pZomMLhrVkxsDFU96xnkF189QcwiJehnJmY1hFoQ1hM7CvaefeRhfbcHrgJmAk2CLwKX4L8ddP1k7N4yqr6ajnGz6A4acb6SupUVHwXDfzHB5DNT1L4e6gVtJgdNZ6xkhApeVXAucrvuQAvBMiAyyJKiCkf9x7witH2osDtpLmysyDitaYT1duYocZDKqkZfkVxxYWFXEPKaaq4mByiUfJnc5CAHeWZmconDZ2zonnHrr5fefq2879QZibb4sFiQjinxNyUBBoQ1ATj2nSWSABqGUq9qHmBrfhT7tdMg769PoWKNgpjcMkEju1hKYeLDBZJnSoquusw66ShpfEiQAMtYZrtJJQCe3AMTzhxK1g34jNYQk2gTgVy6ENL6jWRjuJPkfQo6gwUnS5aYQjNdidXPVueDJfi9TgvtdXMJuEZ1rh6Cha9pgQDfDqAmfsrSiFpBwq5KtiSsDoMsvEYr4XsfE1Ar7vt27dgsjUkzEX9mJYw99V6dr5gD93Hvi1dKsMKUVPJFFy3X6ak9xA61vuz7przVZSTdJxzA9vRApCU1xyjkFSBSte6DMtXoUC7j7Zp7mEJvf2dXYkAvWfavMB8LMECLViuZkw3A9XpXNuqky4bxWD9tvq6tJBQcKh3USkAc96TQvBCa35eHbia2eh2DfC67qUDmQMc3Q3NA5hHu4umgr872UF9v6BEFN5SueSVmL9eFRRiFFaHHz7aKpP3XaQYnRxjECgAqBdVKNqRzQA5cFoZ8GpN45ydRsuTcJJnMj8rRib42q9nMmJHakZis2NxP4fBShoCR4jZzD8q5tpweiWEUnUgceFuguhTXNyNVk1rTSS8aWCr3oK6TnbvcE2EMRjUHVWecCBehtMGwFXxBCS2TKFwjqEjA6xZUHXTEb6XCbs3JhirksEH1YpZo96Rvqa5qfS1sfc73DF9d2wBSx2sQjxXu2k9pFzeSrbJgTmEpCDT7KPFJPThqJCbVGieYDJ7YDs2j97ACoYJ3URmKvYBw3e3gwYBr5h5Lh8Rf4YF4Q2mLvo2sfTsoRL6o35FjMFjr9JErr8ufZsKV1pSPxgTBUVhz8twMtVQgHiUnQ5ojHYakpBEYSxqT3KeSyRDC8zWh2iKFMCHiS1iaNZ'))))
 print(generate_pool_script(col, childBoxNft, parameterBoxNft, [2000, 200000]))
 dsd"""
-
-db_routine(full_sync=False, parallel_sync=True)
 
 logger = set_logger(__name__)
 if __name__ == "__main__":
@@ -58,7 +57,7 @@ if __name__ == "__main__":
                 unlock_wallet()
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
-                for pool in (pools[0:] + current_pools[0:]):
+                for pool in (pools[0:] + current_pools[:]):
                     try:
                         if pool["is_Erg"]:
                             curr_tx_obj = e_lend_proxy_job(pool)
@@ -76,6 +75,8 @@ if __name__ == "__main__":
                             curr_tx_obj = t_borrow_proxy_job(pool, curr_tx_obj)
                             t_repay_proxy_job(pool)
                             t_partial_repay_proxy_job(pool)
+                            if AUTOMATIC_PROCESSING_ENABLED:
+                                automatic_repayment_job(pool)
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")

@@ -504,7 +504,24 @@ current_pools = [
             {'DEXNFT': 'ae97c5eccd59a065cd973a8d6afb8bb79f9cc70368a7dcdf73aaeab1cedf6f6b', 'dexFee': 997, 'dexFeeSerialized': '04ca0f'},
             {'DEXNFT': '47a811c68e49f6bfa6629602037ee65f8d175ddbc7b64bdb65ad40599b812fd0', 'dexFee': 990, 'dexFeeSerialized': '04bc0f'},
         ]},
+        {'quoteNFT': '1c2a2bab656cfcc69bc01e68d7d6a58acb6e46caab389eeecda71378cad83601',
+         'quoteScript': '47AmZQojqCisoksXouPka6D2BRaio5rF4zxQa8G9AaQ8jRc6GzAHaE9wSe5TH8AKJMRi24KvFFUUssP9s36ZQZW547NPFmLHgZ2JGFMy6PX8vyectJNF4RUhD28SkVELyTryBov4uAwo9S9LK5rgsHcxXZPjXqQD2TETat1Z3LdDMDwHUJpYrDsCL8FapxiL9jWjUDfmqvNKJe2XYhiSJJpHQPv8fiu8e6SJNepjS4vxPMmBxzg4KnWJ9Snh97M1cFwoHevoTFHzWKWkVpFA1yTUCkKavbb8fb8WKsjDGDqBrXr5wnJAvWrMXbeUtyuXPA4cBYhvBzQ5ZMg5HPh2V6YtYkgovT9QcmrnnzjK7i1gf2S8a3WECwgFVkQNtbVaZCYVf1yvTEh52SG7XnS9qEbkuJ4ZkSFkPXQQnjB8QTqZFhbpgafGBK3CoxZ64MaHijxaVZjEudUS8S6DxuUt8Dd3N8jFiRnHXFPJw3muNi9wS4jbwUYZ3g9yBAn3A7kFf74HM8XKb9qAZExAsGTxFKnPehoMN21QCaej7vwBYCTovdrCduXa83uCaMPzvWnP1T9wsvaKJ4Vf9wUMwRgSGxAxXPe9CccqF4X6K643CtbxyZGN81g8cvucH7aiRkXYchkzwTEdgyyou7ykWGLckEp6DpQpKqVyRNBTsdQxAfE7Fa5snRscU58XCShJv7aLpjAtsDP7MgL6XrSK3YvuunmJN1mieq4GEM9sVoxq4VZVwquHU4tBKohoPiXTtziArV2Q2WJPFSzGkEzcXvAeBaqdRpxi72s9nUfa719SznpgRmBVA27YupehQBDbHBBT9LvcYu7uWA5tLfs2BoQmvzJmTQtpbscfm3N42N3nnyVsPg2CZPi3gKS7xJX3twfHbocoxiZEXbj1fpLD5aP8Ej7LhzAq1kHY194xFcChHhM9gJ8GkMwChdHR4d6Qj2oc86xAfuP5jUKW4p1tHFTk4NPiw56xu9FsbTbRTrneqeGC8BxrpGhUnYmbMQmpPofoDdQhJPmkFuJxeuEMmZNLafHoia9Mzay9u9AzdryfcqkbvBJuqJFu9wJ2dKoD4Xk7EasWsaCthjdGwqck1B9ABjttkG5mW5iwwA4vRXgGiNeFkZGQVWqDQ2Qg7iNnyy6nBgrbFhe8JVh2B9RBVN',
+         'primarySupportedCollateral': {'DEXNFT': '46463b61bae37a3f2f0963798d57279167d82e17f78ccd0ccedec7e49cbdbbd1',
+                                        'dexFee': 30, 'dexFeeSerialized': '04ca0f'},
+         "quote_fund": "5p177mCDoN1drGA5LmqEfssGHLm9CwHWrGYcwxTSY34uZh18RrbGCyXCrdkn19ouYuEng5PQrfVm",
+         'secondarySupportedCollateral': [
+             {'DEXNFT': '9916d75132593c8b07fe18bd8d583bda1652eed7565cf41a4738ddd90fc992ec', 'dexFee': 995,
+              'dexFeeSerialized': '04c60f'},
+             {'DEXNFT': '1d5afc59838920bb5ef2a8f9d63825a55b1d48e269d7cecee335d637c3ff5f3f', 'dexFee': 995,
+              'dexFeeSerialized': '04c60f'},
+             {'DEXNFT': '1b694b15467c62f0cd4525e368dbdea2329c713aa200b73df4a622e950551b40', 'dexFee': 997,
+              'dexFeeSerialized': '04ca0f'},
+             {'DEXNFT': 'ae97c5eccd59a065cd973a8d6afb8bb79f9cc70368a7dcdf73aaeab1cedf6f6b', 'dexFee': 997,
+              'dexFeeSerialized': '04ca0f'},
+             {'DEXNFT': '47a811c68e49f6bfa6629602037ee65f8d175ddbc7b64bdb65ad40599b812fd0', 'dexFee': 990,
+              'dexFeeSerialized': '04bc0f'},
+         ]},
     ],
-    "spend_nft_address": "5p177mg4mff5KfafKKQiXgFXtv4Gk1sAc8wBwpLeZdq1Ejfk8GZiX6U1AtPnmHWCzTRHLcZoxfqB"
+    "spend_nft_address": "4B8sDstcQpcuZKQtkN9XWryfXfUdGcFuaLCE4xAUcU2esWwAVtMrrtEwCEu3FH934quA4RAMyryphZo5z688vKMAXoB4fycjdyzbEKTzgF62SxcZyUZCV9a12Ytub25tVRG3kU6gDAgrwDHiRanHmyjDHXvJ8jZdPcjhbrzVfmEdgfG6Z82x9q171MnPpG3PGBoEMqgQD8g2cFN5UfMHKFaZZP6uPL8cWqt5cNsch6sLDu9vRaq3TcKRHt3XDBREXgA9rUHPpJ9tyDWeq2TvCThV6PNmVgJimrgtf2dwsU7rbCD6YXusTyHnwhMTTDEBrpAVEjWx17H8NNFDkh9TtVEoKFVWLN6uUwNKMZFiq9p1SsEBjzrM3ykX1hZEgqcsVNSZnzHmgB6FUNmcXYis3Y7bMjLV79PKPmJ7q61NYWQecJXG6G8hev7XmCQEXpYm1nzx61mxibjcnH1hjEvZ952p8LuwE3qD5VRRMk5JSMX3URx6D7c6753eE6vnrBgRGcjpDKXKB3iA1JjDaWJBCrYCZ8QtY686merLidz4RzpN1Mo2NKDfMLTp5DAyEBy4ZJKwE8Tv5XbGvQCThAxG17mKPE6hvdtgyuchopv6u3QBv"
 },
 ]
