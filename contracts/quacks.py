@@ -267,6 +267,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val iBufferLiquidation = SELF.R6[Long].get
 	val currentQuoteNFT = SELF.R7[Coll[Byte]].get
 	val iSpendingNFT = SELF.R8[Coll[Byte]].get
+    val iSpendingNFTShort = iSpendingNFT.slice(0, 32)
+    val iSpendingNFTEnd = iSpendingNFT.slice(32, 40)
 	val iLoanSettings = SELF.R9[Coll[Long]].get
 	val loanAmount = currentBorrowTokens._2
 	val iThreshold = iLoanSettings(0)
@@ -342,9 +344,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				fCollateralBorrowTokens._1 == currentBorrowTokens._1 &&
 				fCollateralBorrower == currentBorrower &&
 				fCollateralUserPk == currentUserPk &&
-				fCollateralQuoteNFT == currentQuoteNFT &&
-				iSpendingNFT == fSpendingNFT &&
-				isQuotedBoxValid
+				fCollateralQuoteNFT == currentQuoteNFT
 			)
 			if (fRepayments.size > 0) {{
 				// Partial Repay and Automated Actions
@@ -372,6 +372,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val partialRepayment = sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Tokens, Buffer)
 					fCollateralCommon &&
+					isQuotedBoxValid &&
+                    iSpendingNFT == fSpendingNFT &&
 					fCollateralValue >= currentValue &&
 					fCollateralValue <= currentValue + 10 * MinimumTransactionFee &&
 					validBorrowTokens &&
@@ -395,6 +397,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val readyToLiquidate = sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
+					isQuotedBoxValid &&
+                    iSpendingNFT == fSpendingNFT &&
 					fCollateralValue >= currentValue - MinimumTransactionFee &&
 					fCollateralValue <= currentValue + 10 * MinimumTransactionFee &&
 					fCollateral.tokens == SELF.tokens &&
@@ -407,6 +411,8 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val resetLiquidate = sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
+					isQuotedBoxValid &&
+					iSpendingNFT == fSpendingNFT &&
 					fCollateralValue >= currentValue - MinimumTransactionFee &&
 					fCollateralValue <= currentValue + 10 * MinimumTransactionFee &&
 					fCollateral.tokens == SELF.tokens &&
@@ -420,12 +426,14 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 				val isValidCollateral = quotePrice >= totalOwed.toBigInt * iThresholdQuoted.toBigInt / LiquidationThresholdDenom.toBigInt
 				val isValidNewSettings = fLoanSettings(0) == iThresholdQuoted && fLoanSettings(1) == iPenaltyQuoted
 				val nftProofGiven = INPUTS.filter{{
-					(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == fSpendingNFT
+					(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFTShort && b.R9[Coll[Byte]].get == iSpendingNFTEnd
 				}}.size > 0
 				val adjustCollateral = (sigmaProp(nftProofGiven) || proveDlog(currentUserPk)) && 
 				sigmaProp(
 					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
 					fCollateralCommon &&
+					isQuotedBoxValid &&
+                    iSpendingNFT == fSpendingNFT &&
 					isValidCollateral &&
 					fCollateralBorrowTokens == currentBorrowTokens &&
 					fBufferLiquidation == defaultBuffer &&
@@ -438,7 +446,19 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
                     fLoanSettings(6) == iLoanSettings(6) &&  // Preserve shortLoanFee
                     fLoanSettings(7) == iLoanSettings(7)     // Preserve shortLoanDuration
 				)
-				readyToLiquidate || resetLiquidate || adjustCollateral
+				
+            val adjustSpendNFT = (sigmaProp(nftProofGiven) || proveDlog(currentUserPk)) && 
+				sigmaProp(
+					// Complete Collateral Checks (Value, Borrow Token Amount, Settings)
+					fCollateralCommon &&
+					fCollateralValue == currentValue &&
+					fCollateral.tokens == SELF.tokens &&
+					fCollateralBorrower == currentBorrower &&
+					fCollateralUserPk == currentUserPk &&
+					fCollateralQuoteNFT == currentQuoteNFT &&
+					fLoanSettings == iLoanSettings
+				)
+				readyToLiquidate || resetLiquidate || adjustCollateral || adjustSpendNFT
 			}}
 
 		}} else {{
@@ -513,7 +533,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		)	
 
         val nftProofGiven = INPUTS.filter{{
-            (b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFT
+            (b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFTShort && b.R9[Coll[Byte]].get == iSpendingNFTEnd
         }}.size > 0
         
         val validUseOfCollateral = if (nftProofGiven) {{

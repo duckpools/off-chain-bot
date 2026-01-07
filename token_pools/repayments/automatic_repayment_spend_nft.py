@@ -88,8 +88,10 @@ def get_collateral_boxes_for_nft(pool, spend_nft_id):
 
         for box in all_collateral_boxes:
             try:
-                # R8 contains the spending NFT ID
-                box_spend_nft = box["additionalRegisters"]["R8"]["renderedValue"]
+                # R8 contains spendNFT (32 bytes) + specialBytes (8 bytes)
+                # Extract first 32 bytes (64 hex chars) for matching
+                box_r8 = box["additionalRegisters"]["R8"]["renderedValue"]
+                box_spend_nft = box_r8[:64]  # First 32 bytes in hex
                 if box_spend_nft == spend_nft_id:
                     matching_boxes.append(box)
             except (KeyError, TypeError):
@@ -99,6 +101,37 @@ def get_collateral_boxes_for_nft(pool, spend_nft_id):
     except Exception as e:
         logger.error("Error fetching collateral boxes: %s", str(e))
         return []
+
+
+def find_action_box_for_loan(spend_nft_boxes, collateral_box):
+    """
+    Find the action box that links to this loan via specialBytes.
+
+    The loan's R8 contains spendNFT (32 bytes) + specialBytes (8 bytes).
+    The action box's R9 contains the specialBytes that matches the loan's R8 suffix.
+
+    Args:
+        spend_nft_boxes: List of action boxes (spend NFT boxes)
+        collateral_box: The loan collateral box
+
+    Returns:
+        The matching action box, or None if not found
+    """
+    try:
+        # Extract specialBytes from loan R8 (last 8 bytes = 16 hex chars)
+        loan_r8 = collateral_box["additionalRegisters"]["R8"]["renderedValue"]
+        special_bytes = loan_r8[64:]  # Last 8 bytes in hex
+
+        for action_box in spend_nft_boxes:
+            try:
+                action_r9 = action_box["additionalRegisters"]["R9"]["renderedValue"]
+                if action_r9 == special_bytes:
+                    return action_box
+            except (KeyError, TypeError):
+                continue
+        return None
+    except (KeyError, TypeError):
+        return None
 
 
 def calculate_quote_price(collateral_box, pool, quote):
@@ -201,6 +234,9 @@ def needs_automatic_repayment(collateral_box, threshold, pool, quote):
     # threshold is like 1250 meaning 125% (1250/1000)
     # Condition: quote_price <= total_owed * threshold / 1000
     threshold_value = (total_owed * threshold) // 1000
+    print(threshold_value)
+    print(threshold)
+    print(quote_price)
     needs_repayment = quote_price <= threshold_value
 
     return needs_repayment, quote_price, total_owed
@@ -453,6 +489,7 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                         "R6": spend_nft_box["additionalRegisters"]["R6"]["serializedValue"],
                         "R7": spend_nft_box["additionalRegisters"]["R7"]["serializedValue"],
                         "R8": spend_nft_box["additionalRegisters"]["R8"]["serializedValue"],
+                        "R9": spend_nft_box["additionalRegisters"]["R9"]["serializedValue"],
                     }
                 }
             ],
@@ -548,9 +585,17 @@ def automatic_repayment_job(pool):
 
             for collateral_box in collateral_boxes:
                 try:
+                    # Verify specialBytes link: loan R8[64:] must match action box R9
+                    matched_action_box = find_action_box_for_loan([spend_nft_box], collateral_box)
+                    if not matched_action_box:
+                        # This collateral box doesn't link to this specific action box
+                        continue
+
                     # Get quote NFT from spend NFT box R7
                     quote_nft = spend_nft_box["additionalRegisters"]["R7"]["renderedValue"]
+                    print("qu", quote_nft)
                     quote = find_quote_by_nft(pool, quote_nft)
+                    print(quote, "dd")
                     if not quote:
                         logger.debug("No matching quote found for NFT %s", quote_nft)
                         continue
@@ -559,7 +604,7 @@ def automatic_repayment_job(pool):
                     needs_repay, quote_price, total_owed = needs_automatic_repayment(
                         collateral_box, threshold, pool, quote
                     )
-
+                    print(needs_repay, quote_price, total_owed)
                     if needs_repay:
                         logger.info(
                             "Collateral box %s needs repayment: quote_price=%s, total_owed=%s, threshold=%s",
