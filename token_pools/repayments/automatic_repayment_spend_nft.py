@@ -21,7 +21,7 @@ import json
 from consts import TX_FEE, MIN_BOX_VALUE, ERROR, SLIPPAGE, DEX_FEE_DENOM, MAX_NETWORK_FEE, LargeMultiplier, \
     BORROW_TOKEN_DENOMINATION
 from helpers.explorer_calls import get_unspent_boxes_by_address
-from helpers.node_calls import box_id_to_binary, sign_tx
+from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
 from helpers.platform_functions import get_interest_box, get_dex_box, get_logic_box
 from helpers.serializer import extract_number, encode_long_tuple, encode_coll_int
 from logger import set_logger
@@ -108,7 +108,7 @@ def find_action_box_for_loan(spend_nft_boxes, collateral_box):
     Find the action box that links to this loan via specialBytes.
 
     The loan's R8 contains spendNFT (32 bytes) + specialBytes (8 bytes).
-    The action box's R9 contains the specialBytes that matches the loan's R8 suffix.
+    The action box's R8 contains the specialBytes that matches the loan's R8 suffix.
 
     Args:
         spend_nft_boxes: List of action boxes (spend NFT boxes)
@@ -124,8 +124,8 @@ def find_action_box_for_loan(spend_nft_boxes, collateral_box):
 
         for action_box in spend_nft_boxes:
             try:
-                action_r9 = action_box["additionalRegisters"]["R9"]["renderedValue"]
-                if action_r9 == special_bytes:
+                closure_id = action_box["additionalRegisters"]["R8"]["renderedValue"]
+                if closure_id == special_bytes:
                     return action_box
             except (KeyError, TypeError):
                 continue
@@ -371,6 +371,44 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         borrow_token_value = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
         total_owed = loan_amount * borrow_token_value // BORROW_TOKEN_DENOMINATION
 
+        # Get user address from spend NFT box R4 for leftover collateral
+        user_address = tree_to_address(spend_nft_box["additionalRegisters"]["R4"]["renderedValue"])
+
+        # Get fee allowance from R6 settings (index 1) - matches contract logic
+        settings = json.loads(spend_nft_box["additionalRegisters"]["R6"]["renderedValue"]) if isinstance(
+            spend_nft_box["additionalRegisters"]["R6"]["renderedValue"], str
+        ) else spend_nft_box["additionalRegisters"]["R6"]["renderedValue"]
+        fee_allowance = settings[1] if len(settings) > 1 else 0
+
+        # Apply fee allowance to get adjusted quote price (matches contract)
+        adjusted_quote_price = liquidation_value - (liquidation_value * fee_allowance // 1000)
+
+        # Calculate user's proportional share of leftover collateral
+        PROPORTION_DENOM = 1000
+        if adjusted_quote_price > total_owed:
+            user_proportion = ((adjusted_quote_price - total_owed) * PROPORTION_DENOM) // adjusted_quote_price
+
+            # User's ERG share: (collateralErg * proportion / 1000) - TX_FEE
+            user_erg = (collateral_value * user_proportion // PROPORTION_DENOM) - TX_FEE
+            if user_erg < MIN_BOX_VALUE:
+                user_erg = MIN_BOX_VALUE
+
+            # User's token shares (collateral tokens are index 1+)
+            user_tokens = []
+            for token in collateral_tokens:
+                token_amount = int(token["amount"])
+                user_token_amount = (token_amount * user_proportion) // PROPORTION_DENOM
+                if user_token_amount > 0:
+                    user_tokens.append({
+                        "tokenId": token["tokenId"],
+                        "amount": user_token_amount
+                    })
+        else:
+            # Debt exceeds or equals collateral value - user gets nothing
+            user_proportion = 0
+            user_erg = 0
+            user_tokens = []
+
         # Find a funding box with enough currency
         repayment_amount = total_owed + 1  # Slightly over to ensure repayment succeeds
         funding_box = get_funding_box(quote_fund_address, pool["CURRENCY_ID"], repayment_amount)
@@ -399,16 +437,25 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
                 })
 
         # Add collateral tokens to funding box output (secondary collateral)
+        # Deduct user's proportional share from what goes to funder
+        user_token_amounts = {t["tokenId"]: t["amount"] for t in user_tokens}
         for token in collateral_tokens:
-            # Check if token already exists in funding box
-            existing = next((a for a in funding_output_assets if a["tokenId"] == token["tokenId"]), None)
-            if existing:
-                existing["amount"] = int(existing["amount"]) + int(token["amount"])
-            else:
-                funding_output_assets.append({
-                    "tokenId": token["tokenId"],
-                    "amount": token["amount"]
-                })
+            token_id = token["tokenId"]
+            token_amount = int(token["amount"])
+            # Deduct user's share
+            user_share = user_token_amounts.get(token_id, 0)
+            funder_token_amount = token_amount - user_share
+
+            if funder_token_amount > 0:
+                # Check if token already exists in funding box
+                existing = next((a for a in funding_output_assets if a["tokenId"] == token_id), None)
+                if existing:
+                    existing["amount"] = int(existing["amount"]) + funder_token_amount
+                else:
+                    funding_output_assets.append({
+                        "tokenId": token_id,
+                        "amount": funder_token_amount
+                    })
 
         # Encode registers for logic box output
         if secondary_collateral_config:
@@ -431,68 +478,84 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         for sec_dex in secondary_dex_boxes:
             data_inputs_raw.append(box_id_to_binary(sec_dex["boxId"]))
 
-        # Collateral ERG goes to funder (minus tx fees, repayment box value, and logic box value)
+        # Collateral ERG goes to funder (minus tx fees, repayment box value, logic box value, and user's share)
         # Repayment box needs MIN_BOX_VALUE + TX_FEE, logic box needs logic_box["value"], plus TX_FEE for transaction fee
-        funder_erg_value = funding_box["value"] + collateral_value - MIN_BOX_VALUE - 2 * TX_FEE - logic_box["value"]
+        funder_erg_value = funding_box["value"] + collateral_value - MIN_BOX_VALUE - 2 * TX_FEE - logic_box["value"] - user_erg
 
-        # Build transaction
+        # Build transaction outputs
         # Inputs: spend_nft_box, funding_box, collateral_box, logic_box
-        # Outputs: repayment_box, logic_box, funding_box (with collateral), spend_nft_box
-        transaction_to_sign = {
-            "requests": [
-                {
-                    "address": pool["repayment"],
-                    "value": MIN_BOX_VALUE + TX_FEE,
-                    "assets": [
-                        {
-                            "tokenId": collateral_box["assets"][0]["tokenId"],
-                            "amount": collateral_box["assets"][0]["amount"]
-                        },
-                        {
-                            "tokenId": pool["CURRENCY_ID"],
-                            "amount": repayment_amount
-                        }
-                    ],
-                    "registers": {}
-                },
-                {
-                    "address": quote["quoteScript"],
-                    "value": logic_box["value"],
-                    "assets": [
-                        {
-                            "tokenId": logic_box["assets"][0]["tokenId"],
-                            "amount": 1
-                        }
-                    ],
-                    "registers": {
-                        "R4": encode_long_tuple([iReport[0], liquidation_value, aggregateThreshold, iReport[3], iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]]),
-                        "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
-                        "R7": r7_value,
-                        "R8": r8_value,
-                        "R9": r9_value
+        # Outputs: repayment_box, logic_box, user_box (if applicable), funding_box (with collateral), spend_nft_box
+        output_requests = [
+            {
+                "address": pool["repayment"],
+                "value": MIN_BOX_VALUE + TX_FEE,
+                "assets": [
+                    {
+                        "tokenId": collateral_box["assets"][0]["tokenId"],
+                        "amount": collateral_box["assets"][0]["amount"]
+                    },
+                    {
+                        "tokenId": pool["CURRENCY_ID"],
+                        "amount": repayment_amount
                     }
-                },
-                {
-                    "address": funding_box["address"],
-                    "value": funder_erg_value,
-                    "assets": funding_output_assets,
-                    "registers": {}
-                },
-                {
-                    "address": spend_nft_box["address"],
-                    "value": spend_nft_box["value"],
-                    "assets": spend_nft_box["assets"],
-                    "registers": {
-                        "R4": spend_nft_box["additionalRegisters"]["R4"]["serializedValue"],
-                        "R5": spend_nft_box["additionalRegisters"]["R5"]["serializedValue"],
-                        "R6": spend_nft_box["additionalRegisters"]["R6"]["serializedValue"],
-                        "R7": spend_nft_box["additionalRegisters"]["R7"]["serializedValue"],
-                        "R8": spend_nft_box["additionalRegisters"]["R8"]["serializedValue"],
-                        "R9": spend_nft_box["additionalRegisters"]["R9"]["serializedValue"],
+                ],
+                "registers": {}
+            },
+            {
+                "address": quote["quoteScript"],
+                "value": logic_box["value"],
+                "assets": [
+                    {
+                        "tokenId": logic_box["assets"][0]["tokenId"],
+                        "amount": 1
                     }
+                ],
+                "registers": {
+                    "R4": encode_long_tuple([iReport[0], liquidation_value, aggregateThreshold, iReport[3], iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]]),
+                    "R5": logic_box["additionalRegisters"]["R5"]["serializedValue"],
+                    "R6": logic_box["additionalRegisters"]["R6"]["serializedValue"],
+                    "R7": r7_value,
+                    "R8": r8_value,
+                    "R9": r9_value
                 }
-            ],
+            }
+        ]
+
+        # Add user box if they have a share of leftover collateral
+        if user_proportion > 0:
+            user_box_output = {
+                "address": user_address,
+                "value": user_erg,
+                "assets": user_tokens,
+                "registers": {}
+            }
+            output_requests.append(user_box_output)
+
+        # Add funding box output
+        output_requests.append({
+            "address": funding_box["address"],
+            "value": funder_erg_value,
+            "assets": funding_output_assets,
+            "registers": {}
+        })
+
+        # Add spend NFT box output (must be recreated)
+        output_requests.append({
+            "address": spend_nft_box["address"],
+            "value": spend_nft_box["value"],
+            "assets": spend_nft_box["assets"],
+            "registers": {
+                "R4": spend_nft_box["additionalRegisters"]["R4"]["serializedValue"],
+                "R5": spend_nft_box["additionalRegisters"]["R5"]["serializedValue"],
+                "R6": spend_nft_box["additionalRegisters"]["R6"]["serializedValue"],
+                "R7": spend_nft_box["additionalRegisters"]["R7"]["serializedValue"],
+                "R8": spend_nft_box["additionalRegisters"]["R8"]["serializedValue"],
+                "R9": spend_nft_box["additionalRegisters"]["R9"]["serializedValue"],
+            }
+        })
+
+        transaction_to_sign = {
+            "requests": output_requests,
             "fee": TX_FEE,
             "inputsRaw": [
                 box_id_to_binary(spend_nft_box["boxId"]),      # INPUTS(0)
@@ -585,7 +648,7 @@ def automatic_repayment_job(pool):
 
             for collateral_box in collateral_boxes:
                 try:
-                    # Verify specialBytes link: loan R8[64:] must match action box R9
+                    # Verify specialBytes link: loan R8[64:] must match action box R8
                     matched_action_box = find_action_box_for_loan([spend_nft_box], collateral_box)
                     if not matched_action_box:
                         # This collateral box doesn't link to this specific action box
