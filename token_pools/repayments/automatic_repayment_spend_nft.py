@@ -21,7 +21,7 @@ import json
 from consts import TX_FEE, MIN_BOX_VALUE, ERROR, SLIPPAGE, DEX_FEE_DENOM, MAX_NETWORK_FEE, LargeMultiplier, \
     BORROW_TOKEN_DENOMINATION
 from helpers.explorer_calls import get_unspent_boxes_by_address
-from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address
+from helpers.node_calls import box_id_to_binary, sign_tx, tree_to_address, current_height
 from helpers.platform_functions import get_interest_box, get_dex_box, get_logic_box
 from helpers.serializer import extract_number, encode_long_tuple, encode_coll_int
 from logger import set_logger
@@ -212,15 +212,16 @@ def calculate_quote_price(collateral_box, pool, quote):
         return None, None
 
 
-def needs_automatic_repayment(collateral_box, threshold, pool, quote):
+def needs_automatic_repayment(collateral_box, threshold, pool, quote, height_spend=0):
     """
-    Check if a collateral box's quote price is below the threshold.
+    Check if a collateral box's quote price is below the threshold or height has passed.
 
     Args:
         collateral_box: The collateral box to check
         threshold: The threshold from spend NFT box (as percentage * 1000, e.g., 1250 = 125%)
         pool: Pool configuration
         quote: Quote configuration
+        height_spend: The height at which automatic repayment is allowed (0 = disabled)
 
     Returns:
         Tuple of (needs_repayment: bool, quote_price, total_owed)
@@ -237,7 +238,12 @@ def needs_automatic_repayment(collateral_box, threshold, pool, quote):
     print(threshold_value)
     print(threshold)
     print(quote_price)
-    needs_repayment = quote_price <= threshold_value
+
+    # Check height-based condition
+    curr_height = current_height()
+    height_condition = height_spend > 0 and curr_height >= height_spend
+
+    needs_repayment = quote_price <= threshold_value or height_condition
 
     return needs_repayment, quote_price, total_owed
 
@@ -619,19 +625,24 @@ def automatic_repayment_job(pool):
             threshold_data = spend_nft_box["additionalRegisters"]["R6"]["renderedValue"]
             logger.debug("Spend NFT box R6 renderedValue: %s (type: %s)", threshold_data, type(threshold_data).__name__)
 
-            # Parse threshold based on type
+            # Parse threshold and height_spend based on type
+            # R6 contains settings: [liquidationThreshold, feeAllowance, heightSpend]
             if isinstance(threshold_data, (int, float)):
                 threshold = int(threshold_data)
+                height_spend = 0  # No height constraint if single value
             elif isinstance(threshold_data, list):
                 threshold = int(threshold_data[0])
+                height_spend = int(threshold_data[2]) if len(threshold_data) > 2 else 0
             elif isinstance(threshold_data, str):
                 # Try to parse as JSON array first, then as plain number
                 if threshold_data.startswith('['):
                     parsed = json.loads(threshold_data)
                     threshold = int(parsed[0])
+                    height_spend = int(parsed[2]) if len(parsed) > 2 else 0
                 else:
                     # Plain number string
                     threshold = int(threshold_data)
+                    height_spend = 0
             else:
                 logger.warning("Unexpected R6 format: %s", type(threshold_data))
                 continue
@@ -665,7 +676,7 @@ def automatic_repayment_job(pool):
 
                     # Check if repayment is needed
                     needs_repay, quote_price, total_owed = needs_automatic_repayment(
-                        collateral_box, threshold, pool, quote
+                        collateral_box, threshold, pool, quote, height_spend
                     )
                     print(needs_repay, quote_price, total_owed)
                     if needs_repay:
