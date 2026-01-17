@@ -26,7 +26,7 @@ from consts import SLIPPAGE, DEX_FEE_DENOM, MAX_NETWORK_FEE, TX_FEE, MIN_BOX_VAL
 from helpers.explorer_calls import get_unspent_boxes_by_address
 from helpers.node_calls import box_id_to_binary, sign_tx, current_height
 from helpers.platform_functions import get_dex_box, get_interest_box, get_logic_box
-from helpers.serializer import encode_long_tuple, encode_coll_int, encode_long
+from helpers.serializer import encode_long_tuple, encode_coll_int, encode_long, parse_coll_bytes
 from logger import set_logger
 
 logger = set_logger(__name__)
@@ -134,28 +134,18 @@ def parse_special_bytes_list(r5_value):
     R5 is a nested array where each inner array contains special bytes
     that identify a group of collateral boxes.
 
+    The rendered value for Coll[Coll[Byte]] comes as a bracket array with
+    comma-separated hex strings like "[019bc6ca0c2d6e1c, abcd1234...]"
+    which is not valid JSON (hex strings are unquoted).
+
     Args:
-        r5_value: The R5 register value (nested array format)
+        r5_value: The R5 register value (bracket array format or list)
 
     Returns:
         List of special bytes strings (each 16 hex chars representing 8 bytes)
     """
     try:
-        # R5 is already a nested array like [["ab12..."], ["cd34..."]]
-        if isinstance(r5_value, str):
-            r5_value = json.loads(r5_value)
-
-        special_bytes_list = []
-        for inner_array in r5_value:
-            if isinstance(inner_array, list) and len(inner_array) > 0:
-                # Each inner array contains the special bytes
-                special_bytes = inner_array[0] if isinstance(inner_array[0], str) else str(inner_array[0])
-                special_bytes_list.append(special_bytes)
-            elif isinstance(inner_array, str):
-                # Direct string value
-                special_bytes_list.append(inner_array)
-
-        return special_bytes_list
+        return parse_coll_bytes(r5_value)
     except Exception as e:
         logger.error("Error parsing special bytes from R5: %s", str(e))
         return []

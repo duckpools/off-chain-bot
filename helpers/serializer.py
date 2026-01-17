@@ -135,3 +135,49 @@ def extract_number(s):
         return int(match.group(1))
     else:
         return None
+
+
+def parse_coll_bytes(s):
+    """
+    Parse a rendered Coll[Coll[Byte]] or Coll[Byte] value from Ergo box registers.
+
+    The rendered value comes as a bracket array with comma-separated hex strings
+    like "[019bc6ca0c2d6e1c, abcd1234...]" which is not valid JSON since hex
+    strings are unquoted.
+
+    Parameters:
+    s (str or list): The rendered value string or already-parsed list.
+
+    Returns:
+    list: List of hex strings, or empty list if parsing fails.
+
+    Examples:
+    >>> parse_coll_bytes("[019bc6ca0c2d6e1c]")
+    ['019bc6ca0c2d6e1c']
+    >>> parse_coll_bytes("[abc123, def456]")
+    ['abc123', 'def456']
+    >>> parse_coll_bytes("")
+    []
+    """
+    if not s:
+        return []
+
+    # Already a list, return as-is
+    if isinstance(s, list):
+        return [str(item) for item in s]
+
+    if not isinstance(s, str):
+        return []
+
+    s = s.strip()
+
+    # Remove outer brackets if present
+    if s.startswith('[') and s.endswith(']'):
+        s = s[1:-1]
+
+    # Empty after removing brackets
+    if not s:
+        return []
+
+    # Split by comma and strip whitespace from each element
+    return [item.strip() for item in s.split(',') if item.strip()]
