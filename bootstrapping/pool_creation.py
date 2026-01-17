@@ -176,7 +176,7 @@ def mint_interest_param_token(assetTicker, VersionId):
 def mint_logic_nft(assetTicker, VersionId):
     name = f"Logic NFT {assetTicker}-{VersionId}"
     description = f"duckpools v2 Logic NFT for {assetTicker} pool"
-    mint_token(m_logic_addr, name, description, 0, 1)
+    mint_token(m_logic_addr, name, description, 0, 10, ergValue=11000000)
 
 def mint_all_tokens(creation_settings):
     assetTicker = creation_settings["AssetTicker"]
@@ -371,31 +371,32 @@ def bad_encode_arr(items):
 
 def bootstrap_logic_box(address, nft, creation):
     logic_nft_utxo = get_unspent_boxes_by_address(m_logic_addr)[0]
-    transaction_to_sign = \
-        {
-            "requests": [
+
+    # Create 10 quote boxes, each with 1 NFT
+    output_boxes = []
+    for _ in range(10):
+        output_boxes.append({
+            "address": address,
+            "value": 1000000,
+            "assets": [
                 {
-                    "address": address,
-                    "value": 1000000,
-                    "assets": [
-                        {
-                            "tokenId": nft,
-                            "amount": 1
-                        }
-                    ],
-                    "registers": {
-                        "R4": encode_long_tuple([100000000000, 0, 0, 30, 15000000, 8, 0, 50, 15, 20000000]),
-                        "R5": bad_encode_arr(creation["dexNFTs"]),
-                        "R6": encode_long_tuple(creation["liquidationThresholds"])
-                    }
+                    "tokenId": nft,
+                    "amount": 1
                 }
             ],
-            "fee": 1000000,
-            "inputsRaw":
-                [box_id_to_binary(logic_nft_utxo["boxId"])],
-            "dataInputsRaw":
-                []
-        }
+            "registers": {
+                "R4": encode_long_tuple([100000000000, 0, 0, 30, 15000000, 8, 0, 50, 15, 20000000]),
+                "R5": bad_encode_arr(creation["dexNFTs"]),
+                "R6": encode_long_tuple(creation["liquidationThresholds"])
+            }
+        })
+
+    transaction_to_sign = {
+        "requests": output_boxes,
+        "fee": 1000000,
+        "inputsRaw": [box_id_to_binary(logic_nft_utxo["boxId"])],
+        "dataInputsRaw": []
+    }
     sign_tx(transaction_to_sign)
 
 

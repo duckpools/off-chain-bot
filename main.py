@@ -6,6 +6,7 @@ from database_services.db_routine import db_routine
 from helpers.platform_functions import update_pools_in_file
 from helpers.serializer import bytesLike, blake2b256, encode_bigint, encode_long, hex_to_base58
 from token_pools.repayments.automatic_repayment_spend_nft import automatic_repayment_job
+from token_pools.auto_balance import auto_balance_job
 from token_pools.repayments.t_repay_proxy_susd import t_repay_proxy_job
 from token_pools.t_borrow_proxy_susd import t_borrow_proxy_job
 from current_pools import current_pools
@@ -28,7 +29,7 @@ from erg_pool.e_repay_to_pool import e_repay_to_pool_job
 from token_pools.t_repay_to_pool_susd import t_repay_to_pool_job
 from erg_pool.e_withdraw_proxy import e_withdraw_proxy_job
 from token_pools.t_withdraw_proxy_sigusd import t_withdraw_proxy_job
-from bootstrapping.pool_creation import bootstrap_logic_box_flow
+from bootstrapping.pool_creation import bootstrap_logic_box_flow, create_pool
 
 
 try:
@@ -57,7 +58,7 @@ if __name__ == "__main__":
                 unlock_wallet()
                 logger.debug("Block %d found", new_height)
                 curr_height = new_height
-                for pool in (pools[0:] + current_pools[:]):
+                for pool in (pools[0:] + current_pools[-1:]):
                     try:
                         if pool["is_Erg"]:
                             curr_tx_obj = e_lend_proxy_job(pool)
@@ -77,6 +78,7 @@ if __name__ == "__main__":
                             t_partial_repay_proxy_job(pool)
                             if AUTOMATIC_PROCESSING_ENABLED:
                                 automatic_repayment_job(pool)
+                                auto_balance_job(pool)
                             t_update_interest_rate(pool, curr_height, curr_tx_obj, dummy_script)
                     except Exception:
                         logger.exception("Exception")
