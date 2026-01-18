@@ -126,6 +126,30 @@ def get_logic_box(address, nft):
     return None
 
 
+def get_logic_boxes(address, nft, count=2):
+    """
+    Get multiple logic boxes with the specified NFT from the address.
+
+    Args:
+        address: The address to search for boxes.
+        nft: The NFT token ID to match.
+        count: Number of boxes to retrieve (default 2).
+
+    Returns:
+        List of boxes with the specified NFT, up to `count` boxes.
+    """
+    potential_boxes = get_unspent_boxes_by_address(address, limit=100)
+    matching_boxes = []
+    for box in potential_boxes:
+        if len(box["assets"]) > 0 and box["assets"][0]["tokenId"] == nft:
+            matching_boxes.append(box)
+            if len(matching_boxes) >= count:
+                break
+    if len(matching_boxes) < count:
+        logger.warning("Could only find %d logic boxes, needed %d", len(matching_boxes), count)
+    return matching_boxes
+
+
 def get_dex_box_from_tx(tx):
     return first_output_from_mempool_tx(tx)
 
