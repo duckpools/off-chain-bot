@@ -10,6 +10,7 @@ from helpers.node_calls import mint_token, box_id_to_binary, sign_tx, clean_node
 from helpers.platform_functions import update_pools_in_file
 from helpers.serializer import hex_to_base58, bytesLike, blake2b256, encode_long_tuple, encode_long, encode_bigint
 from logger import set_logger
+from bootstrapping.format_frontend_output import format_frontend_output
 import time
 
 logger = set_logger(__name__)
@@ -126,6 +127,7 @@ def create_pool():
         "PARAMETER_NFT": parameter_nft,
         "INTEREST_PARAMETER_NFT": interest_parameter_nft,
         "LEND_TOKEN": lend_token_id,
+        "BORROW_TOKEN": borrow_token_id,
 
         # Quotes
         "quotes": [{
@@ -140,6 +142,7 @@ def create_pool():
         }]
     }
     update_pools_in_file(pool)
+    format_frontend_output(pool)
     print(active_mints, repayment_address, collateral_address, pool_address)
 
 
