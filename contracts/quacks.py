@@ -300,13 +300,13 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	
 	val collateralInputs = INPUTS.filter{{
     	(b: Box) => b.propositionBytes == SELF.propositionBytes
-	}}
+	}}	
 	val selfCollateralIndex = collateralInputs.indexOf(SELF, 0)
 	val selfIndex = INPUTS.indexOf(SELF, 0)
 	val isOnlyOneCollateralInput = collateralInputs.size == 1
 
 	if (fQuotes.size > 0) {{
-		val fQuote = fQuotes.getOrElse(selfCollateralIndex, SELF)
+		val fQuote = fQuotes.getOrElse(selfIndex, SELF)
 		val quoteReport = fQuote.R4[Coll[Long]].get
 		val quotePrice = quoteReport(1)
 		val iThresholdQuoted = quoteReport(2)
@@ -321,7 +321,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		}} 
 
 		if (fCollaterals.size > 0) {{
-			val fCollateral = fCollaterals.getOrElse(selfCollateralIndex, SELF)
+			val fCollateral = fCollaterals.getOrElse(selfIndex, SELF)
 			val collateralIndex = OUTPUTS.map{{
 				(b: Box) => b.id
 			}}.indexOf(fCollateral.id, 0)
@@ -340,7 +340,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			val fMinimumValue = fLoanSettings(3)
 
 			val bufferLiquidationSame = fBufferLiquidation == iBufferLiquidation
-			val retainLoanSettings = fLoanSettings == iLoanSettings
+			val retainLoanSettings = fLoanSettings.slice(0,8) == iLoanSettings.slice(0,8)
 
 			val fCollateralCommon = (
 			    fCollateralValue >= iMinimumValue &&
@@ -351,7 +351,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 			)
 			if (fRepayments.size > 0) {{
 				// Partial Repay and Automated Actions
-				val fRepayment = fRepayments.getOrElse(0, SELF)		
+				val fRepayment = fRepayments.getOrElse(selfIndex, SELF)		
 
 				val fRepaymentValue = fRepayment.value
 				val fRepaymentBorrowTokens = fRepayment.tokens(0)
