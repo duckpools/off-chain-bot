@@ -306,7 +306,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 	val isOnlyOneCollateralInput = collateralInputs.size == 1
 
 	if (fQuotes.size > 0) {{
-		val fQuote = fQuotes.getOrElse(selfIndex, SELF)
+		val fQuote = fQuotes.getOrElse(selfCollateralIndex, SELF)
 		val quoteReport = fQuote.R4[Coll[Long]].get
 		val quotePrice = quoteReport(1)
 		val iThresholdQuoted = quoteReport(2)
@@ -321,7 +321,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		}} 
 
 		if (fCollaterals.size > 0) {{
-			val fCollateral = fCollaterals.getOrElse(selfIndex, SELF)
+			val fCollateral = fCollaterals.getOrElse(selfCollateralIndex, SELF)
 			val collateralIndex = OUTPUTS.map{{
 				(b: Box) => b.id
 			}}.indexOf(fCollateral.id, 0)
