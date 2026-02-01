@@ -510,12 +510,14 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
         if not interest_box:
             return None
 
-        # Get two different logic boxes for quotes (each collateral needs its own logic box input)
-        logic_boxes = get_logic_boxes(quote["quoteScript"], quote["quoteNFT"], count=2)
-        if len(logic_boxes) < 2:
+        # Get four different logic boxes for quotes (2 for output quotes, 2 for input quotes)
+        logic_boxes = get_logic_boxes(quote["quoteScript"], quote["quoteNFT"], count=4)
+        if len(logic_boxes) < 4:
             return None
         logic_box_1 = logic_boxes[0]
         logic_box_2 = logic_boxes[1]
+        logic_box_3 = logic_boxes[2]
+        logic_box_4 = logic_boxes[3]
 
         # Get primary DEX box for pricing
         primary_dex_nft = quote["primarySupportedCollateral"]["DEXNFT"]
@@ -554,6 +556,21 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
         low_quote_price = (dex_tokens * low_total_box_value * dex_fee) // \
             (((dex_initial_val * (100 + SLIPPAGE)) // 100) * DEX_FEE_DENOM + (low_total_box_value * dex_fee))
 
+        # Calculate values for input quotes (original values before transfer)
+        # collateral_1 original values
+        col1_original_tokens = collateral_1["assets"][1:] if len(collateral_1["assets"]) > 1 else []
+        col1_original_secondary_erg = _calculate_secondary_value(col1_original_tokens, secondary_dex_boxes, secondary_collateral_config)
+        col1_original_total_value = collateral_1["value"] + col1_original_secondary_erg - MAX_NETWORK_FEE
+        col1_original_quote_price = (dex_tokens * col1_original_total_value * dex_fee) // \
+            (((dex_initial_val * (100 + SLIPPAGE)) // 100) * DEX_FEE_DENOM + (col1_original_total_value * dex_fee))
+
+        # collateral_2 original values
+        col2_original_tokens = collateral_2["assets"][1:] if len(collateral_2["assets"]) > 1 else []
+        col2_original_secondary_erg = _calculate_secondary_value(col2_original_tokens, secondary_dex_boxes, secondary_collateral_config)
+        col2_original_total_value = collateral_2["value"] + col2_original_secondary_erg - MAX_NETWORK_FEE
+        col2_original_quote_price = (dex_tokens * col2_original_total_value * dex_fee) // \
+            (((dex_initial_val * (100 + SLIPPAGE)) // 100) * DEX_FEE_DENOM + (col2_original_total_value * dex_fee))
+
         # Calculate aggregate thresholds
         primary_threshold = asset_thresholds[0]
         high_aggregate = _calculate_aggregate_threshold(
@@ -563,6 +580,16 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
         low_aggregate = _calculate_aggregate_threshold(
             low_out_value, low_out_secondary_erg, low_total_box_value,
             primary_threshold, asset_thresholds, low_tokens_merged, secondary_dex_boxes, secondary_collateral_config
+        )
+
+        # Calculate aggregate thresholds for input quotes (original values)
+        col1_original_aggregate = _calculate_aggregate_threshold(
+            collateral_1["value"], col1_original_secondary_erg, col1_original_total_value,
+            primary_threshold, asset_thresholds, col1_original_tokens, secondary_dex_boxes, secondary_collateral_config
+        )
+        col2_original_aggregate = _calculate_aggregate_threshold(
+            collateral_2["value"], col2_original_secondary_erg, col2_original_total_value,
+            primary_threshold, asset_thresholds, col2_original_tokens, secondary_dex_boxes, secondary_collateral_config
         )
 
         # Parse loan settings from collateral boxes
@@ -583,11 +610,22 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
             high_r8 = bad_encode_arr(high_ordered_ids)
             low_r7 = encode_long_tuple(low_ordered_amounts)
             low_r8 = bad_encode_arr(low_ordered_ids)
+            # R7/R8 for input quotes (original tokens)
+            col1_orig_ordered_amounts, col1_orig_ordered_ids = _get_ordered_assets(col1_original_tokens, secondary_dex_boxes)
+            col2_orig_ordered_amounts, col2_orig_ordered_ids = _get_ordered_assets(col2_original_tokens, secondary_dex_boxes)
+            col1_orig_r7 = encode_long_tuple(col1_orig_ordered_amounts)
+            col1_orig_r8 = bad_encode_arr(col1_orig_ordered_ids)
+            col2_orig_r7 = encode_long_tuple(col2_orig_ordered_amounts)
+            col2_orig_r8 = bad_encode_arr(col2_orig_ordered_ids)
         else:
             high_r7 = "1100"  # Empty long array
             high_r8 = "1a00"  # Empty byte array collection
             low_r7 = "1100"
             low_r8 = "1a00"
+            col1_orig_r7 = "1100"
+            col1_orig_r8 = "1a00"
+            col2_orig_r7 = "1100"
+            col2_orig_r8 = "1a00"
 
         # Determine output order based on input order
         # Inputs: [autobalance, high, low, logic1, logic2] or [autobalance, col1, col2, logic1, logic2]
@@ -695,6 +733,42 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
             }
         }
 
+        # Build input quote output 1 (quotes INPUTS[0], fBoxIndex = -1)
+        input_quote_1_output = {
+            "address": quote["quoteScript"],
+            "value": logic_box_3["value"],
+            "assets": [{"tokenId": logic_box_3["assets"][0]["tokenId"], "amount": 1}],
+            "registers": {
+                "R4": encode_long_tuple([
+                    iReport[0], col1_original_quote_price, col1_original_aggregate, iReport[3],
+                    iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]
+                ]),
+                "R5": logic_box_3["additionalRegisters"]["R5"]["serializedValue"],
+                "R6": logic_box_3["additionalRegisters"]["R6"]["serializedValue"],
+                "R7": col1_orig_r7,
+                "R8": col1_orig_r8,
+                "R9": encode_coll_int([-1, 1])  # fBoxIndex=-1 (quotes INPUTS[0]), DEX at dataInputs[1]
+            }
+        }
+
+        # Build input quote output 2 (quotes INPUTS[1], fBoxIndex = -2)
+        input_quote_2_output = {
+            "address": quote["quoteScript"],
+            "value": logic_box_4["value"],
+            "assets": [{"tokenId": logic_box_4["assets"][0]["tokenId"], "amount": 1}],
+            "registers": {
+                "R4": encode_long_tuple([
+                    iReport[0], col2_original_quote_price, col2_original_aggregate, iReport[3],
+                    iReport[4], iReport[5], iReport[6], iReport[7], iReport[8], iReport[9]
+                ]),
+                "R5": logic_box_4["additionalRegisters"]["R5"]["serializedValue"],
+                "R6": logic_box_4["additionalRegisters"]["R6"]["serializedValue"],
+                "R7": col2_orig_r7,
+                "R8": col2_orig_r8,
+                "R9": encode_coll_int([-2, 1])  # fBoxIndex=-2 (quotes INPUTS[1]), DEX at dataInputs[1]
+            }
+        }
+
         # Build autobalance box output (recreated exactly the same)
         autobalance_output = {
             "address": autobalance_box["address"],
@@ -721,24 +795,28 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
             data_inputs_raw.append(box_id_to_binary(sec_dex["boxId"]))
 
         # Build inputs array with collaterals at the beginning (V2 spec requirement)
-        # INPUTS: [collateral_0, collateral_1, autobalance, logic_1, logic_2]
+        # INPUTS: [collateral_0, collateral_1, autobalance, logic_1, logic_2, logic_3, logic_4]
         # selfIndex for collateral_1 = 0, selfIndex for collateral_2 = 1
         inputs_raw = [
             box_id_to_binary(collateral_1["boxId"]),  # INPUTS[0] - selfIndex=0
             box_id_to_binary(collateral_2["boxId"]),  # INPUTS[1] - selfIndex=1
             box_id_to_binary(autobalance_box["boxId"]),
             box_id_to_binary(logic_box_1["boxId"]),
-            box_id_to_binary(logic_box_2["boxId"])
+            box_id_to_binary(logic_box_2["boxId"]),
+            box_id_to_binary(logic_box_3["boxId"]),
+            box_id_to_binary(logic_box_4["boxId"])
         ]
 
-        # Assemble transaction with V2 output ordering: [fCollat0, fQuote0, fCollat1, fQuote1, ...]
+        # Assemble transaction with V2 output ordering: [fCollat0, fQuote0, fCollat1, fQuote1, inputQuote0, inputQuote1, autobalance]
         transaction_to_sign = {
             "requests": [
-                collateral_1_output,  # OUTPUTS[0] = fCollat0 (2*0)
-                quote_1_output,       # OUTPUTS[1] = fQuote0  (2*0+1)
-                collateral_2_output,  # OUTPUTS[2] = fCollat1 (2*1)
-                quote_2_output,       # OUTPUTS[3] = fQuote1  (2*1+1)
-                autobalance_output    # OUTPUTS[4]
+                collateral_1_output,     # OUTPUTS[0] = fCollat0 (2*0)
+                quote_1_output,          # OUTPUTS[1] = fQuote0  (2*0+1)
+                collateral_2_output,     # OUTPUTS[2] = fCollat1 (2*1)
+                quote_2_output,          # OUTPUTS[3] = fQuote1  (2*1+1)
+                input_quote_1_output,    # OUTPUTS[4] = inputQuote0 (quotes INPUTS[0])
+                input_quote_2_output,    # OUTPUTS[5] = inputQuote1 (quotes INPUTS[1])
+                autobalance_output       # OUTPUTS[6]
             ],
             "fee": TX_FEE,
             "inputsRaw": inputs_raw,
@@ -748,6 +826,20 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
 
         # Build list of all DEX boxes for logic script validation
         all_dex_boxes = [dex_box] + secondary_dex_boxes
+
+        # DEBUG: Print indices and raw quote prices before signing
+        print("\n=== DEBUG: Autobalance Transaction Structure ===")
+        print(f"collat0 index in inputs: 0 (boxId: {collateral_1['boxId']})")
+        print(f"collat1 index in inputs: 1 (boxId: {collateral_2['boxId']})")
+        print(f"quotebox0 (quoting output collat0) index in outputs: 1")
+        print(f"quotebox1 (quoting output collat1) index in outputs: 3")
+        print(f"inputquote0 (quoting input collat0) index in outputs: 4")
+        print(f"inputquote1 (quoting input collat1) index in outputs: 5")
+        print(f"Raw quote price for quote1 (col1_quote_price): {col1_quote_price}")
+        print(f"Raw quote price for quote2 (col2_quote_price): {col2_quote_price}")
+        print(f"Raw quote price for input_quote1 (col1_original_quote_price): {col1_original_quote_price}")
+        print(f"Raw quote price for input_quote2 (col2_original_quote_price): {col2_original_quote_price}")
+        print("=================================================\n")
 
         tx_id = sign_tx(transaction_to_sign)
 
