@@ -461,24 +461,19 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
             high_box, low_box = collateral_2, collateral_1
             high_price, low_price = price_2, price_1
 
-        # Calculate redistribution to reach midpoint
-        midpoint = (high_price + low_price) // 2
-        reduction_amount = high_price - midpoint
-
-        # Calculate reduction percentage (as fraction with high precision)
-        # reduction_pct = reduction_amount / high_price
-        # We'll use this to proportionally reduce ERG and tokens
-
         high_value = high_box["value"]
         low_value = low_box["value"]
 
-        # ERG to transfer (proportional to price reduction, keeping MIN_BOX_VALUE)
-        # reduction_pct = reduction_amount / high_price
-        erg_to_transfer = ((high_value - MIN_BOX_VALUE) * reduction_amount) // high_price
+        # Calculate ERG transfer using exact ErgoScript formula:
+        # ergTransfer = (largerErg * transferNumerator) / transferDenominator
+        # where transferNumerator = abs(quotePrice0 - quotePrice1)
+        # and transferDenominator = 2 * max(quotePrice0, quotePrice1)
+        transfer_numerator = high_price - low_price  # priceDiff (high >= low)
+        transfer_denominator = 2 * high_price        # 2 * maxPrice
+        erg_to_transfer = (high_value * transfer_numerator) // transfer_denominator
 
-        # Ensure boxes maintain minimum value
-        if high_value - erg_to_transfer < MIN_BOX_VALUE:
-            erg_to_transfer = high_value - MIN_BOX_VALUE
+        # For token transfer, still use the proportional reduction approach
+        reduction_amount = (high_price - low_price) // 2  # half the price difference
 
         # Get tokens from both boxes (skip index 0 which is borrow token)
         high_tokens = high_box["assets"][1:] if len(high_box["assets"]) > 1 else []
@@ -543,18 +538,141 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
         dex_fee = int(dex_box["additionalRegisters"]["R4"]["renderedValue"])
 
         # Calculate values for high box output (reduced)
-        high_out_value = high_value - erg_to_transfer - (TX_FEE // 2)
+        # Full TX_FEE deducted from larger output only (ErgoScript allows fee deduction only from larger)
+        high_out_value = high_value - erg_to_transfer - TX_FEE
         high_out_secondary_erg = _calculate_secondary_value(high_tokens_reduced, secondary_dex_boxes, secondary_collateral_config)
         high_total_box_value = high_out_value + high_out_secondary_erg - MAX_NETWORK_FEE
         high_quote_price = (dex_tokens * high_total_box_value * dex_fee) // \
             (((dex_initial_val * (100 + SLIPPAGE)) // 100) * DEX_FEE_DENOM + (high_total_box_value * dex_fee))
 
         # Calculate values for low box output (increased)
-        low_out_value = low_value + erg_to_transfer - (TX_FEE // 2)
+        # No fee deduction from smaller output (ErgoScript requires: smallerOutput.value >= expectedSmallerErg)
+        low_out_value = low_value + erg_to_transfer
         low_out_secondary_erg = _calculate_secondary_value(low_tokens_merged, secondary_dex_boxes, secondary_collateral_config)
         low_total_box_value = low_out_value + low_out_secondary_erg - MAX_NETWORK_FEE
         low_quote_price = (dex_tokens * low_total_box_value * dex_fee) // \
             (((dex_initial_val * (100 + SLIPPAGE)) // 100) * DEX_FEE_DENOM + (low_total_box_value * dex_fee))
+
+        # =============================================================================
+        # SPECIAL DEBUG: ergRebalancedCorrectly calculations (mirrors ErgoScript logic)
+        # =============================================================================
+        print("\n=== SPECIAL DEBUG: ergRebalancedCorrectly ===")
+
+        # Quote prices from the contract perspective (quotePrice0 = col1, quotePrice1 = col2)
+        quotePrice0 = col1_original_quote_price if 'col1_original_quote_price' in dir() else price_1
+        quotePrice1 = col2_original_quote_price if 'col2_original_quote_price' in dir() else price_2
+        # Use original prices for now (calculated below), so use price_1/price_2 here
+        quotePrice0 = price_1
+        quotePrice1 = price_2
+
+        print(f"Quote Prices (from off-chain pricing):")
+        print(f"  quotePrice0 (collateral_1): {quotePrice0}")
+        print(f"  quotePrice1 (collateral_2): {quotePrice1}")
+
+        # Contract's transfer calculation (based on quote prices)
+        contract_priceDiff = abs(quotePrice0 - quotePrice1)
+        contract_minPrice = min(quotePrice0, quotePrice1)
+        contract_hasSufficientImbalance = contract_priceDiff * 100 > 10 * contract_minPrice  # 10% threshold
+
+        print(f"\nImbalance Check (ErgoScript style):")
+        print(f"  priceDiff: {contract_priceDiff}")
+        print(f"  minPrice: {contract_minPrice}")
+        print(f"  priceDiff * 100 = {contract_priceDiff * 100}")
+        print(f"  10 * minPrice = {10 * contract_minPrice}")
+        print(f"  hasSufficientImbalance (priceDiff * 100 > 10 * minPrice): {contract_hasSufficientImbalance}")
+
+        # Contract's transfer numerator/denominator
+        contract_largerIndex = 0 if quotePrice0 >= quotePrice1 else 1
+        contract_transferNumerator = abs(quotePrice0 - quotePrice1)
+        contract_transferDenominator = 2 * max(quotePrice0, quotePrice1)
+
+        print(f"\nTransfer Calculation (ErgoScript style):")
+        print(f"  largerIndex: {contract_largerIndex}")
+        print(f"  transferNumerator: {contract_transferNumerator}")
+        print(f"  transferDenominator: {contract_transferDenominator}")
+
+        # Input ERG values
+        contract_largerErg = collateral_1["value"] if quotePrice0 >= quotePrice1 else collateral_2["value"]
+        contract_smallerErg = collateral_2["value"] if quotePrice0 >= quotePrice1 else collateral_1["value"]
+
+        print(f"\nInput ERG Values:")
+        print(f"  largerErg (larger priced box): {contract_largerErg}")
+        print(f"  smallerErg (smaller priced box): {contract_smallerErg}")
+
+        # Contract's ERG transfer calculation
+        contract_ergTransfer = (contract_largerErg * contract_transferNumerator) // contract_transferDenominator
+
+        print(f"\nERG Transfer (ErgoScript style):")
+        print(f"  ergTransfer = (largerErg * transferNumerator) / transferDenominator")
+        print(f"  ergTransfer = ({contract_largerErg} * {contract_transferNumerator}) / {contract_transferDenominator}")
+        print(f"  ergTransfer = {contract_ergTransfer}")
+
+        # Expected output values (from contract perspective)
+        contract_expectedLargerErg = contract_largerErg - contract_ergTransfer
+        contract_expectedSmallerErg = contract_smallerErg + contract_ergTransfer
+
+        print(f"\nExpected Output ERG (ErgoScript style):")
+        print(f"  expectedLargerErg = largerErg - ergTransfer = {contract_largerErg} - {contract_ergTransfer} = {contract_expectedLargerErg}")
+        print(f"  expectedSmallerErg = smallerErg + ergTransfer = {contract_smallerErg} + {contract_ergTransfer} = {contract_expectedSmallerErg}")
+
+        # Actual output values (what we're building)
+        actual_largerOutput = high_out_value
+        actual_smallerOutput = low_out_value
+
+        print(f"\nActual Output ERG (Off-chain built):")
+        print(f"  largerOutput.value (high_out_value): {actual_largerOutput}")
+        print(f"  smallerOutput.value (low_out_value): {actual_smallerOutput}")
+
+        # Off-chain calculation comparison
+        print(f"\nOff-chain Transfer Calculation:")
+        print(f"  high_value: {high_value}")
+        print(f"  low_value: {low_value}")
+        print(f"  erg_to_transfer: {erg_to_transfer}")
+        print(f"  TX_FEE // 2: {TX_FEE // 2}")
+        print(f"  high_out_value = high_value - erg_to_transfer - (TX_FEE // 2) = {high_value} - {erg_to_transfer} - {TX_FEE // 2} = {high_out_value}")
+        print(f"  low_out_value = low_value + erg_to_transfer - (TX_FEE // 2) = {low_value} + {erg_to_transfer} - {TX_FEE // 2} = {low_out_value}")
+
+        # MaxTransactionFees from contract (5000000L = 0.005 ERG)
+        MaxTransactionFees = 5000000
+
+        # ergRebalancedCorrectly check (ErgoScript logic)
+        check1 = actual_largerOutput >= contract_expectedLargerErg - MaxTransactionFees
+        check2 = actual_largerOutput <= contract_expectedLargerErg
+        check3 = actual_smallerOutput >= contract_expectedSmallerErg
+        check4 = actual_smallerOutput <= contract_expectedSmallerErg + MaxTransactionFees
+
+        ergRebalancedCorrectly = check1 and check2 and check3 and check4
+
+        print(f"\nergRebalancedCorrectly Validation (MaxTransactionFees = {MaxTransactionFees}):")
+        print(f"  Check 1: largerOutput.value >= expectedLargerErg - MaxTransactionFees")
+        print(f"           {actual_largerOutput} >= {contract_expectedLargerErg} - {MaxTransactionFees}")
+        print(f"           {actual_largerOutput} >= {contract_expectedLargerErg - MaxTransactionFees}")
+        print(f"           Result: {check1}")
+        print(f"  Check 2: largerOutput.value <= expectedLargerErg")
+        print(f"           {actual_largerOutput} <= {contract_expectedLargerErg}")
+        print(f"           Result: {check2}")
+        print(f"  Check 3: smallerOutput.value >= expectedSmallerErg")
+        print(f"           {actual_smallerOutput} >= {contract_expectedSmallerErg}")
+        print(f"           Result: {check3}")
+        print(f"  Check 4: smallerOutput.value <= expectedSmallerErg + MaxTransactionFees")
+        print(f"           {actual_smallerOutput} <= {contract_expectedSmallerErg} + {MaxTransactionFees}")
+        print(f"           {actual_smallerOutput} <= {contract_expectedSmallerErg + MaxTransactionFees}")
+        print(f"           Result: {check4}")
+        print(f"\n  ergRebalancedCorrectly = {ergRebalancedCorrectly}")
+
+        # Value preservation check
+        inputTotalValue = collateral_1["value"] + collateral_2["value"]
+        outputTotalValue = high_out_value + low_out_value
+        valuesPreserved = outputTotalValue >= inputTotalValue - MaxTransactionFees
+
+        print(f"\nValue Preservation Check:")
+        print(f"  inputTotalValue = {collateral_1['value']} + {collateral_2['value']} = {inputTotalValue}")
+        print(f"  outputTotalValue = {high_out_value} + {low_out_value} = {outputTotalValue}")
+        print(f"  difference = {inputTotalValue - outputTotalValue}")
+        print(f"  valuesPreserved (outputTotalValue >= inputTotalValue - MaxTransactionFees): {valuesPreserved}")
+
+        print("=== END SPECIAL DEBUG ===\n")
+        # =============================================================================
 
         # Calculate values for input quotes (original values before transfer)
         # collateral_1 original values
@@ -785,6 +903,87 @@ def construct_autobalance_transaction(pool, autobalance_box, imbalanced_boxes, g
         }
         # Remove None registers
         autobalance_output["registers"] = {k: v for k, v in autobalance_output["registers"].items() if v is not None}
+
+        # DEBUG: Autobalance outputs validation (matches ErgoScript checks)
+        print("\n=== DEBUG: Autobalance Outputs ===")
+        print("Checking autobalanceRecreated conditions:")
+
+        # spendNftId check - b.tokens(0)._1 == spendNftId
+        spend_nft_id = autobalance_box["additionalRegisters"]["R4"]["renderedValue"]
+        output_first_token_id = autobalance_output["assets"][0]["tokenId"] if autobalance_output["assets"] else None
+        print(f"  spendNftId (from R4): {spend_nft_id}")
+        print(f"  output.tokens(0)._1:  {output_first_token_id}")
+        print(f"  b.tokens(0)._1 == spendNftId: {output_first_token_id == spend_nft_id}")
+
+        # successor.tokens(0) == SELF.tokens(0)
+        input_first_token = autobalance_box["assets"][0] if autobalance_box["assets"] else None
+        output_first_token = autobalance_output["assets"][0] if autobalance_output["assets"] else None
+        print(f"\n  SELF.tokens(0): {input_first_token}")
+        print(f"  successor.tokens(0): {output_first_token}")
+        tokens_match = (input_first_token["tokenId"] == output_first_token["tokenId"] and
+                       input_first_token["amount"] == output_first_token["amount"]) if input_first_token and output_first_token else False
+        print(f"  successor.tokens(0) == SELF.tokens(0): {tokens_match}")
+
+        # successor.R4 == SELF.R4
+        input_r4 = autobalance_box["additionalRegisters"]["R4"]["serializedValue"]
+        output_r4 = autobalance_output["registers"].get("R4")
+        print(f"\n  SELF.R4 (serialized): {input_r4}")
+        print(f"  successor.R4:         {output_r4}")
+        print(f"  successor.R4 == SELF.R4: {input_r4 == output_r4}")
+
+        # successor.R5 == groupSpecialBytes (should match SELF.R5 in this case)
+        input_r5 = autobalance_box["additionalRegisters"]["R5"]["serializedValue"]
+        output_r5 = autobalance_output["registers"].get("R5")
+        input_r5_rendered = autobalance_box["additionalRegisters"]["R5"]["renderedValue"]
+        print(f"\n  SELF.R5 (serialized): {input_r5}")
+        print(f"  SELF.R5 (rendered):   {input_r5_rendered}")
+        print(f"  successor.R5:         {output_r5}")
+        print(f"  successor.R5 == SELF.R5: {input_r5 == output_r5}")
+
+        # successor.R6 == SELF.R6
+        input_r6 = autobalance_box["additionalRegisters"].get("R6", {}).get("serializedValue")
+        output_r6 = autobalance_output["registers"].get("R6")
+        print(f"\n  SELF.R6: {input_r6}")
+        print(f"  successor.R6: {output_r6}")
+        print(f"  successor.R6 == SELF.R6: {input_r6 == output_r6}")
+
+        # successor.R7 == userPk (GroupElement)
+        input_r7 = autobalance_box["additionalRegisters"].get("R7", {}).get("serializedValue")
+        input_r7_rendered = autobalance_box["additionalRegisters"].get("R7", {}).get("renderedValue")
+        output_r7 = autobalance_output["registers"].get("R7")
+        print(f"\n  SELF.R7 (userPk serialized): {input_r7}")
+        print(f"  SELF.R7 (userPk rendered):   {input_r7_rendered}")
+        print(f"  successor.R7:                {output_r7}")
+        print(f"  successor.R7 == SELF.R7: {input_r7 == output_r7}")
+
+        # successor.R9 == groupSpecialBytesR9
+        input_r9 = autobalance_box["additionalRegisters"].get("R9", {}).get("serializedValue")
+        input_r9_rendered = autobalance_box["additionalRegisters"].get("R9", {}).get("renderedValue")
+        output_r9 = autobalance_output["registers"].get("R9")
+        print(f"\n  SELF.R9 (groupSpecialBytesR9 serialized): {input_r9}")
+        print(f"  SELF.R9 (groupSpecialBytesR9 rendered):   {input_r9_rendered}")
+        print(f"  successor.R9:                             {output_r9}")
+        print(f"  successor.R9 == SELF.R9: {input_r9 == output_r9}")
+
+        # successor.value >= MinimumBoxValue
+        output_value = autobalance_output["value"]
+        print(f"\n  successor.value: {output_value}")
+        print(f"  MinimumBoxValue: {MIN_BOX_VALUE}")
+        print(f"  successor.value >= MinimumBoxValue: {output_value >= MIN_BOX_VALUE}")
+
+        # propositionBytes check (address match)
+        input_address = autobalance_box["address"]
+        output_address = autobalance_output["address"]
+        print(f"\n  SELF.propositionBytes (address): {input_address}")
+        print(f"  successor.propositionBytes:      {output_address}")
+        print(f"  b.propositionBytes == SELF.propositionBytes: {input_address == output_address}")
+
+        # tokens.size > 0 check
+        output_tokens_size = len(autobalance_output["assets"]) if autobalance_output["assets"] else 0
+        print(f"\n  b.tokens.size: {output_tokens_size}")
+        print(f"  b.tokens.size > 0: {output_tokens_size > 0}")
+
+        print("=================================\n")
 
         # Build data inputs
         data_inputs_raw = [

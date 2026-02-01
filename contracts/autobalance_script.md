@@ -13,7 +13,7 @@ This script enforces on-chain validation for autobalance transactions. It replac
 | R5 | Coll[Coll[Byte]] | Group special bytes (unordered) |
 | R6 | Coll[Byte] | UserErgoTree |
 | R7 | GroupElement | UserPk (for bypass path) |
-| R9 | Coll[Coll[Byte]] | Ordered special bytes (R9[i] = bytes for INPUTS[i]) |
+| R9 | Coll[Coll[Byte]] | List of special bytes for loans in this group (same as R5) |
 
 ## Transaction Structure
 
@@ -68,7 +68,7 @@ All of the following must be satisfied:
     // 2. Autobalance: All validation conditions must pass
 
     // Constants - replace with actual values when compiling
-    val CollateralContractScript = fromBase58("COLLATERAL_SCRIPT_HASH")
+    val CollateralContractScript = fromBase58("5DJCQF27PQtMQQj88Mk2KYrPesFsxGg2qNcd8EVXBwTZ")
     val MinimumBoxValue = 1000000L
     val BalanceThresholdNumerator = 10L   // 10% threshold
     val BalanceThresholdDenominator = 100L
@@ -80,12 +80,13 @@ All of the following must be satisfied:
     // R5: Coll[Coll[Byte]] - List of special bytes for loans in this group (unordered)
     // R6: UserErgoTree
     // R7: GroupElement - UserPk for bypass path
-    // R9: Coll[Coll[Byte]] - Ordered array where R9[i] = special bytes for collateral at INPUTS[i]
+    // R9: Coll[Coll[Byte]] - List of special bytes for loans in this group (same as R5)
 
+    // These are safe to evaluate always - they access SELF which always exists
     val spendNftId = SELF.tokens(0)._1
     val groupSpecialBytes = SELF.R5[Coll[Coll[Byte]]].get
     val userPk = SELF.R7[GroupElement].get
-    val orderedSpecialBytes = SELF.R9[Coll[Coll[Byte]]].get
+    val groupSpecialBytesR9 = SELF.R9[Coll[Coll[Byte]]].get
 
     // Find collateral inputs by matching the collateral contract script
     val collateralInputs = INPUTS.filter {
@@ -96,128 +97,160 @@ All of the following must be satisfied:
     // Verify we have exactly 2 collaterals
     val hasValidCollateralCount = numCollaterals == 2
 
-    // Get self index to determine where collaterals are positioned
-    val selfIndex = INPUTS.indexOf(SELF, 0)
+    // All autobalance logic wrapped in a single conditional
+    val autobalanceConditions = if (hasValidCollateralCount) {
 
-    // Verify all collateral inputs are before the autobalance box
-    val collateralsBeforeSelf = collateralInputs.forall {
-        (b: Box) => INPUTS.indexOf(b, 0) < selfIndex
-    }
+        // Now safe to access collateralInputs(0) and collateralInputs(1)
+        val collateral0 = collateralInputs(0)
+        val collateral1 = collateralInputs(1)
 
-    // Verify each collateral's R8 structure matches our requirements
-    // Uses R9 ordering only (no R5 membership check)
-    val allCollateralsValid = collateralInputs.indices.forall { (i: Int) =>
-        val collateral = collateralInputs(i)
-        val collateralR8 = collateral.R8[Coll[Byte]].get
-        val collateralSpendNft = collateralR8.slice(0, 32)
-        val collateralSpecialBytes = collateralR8.slice(32, 40)
-        val inputIndex = INPUTS.indexOf(collateral, 0)
+        // Verify each collateral's R8 structure matches our requirements
+        val allCollateralsValid = collateralInputs.forall { (collateral: Box) =>
+            val collateralR8 = collateral.R8[Coll[Byte]].get
+            val collateralSpendNft = collateralR8.slice(0, 32)
+            val collateralSpecialBytes = collateralR8.slice(32, 40)
 
-        // Verify:
-        // 1. The spend NFT in R8[:32] matches our Token[0]
-        // 2. The special bytes in R8[32:40] match R9[inputIndex]
-        val matchesSpendNft = collateralSpendNft == spendNftId
-        val matchesOrderedBytes = orderedSpecialBytes(inputIndex) == collateralSpecialBytes
+            val matchesSpendNft = collateralSpendNft == spendNftId
+            val isMember = groupSpecialBytesR9.exists { (gb: Coll[Byte]) => gb == collateralSpecialBytes }
 
-        matchesSpendNft && matchesOrderedBytes
-    }
+            matchesSpendNft && isMember
+        }
 
-    // Get quote boxes to read prices
-    // Quote boxes are at OUTPUTS[2*inputIndex + 1] for collateral at INPUTS[inputIndex]
-    // Quote R4[1] contains the quotePrice
-    val collateral0Index = INPUTS.indexOf(collateralInputs(0), 0)
-    val collateral1Index = INPUTS.indexOf(collateralInputs(1), 0)
+        if (allCollateralsValid) {
+            // Get indices
+            val collateral0Index = INPUTS.indexOf(collateral0, 0)
+            val collateral1Index = INPUTS.indexOf(collateral1, 0)
 
-    val quoteBox0 = OUTPUTS(2 * collateral0Index + 1)
-    val quoteBox1 = OUTPUTS(2 * collateral1Index + 1)
+            // Calculate expected output positions
+            val quoteBox0Index = 2 * collateral1Index + 2
+            val quoteBox1Index = 2 * collateral1Index + 3
+            val outputCollateral0Index = 2 * collateral0Index
+            val outputCollateral1Index = 2 * collateral1Index
 
-    val quoteReport0 = quoteBox0.R4[Coll[Long]].get
-    val quoteReport1 = quoteBox1.R4[Coll[Long]].get
+            // Check that we have enough outputs
+            if (OUTPUTS.size > quoteBox1Index) {
+                val quoteBox0 = OUTPUTS(quoteBox0Index)
+                val quoteBox1 = OUTPUTS(quoteBox1Index)
 
-    val quotePrice0 = quoteReport0(1)
-    val quotePrice1 = quoteReport1(1)
+                val quoteReport0 = quoteBox0.R4[Coll[Long]].get
+                val quoteReport1 = quoteBox1.R4[Coll[Long]].get
 
-    // Check if the two prices differ by more than 10%
-    // Condition: |price0 - price1| * 100 > 10 * min(price0, price1)
-    val priceDiff = if (quotePrice0 > quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
-    val minPrice = if (quotePrice0 < quotePrice1) quotePrice0 else quotePrice1
+                val quotePrice0 = quoteReport0(1)
+                val quotePrice1 = quoteReport1(1)
 
-    // priceDiff * BalanceThresholdDenominator > BalanceThresholdNumerator * minPrice
-    val hasSufficientImbalance = priceDiff * BalanceThresholdDenominator > BalanceThresholdNumerator * minPrice
+                // Check if the two prices differ by more than 10%
+                val priceDiff = if (quotePrice0 > quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
+                val minPrice = if (quotePrice0 < quotePrice1) quotePrice0 else quotePrice1
+                val hasSufficientImbalance = priceDiff * BalanceThresholdDenominator > BalanceThresholdNumerator * minPrice
 
-    // Verify output collaterals exist and maintain proper structure
-    // Output collaterals are at OUTPUTS[2*inputIndex] for collateral at INPUTS[inputIndex]
-    val outputCollateral0 = OUTPUTS(2 * collateral0Index)
-    val outputCollateral1 = OUTPUTS(2 * collateral1Index)
+                // Output collaterals
+                val outputCollateral0 = OUTPUTS(outputCollateral0Index)
+                val outputCollateral1 = OUTPUTS(outputCollateral1Index)
 
-    // Verify output collaterals have correct script
-    val outputCollateralsValid = (
-        blake2b256(outputCollateral0.propositionBytes) == CollateralContractScript &&
-        blake2b256(outputCollateral1.propositionBytes) == CollateralContractScript
-    )
+                // Verify output collaterals have correct script
+                val outputCollateralsValid = (
+                    blake2b256(outputCollateral0.propositionBytes) == CollateralContractScript &&
+                    blake2b256(outputCollateral1.propositionBytes) == CollateralContractScript
+                )
 
-    // Verify total value is preserved (minus reasonable fees)
-    val inputTotalValue = collateralInputs(0).value + collateralInputs(1).value
-    val outputTotalValue = outputCollateral0.value + outputCollateral1.value
-    val valuesPreserved = outputTotalValue >= inputTotalValue - MaxTransactionFees
+                // Calculate rebalancing percentages
+                val largerIndex = if (quotePrice0 >= quotePrice1) 0 else 1
+                val transferNumerator = if (quotePrice0 >= quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
+                val transferDenominator = if (quotePrice0 >= quotePrice1) 2 * quotePrice0 else 2 * quotePrice1
 
-    // Verify outputs trend towards midpoint:
-    // The higher-value input should have lower or equal value in output
-    // The lower-value input should have higher or equal value in output
-    val inputVal0 = collateralInputs(0).value
-    val inputVal1 = collateralInputs(1).value
-    val outVal0 = outputCollateral0.value
-    val outVal1 = outputCollateral1.value
+                val largerInput = if (largerIndex == 0) collateral0 else collateral1
+                val smallerInput = if (largerIndex == 0) collateral1 else collateral0
+                val largerOutput = if (largerIndex == 0) outputCollateral0 else outputCollateral1
+                val smallerOutput = if (largerIndex == 0) outputCollateral1 else outputCollateral0
 
-    // Calculate expected midpoint direction
-    val outputsBalanced = if (inputVal0 >= inputVal1) {
-        // Input 0 is higher, should decrease; Input 1 should increase
-        outVal0 <= inputVal0 && outVal1 >= inputVal1
+                // ERG rebalancing
+                val largerErg = largerInput.value
+                val smallerErg = smallerInput.value
+                val ergTransfer = (largerErg * transferNumerator) / transferDenominator
+
+                val expectedLargerErg = largerErg - ergTransfer
+                val expectedSmallerErg = smallerErg + ergTransfer
+
+                val ergRebalancedCorrectly = (
+                    largerOutput.value >= expectedLargerErg - MaxTransactionFees &&
+                    largerOutput.value <= expectedLargerErg &&
+                    smallerOutput.value >= expectedSmallerErg &&
+                    smallerOutput.value <= expectedSmallerErg + MaxTransactionFees
+                )
+
+                // Verify total value is preserved (minus reasonable fees)
+                val inputTotalValue = collateral0.value + collateral1.value
+                val outputTotalValue = outputCollateral0.value + outputCollateral1.value
+                val valuesPreserved = outputTotalValue >= inputTotalValue - MaxTransactionFees
+
+                // Borrow tokens stay with their respective collaterals
+                val borrowTokensPreserved = (
+                    largerOutput.tokens(0) == largerInput.tokens(0) &&
+                    smallerOutput.tokens(0) == smallerInput.tokens(0)
+                )
+
+                // For all other tokens, transfer the same percentage
+                val tokensRebalancedCorrectly = largerInput.tokens.indices.forall { (i: Int) =>
+                    if (i == 0) {
+                        true // borrow token handled separately
+                    } else {
+                        val tokenId = largerInput.tokens(i)._1
+                        val largerAmount = largerInput.tokens(i)._2
+                        val smallerAmount = smallerInput.tokens(i)._2
+                        val tokenTransfer = (largerAmount * transferNumerator) / transferDenominator
+
+                        val expectedLarger = largerAmount - tokenTransfer
+                        val expectedSmaller = smallerAmount + tokenTransfer
+
+                        largerOutput.tokens(i)._1 == tokenId &&
+                        largerOutput.tokens(i)._2 == expectedLarger &&
+                        smallerOutput.tokens(i)._1 == tokenId &&
+                        smallerOutput.tokens(i)._2 == expectedSmaller
+                    }
+                }
+
+                val rebalancedCorrectly = ergRebalancedCorrectly && borrowTokensPreserved && tokensRebalancedCorrectly
+
+                // Verify autobalance box is recreated with same core properties
+                val autobalanceOutputs = OUTPUTS.filter { (b: Box) =>
+                    b.propositionBytes == SELF.propositionBytes &&
+                    b.tokens.size > 0 &&
+                    b.tokens(0)._1 == spendNftId
+                }
+
+                val autobalanceRecreated = autobalanceOutputs.size == 1 && {
+                    val successor = autobalanceOutputs(0)
+
+                    successor.tokens(0) == SELF.tokens(0) &&
+                    successor.R4[Coll[Byte]].get == SELF.R4[Coll[Byte]].get &&
+                    successor.R5[Coll[Coll[Byte]]].get == groupSpecialBytes &&
+                    successor.R6[Coll[Byte]].get == SELF.R6[Coll[Byte]].get &&
+                    successor.R7[GroupElement].get == userPk &&
+                    successor.R9[Coll[Coll[Byte]]].get == groupSpecialBytesR9 &&
+                    successor.value >= MinimumBoxValue
+                }
+
+                // All autobalance conditions
+                hasSufficientImbalance &&
+                outputCollateralsValid &&
+                valuesPreserved &&
+                rebalancedCorrectly &&
+                autobalanceRecreated
+
+            } else {
+                false // Not enough outputs
+            }
+        } else {
+            false // Collaterals not valid
+        }
     } else {
-        // Input 1 is higher, should decrease; Input 0 should increase
-        outVal1 <= inputVal1 && outVal0 >= inputVal0
+        false // Not exactly 2 collaterals
     }
-
-    // Verify borrow tokens are preserved in each collateral
-    val borrowTokensPreserved = (
-        outputCollateral0.tokens(0) == collateralInputs(0).tokens(0) &&
-        outputCollateral1.tokens(0) == collateralInputs(1).tokens(0)
-    )
-
-    // Verify autobalance box is recreated with same core properties
-    val autobalanceOutputs = OUTPUTS.filter { (b: Box) =>
-        b.propositionBytes == SELF.propositionBytes &&
-        b.tokens.size > 0 &&
-        b.tokens(0)._1 == spendNftId
-    }
-
-    val autobalanceRecreated = autobalanceOutputs.size == 1 && {
-        val successor = autobalanceOutputs(0)
-        val successorGroupBytes = successor.R5[Coll[Coll[Byte]]].get
-
-        // Verify core properties are preserved
-        successor.tokens(0) == SELF.tokens(0) &&
-        successorGroupBytes == groupSpecialBytes &&
-        successor.value >= MinimumBoxValue
-    }
-
-    // Autobalance conditions - all must be met
-    val autobalanceConditions = (
-        hasValidCollateralCount &&
-        collateralsBeforeSelf &&
-        allCollateralsValid &&
-        hasSufficientImbalance &&
-        outputCollateralsValid &&
-        valuesPreserved &&
-        outputsBalanced &&
-        borrowTokensPreserved &&
-        autobalanceRecreated
-    )
 
     // Two spending paths:
     // 1. UserPk bypass - user can spend without any validation
     // 2. Autobalance conditions - all checks must pass
-    sigmaProp(autobalanceConditions) || proveDlog(userPk)
+    proveDlog(userPk) || sigmaProp(autobalanceConditions)
 }
 ```
 
@@ -246,7 +279,7 @@ def generate_autobalance_script(collateralScript):
     val spendNftId = SELF.tokens(0)._1
     val groupSpecialBytes = SELF.R5[Coll[Coll[Byte]]].get
     val userPk = SELF.R7[GroupElement].get
-    val orderedSpecialBytes = SELF.R9[Coll[Coll[Byte]]].get
+    val groupSpecialBytesR9 = SELF.R9[Coll[Coll[Byte]]].get
 
     val collateralInputs = INPUTS.filter {{
         (b: Box) => blake2b256(b.propositionBytes) == CollateralContractScript
@@ -255,98 +288,141 @@ def generate_autobalance_script(collateralScript):
 
     val hasValidCollateralCount = numCollaterals == 2
 
-    val selfIndex = INPUTS.indexOf(SELF, 0)
+    val autobalanceConditions = if (hasValidCollateralCount) {{
 
-    val collateralsBeforeSelf = collateralInputs.forall {{
-        (b: Box) => INPUTS.indexOf(b, 0) < selfIndex
-    }}
+        val collateral0 = collateralInputs(0)
+        val collateral1 = collateralInputs(1)
 
-    val allCollateralsValid = collateralInputs.indices.forall {{ (i: Int) =>
-        val collateral = collateralInputs(i)
-        val collateralR8 = collateral.R8[Coll[Byte]].get
-        val collateralSpendNft = collateralR8.slice(0, 32)
-        val collateralSpecialBytes = collateralR8.slice(32, 40)
-        val inputIndex = INPUTS.indexOf(collateral, 0)
+        val allCollateralsValid = collateralInputs.forall {{ (collateral: Box) =>
+            val collateralR8 = collateral.R8[Coll[Byte]].get
+            val collateralSpendNft = collateralR8.slice(0, 32)
+            val collateralSpecialBytes = collateralR8.slice(32, 40)
 
-        val matchesSpendNft = collateralSpendNft == spendNftId
-        val matchesOrderedBytes = orderedSpecialBytes(inputIndex) == collateralSpecialBytes
+            val matchesSpendNft = collateralSpendNft == spendNftId
+            val isMember = groupSpecialBytesR9.exists {{ (gb: Coll[Byte]) => gb == collateralSpecialBytes }}
 
-        matchesSpendNft && matchesOrderedBytes
-    }}
+            matchesSpendNft && isMember
+        }}
 
-    val collateral0Index = INPUTS.indexOf(collateralInputs(0), 0)
-    val collateral1Index = INPUTS.indexOf(collateralInputs(1), 0)
+        if (allCollateralsValid) {{
+            val collateral0Index = INPUTS.indexOf(collateral0, 0)
+            val collateral1Index = INPUTS.indexOf(collateral1, 0)
 
-    val quoteBox0 = OUTPUTS(2 * collateral0Index + 1)
-    val quoteBox1 = OUTPUTS(2 * collateral1Index + 1)
+            val quoteBox0Index = 2 * collateral1Index + 2
+            val quoteBox1Index = 2 * collateral1Index + 3
+            val outputCollateral0Index = 2 * collateral0Index
+            val outputCollateral1Index = 2 * collateral1Index
 
-    val quoteReport0 = quoteBox0.R4[Coll[Long]].get
-    val quoteReport1 = quoteBox1.R4[Coll[Long]].get
+            if (OUTPUTS.size > quoteBox1Index) {{
+                val quoteBox0 = OUTPUTS(quoteBox0Index)
+                val quoteBox1 = OUTPUTS(quoteBox1Index)
 
-    val quotePrice0 = quoteReport0(1)
-    val quotePrice1 = quoteReport1(1)
+                val quoteReport0 = quoteBox0.R4[Coll[Long]].get
+                val quoteReport1 = quoteBox1.R4[Coll[Long]].get
 
-    val priceDiff = if (quotePrice0 > quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
-    val minPrice = if (quotePrice0 < quotePrice1) quotePrice0 else quotePrice1
+                val quotePrice0 = quoteReport0(1)
+                val quotePrice1 = quoteReport1(1)
 
-    val hasSufficientImbalance = priceDiff * BalanceThresholdDenominator > BalanceThresholdNumerator * minPrice
+                val priceDiff = if (quotePrice0 > quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
+                val minPrice = if (quotePrice0 < quotePrice1) quotePrice0 else quotePrice1
+                val hasSufficientImbalance = priceDiff * BalanceThresholdDenominator > BalanceThresholdNumerator * minPrice
 
-    val outputCollateral0 = OUTPUTS(2 * collateral0Index)
-    val outputCollateral1 = OUTPUTS(2 * collateral1Index)
+                val outputCollateral0 = OUTPUTS(outputCollateral0Index)
+                val outputCollateral1 = OUTPUTS(outputCollateral1Index)
 
-    val outputCollateralsValid = (
-        blake2b256(outputCollateral0.propositionBytes) == CollateralContractScript &&
-        blake2b256(outputCollateral1.propositionBytes) == CollateralContractScript
-    )
+                val outputCollateralsValid = (
+                    blake2b256(outputCollateral0.propositionBytes) == CollateralContractScript &&
+                    blake2b256(outputCollateral1.propositionBytes) == CollateralContractScript
+                )
 
-    val inputTotalValue = collateralInputs(0).value + collateralInputs(1).value
-    val outputTotalValue = outputCollateral0.value + outputCollateral1.value
-    val valuesPreserved = outputTotalValue >= inputTotalValue - MaxTransactionFees
+                val largerIndex = if (quotePrice0 >= quotePrice1) 0 else 1
+                val transferNumerator = if (quotePrice0 >= quotePrice1) quotePrice0 - quotePrice1 else quotePrice1 - quotePrice0
+                val transferDenominator = if (quotePrice0 >= quotePrice1) 2 * quotePrice0 else 2 * quotePrice1
 
-    val inputVal0 = collateralInputs(0).value
-    val inputVal1 = collateralInputs(1).value
-    val outVal0 = outputCollateral0.value
-    val outVal1 = outputCollateral1.value
+                val largerInput = if (largerIndex == 0) collateral0 else collateral1
+                val smallerInput = if (largerIndex == 0) collateral1 else collateral0
+                val largerOutput = if (largerIndex == 0) outputCollateral0 else outputCollateral1
+                val smallerOutput = if (largerIndex == 0) outputCollateral1 else outputCollateral0
 
-    val outputsBalanced = if (inputVal0 >= inputVal1) {{
-        outVal0 <= inputVal0 && outVal1 >= inputVal1
+                val largerErg = largerInput.value
+                val smallerErg = smallerInput.value
+                val ergTransfer = (largerErg * transferNumerator) / transferDenominator
+
+                val expectedLargerErg = largerErg - ergTransfer
+                val expectedSmallerErg = smallerErg + ergTransfer
+
+                val ergRebalancedCorrectly = (
+                    largerOutput.value >= expectedLargerErg - MaxTransactionFees &&
+                    largerOutput.value <= expectedLargerErg &&
+                    smallerOutput.value >= expectedSmallerErg &&
+                    smallerOutput.value <= expectedSmallerErg + MaxTransactionFees
+                )
+
+                val inputTotalValue = collateral0.value + collateral1.value
+                val outputTotalValue = outputCollateral0.value + outputCollateral1.value
+                val valuesPreserved = outputTotalValue >= inputTotalValue - MaxTransactionFees
+
+                val borrowTokensPreserved = (
+                    largerOutput.tokens(0) == largerInput.tokens(0) &&
+                    smallerOutput.tokens(0) == smallerInput.tokens(0)
+                )
+
+                val tokensRebalancedCorrectly = largerInput.tokens.indices.forall {{ (i: Int) =>
+                    if (i == 0) {{
+                        true
+                    }} else {{
+                        val tokenId = largerInput.tokens(i)._1
+                        val largerAmount = largerInput.tokens(i)._2
+                        val smallerAmount = smallerInput.tokens(i)._2
+                        val tokenTransfer = (largerAmount * transferNumerator) / transferDenominator
+
+                        val expectedLarger = largerAmount - tokenTransfer
+                        val expectedSmaller = smallerAmount + tokenTransfer
+
+                        largerOutput.tokens(i)._1 == tokenId &&
+                        largerOutput.tokens(i)._2 == expectedLarger &&
+                        smallerOutput.tokens(i)._1 == tokenId &&
+                        smallerOutput.tokens(i)._2 == expectedSmaller
+                    }}
+                }}
+
+                val rebalancedCorrectly = ergRebalancedCorrectly && borrowTokensPreserved && tokensRebalancedCorrectly
+
+                val autobalanceOutputs = OUTPUTS.filter {{ (b: Box) =>
+                    b.propositionBytes == SELF.propositionBytes &&
+                    b.tokens.size > 0 &&
+                    b.tokens(0)._1 == spendNftId
+                }}
+
+                val autobalanceRecreated = autobalanceOutputs.size == 1 && {{
+                    val successor = autobalanceOutputs(0)
+
+                    successor.tokens(0) == SELF.tokens(0) &&
+                    successor.R4[Coll[Byte]].get == SELF.R4[Coll[Byte]].get &&
+                    successor.R5[Coll[Coll[Byte]]].get == groupSpecialBytes &&
+                    successor.R6[Coll[Byte]].get == SELF.R6[Coll[Byte]].get &&
+                    successor.R7[GroupElement].get == userPk &&
+                    successor.R9[Coll[Coll[Byte]]].get == groupSpecialBytesR9 &&
+                    successor.value >= MinimumBoxValue
+                }}
+
+                hasSufficientImbalance &&
+                outputCollateralsValid &&
+                valuesPreserved &&
+                rebalancedCorrectly &&
+                autobalanceRecreated
+
+            }} else {{
+                false
+            }}
+        }} else {{
+            false
+        }}
     }} else {{
-        outVal1 <= inputVal1 && outVal0 >= inputVal0
+        false
     }}
 
-    val borrowTokensPreserved = (
-        outputCollateral0.tokens(0) == collateralInputs(0).tokens(0) &&
-        outputCollateral1.tokens(0) == collateralInputs(1).tokens(0)
-    )
-
-    val autobalanceOutputs = OUTPUTS.filter {{ (b: Box) =>
-        b.propositionBytes == SELF.propositionBytes &&
-        b.tokens.size > 0 &&
-        b.tokens(0)._1 == spendNftId
-    }}
-
-    val autobalanceRecreated = autobalanceOutputs.size == 1 && {{
-        val successor = autobalanceOutputs(0)
-        val successorGroupBytes = successor.R5[Coll[Coll[Byte]]].get
-
-        successor.tokens(0) == SELF.tokens(0) &&
-        successorGroupBytes == groupSpecialBytes &&
-        successor.value >= MinimumBoxValue
-    }}
-
-    val autobalanceConditions = (
-        hasValidCollateralCount &&
-        collateralsBeforeSelf &&
-        allCollateralsValid &&
-        hasSufficientImbalance &&
-        outputCollateralsValid &&
-        valuesPreserved &&
-        outputsBalanced &&
-        borrowTokensPreserved &&
-        autobalanceRecreated
-    )
-
-    sigmaProp(autobalanceConditions) || proveDlog(userPk)
+    proveDlog(userPk) || sigmaProp(autobalanceConditions)
 }}''')
 ```
 
@@ -355,14 +431,14 @@ def generate_autobalance_script(collateralScript):
 | Check | Description |
 |-------|-------------|
 | `hasValidCollateralCount` | Exactly 2 collateral boxes in inputs |
-| `collateralsBeforeSelf` | All collaterals appear before autobalance box in INPUTS |
-| `allCollateralsValid` | Each collateral's R8[:32] matches Token[0] and R8[32:40] matches R9[inputIndex] |
+| `allCollateralsValid` | Each collateral's R8[:32] matches Token[0] and R8[32:40] exists in R9 membership list |
 | `hasSufficientImbalance` | Quote prices differ by >10% |
 | `outputCollateralsValid` | Output collaterals use correct contract script |
 | `valuesPreserved` | Total ERG value preserved (minus fees) |
-| `outputsBalanced` | Higher value decreases, lower value increases |
+| `ergRebalancedCorrectly` | ERG transferred proportionally based on price differential |
 | `borrowTokensPreserved` | Borrow tokens unchanged in each collateral |
-| `autobalanceRecreated` | Autobalance box recreated with same properties |
+| `tokensRebalancedCorrectly` | All non-borrow tokens rebalanced proportionally |
+| `autobalanceRecreated` | Autobalance box recreated with same R4, R5, R6, R7, R9, and Token[0] |
 
 ## UserPk Bypass
 
