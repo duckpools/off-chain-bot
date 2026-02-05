@@ -279,6 +279,53 @@ def sync_user_lend_positions(
 
 
 # ========== sync_user_deposits_historical ==========
+def load_latest_deposit_totals(db: DatabaseManager, pool_nft: str, before_height: int) -> Dict[str, Dict[str, float]]:
+    """
+    Load the latest total_deposited and total_withdrawn for each address
+    in a pool, as of a specific block height.
+
+    Args:
+        db: Database manager instance
+        pool_nft: The pool NFT identifier
+        before_height: Load totals from records with block_height < this value
+
+    Returns:
+        {address: {'deposited': float, 'withdrawn': float}}
+    """
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Get the latest record for each address before the given height
+                query = """
+                    SELECT DISTINCT ON (a.address)
+                        a.address,
+                        udh.total_deposited,
+                        udh.total_withdrawn
+                    FROM user_deposits_historical udh
+                    JOIN addresses a ON udh.address_id = a.id
+                    WHERE udh.pool_nft = %s
+                      AND udh.block_height < %s
+                    ORDER BY a.address, udh.block_height DESC, udh.id DESC
+                """
+                cur.execute(query, (pool_nft, before_height))
+                results = cur.fetchall()
+
+                user_totals = {}
+                for row in results:
+                    address, total_deposited, total_withdrawn = row
+                    user_totals[address] = {
+                        'deposited': float(total_deposited) if total_deposited else 0.0,
+                        'withdrawn': float(total_withdrawn) if total_withdrawn else 0.0
+                    }
+
+                print(f"Loaded deposit totals for {len(user_totals)} addresses (before height {before_height})")
+                return user_totals
+
+    except Exception as e:
+        print(f"Error loading latest deposit totals for pool {pool_nft}: {e}")
+        return {}
+
+
 def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Optional[int] = None, full_scan: int = False) -> bool:
     """V1 implementation of sync_user_deposits_historical - original logic."""
     pool_nft = pool["POOL_NFT"]
@@ -286,10 +333,11 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
     try:
         min_height = 0
         if not full_scan:
-            min_height = db.get_lowest_sync_block_for_pool(
+            max_height = db.get_max_block_height_for_pool(
                 table_name="user_deposits_historical",
                 pool_nft=pool_nft
             )
+            min_height = max_height if max_height is not None else 0
 
         with db.get_connection() as conn:
             with conn.cursor() as cur:
@@ -311,7 +359,12 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
                     return True
 
                 # Track cumulative amounts per address
-                user_totals = {}  # address -> {'deposited': float, 'withdrawn': float}
+                # For incremental sync, load prior cumulative totals
+                if full_scan or min_height == 0:
+                    user_totals = {}  # Full scan starts fresh
+                else:
+                    # Load prior cumulative totals for all users with deposits in this pool
+                    user_totals = load_latest_deposit_totals(db, pool_nft, min_height)
 
                 # Process each transaction in chronological order
                 for tx in transactions:
@@ -527,7 +580,9 @@ def add_granular_user_lend_positions(
         # Step 2: Generate interval heights
         min_height = min(value_map.keys())
         if not full_scan:
-            min_height = db.get_lowest_sync_block_for_pool("user_lend_positions_historical", pool_nft)
+            max_height = db.get_max_block_height_for_pool("user_lend_positions_historical", pool_nft)
+            if max_height is not None:
+                min_height = max_height
         print("Using min_height", min_height)
 
         max_height = max(max(value_map.keys()), sync_block)

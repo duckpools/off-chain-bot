@@ -358,3 +358,199 @@ class SyncMixin:
         except Exception as e:
             print(f"Error clearing sync_blocks: {e}")
             return {}
+
+    # ========================================
+    # CHECKPOINT METHODS (Safe Point System)
+    # ========================================
+
+    def set_checkpoint(self, checkpoint_type: str, pool_nft: Optional[str],
+                       block_height: int, notes: Optional[str] = None,
+                       created_by: str = 'system') -> bool:
+        """
+        Set or update a sync checkpoint.
+
+        Checkpoint types:
+        - 'safe_point': Human-verified correct state. Recovery starts here.
+        - 'ingested': Last block height where data was written (may be unverified).
+        - 'verified': Last block height where verification checks passed.
+
+        Args:
+            checkpoint_type: Type of checkpoint ('safe_point', 'ingested', 'verified')
+            pool_nft: Pool NFT identifier, or None for global checkpoint
+            block_height: The block height for this checkpoint
+            notes: Optional description of why this checkpoint was set
+            created_by: 'system' or 'manual'
+
+        Returns:
+            True if successful, False otherwise
+        """
+        allowed_types = ['safe_point', 'ingested', 'verified']
+        if checkpoint_type not in allowed_types:
+            raise ValueError(f"Invalid checkpoint_type: {checkpoint_type}. Must be one of {allowed_types}")
+
+        query = """
+            INSERT INTO sync_checkpoints (checkpoint_type, pool_nft, block_height, notes, created_by)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (checkpoint_type, pool_nft) DO UPDATE
+            SET block_height = EXCLUDED.block_height,
+                notes = EXCLUDED.notes,
+                created_by = EXCLUDED.created_by,
+                created_at = NOW()
+        """
+
+        try:
+            self.execute_upsert(query, (checkpoint_type, pool_nft, block_height, notes, created_by))
+            print(f"Set checkpoint: type={checkpoint_type}, pool={pool_nft or 'global'}, height={block_height}")
+            return True
+        except Exception as e:
+            print(f"Error setting checkpoint: {e}")
+            return False
+
+    def get_checkpoint(self, checkpoint_type: str, pool_nft: Optional[str] = None) -> Optional[int]:
+        """
+        Get the block height for a specific checkpoint.
+
+        Args:
+            checkpoint_type: Type of checkpoint ('safe_point', 'ingested', 'verified')
+            pool_nft: Pool NFT identifier, or None for global checkpoint
+
+        Returns:
+            Block height if checkpoint exists, None otherwise
+        """
+        allowed_types = ['safe_point', 'ingested', 'verified']
+        if checkpoint_type not in allowed_types:
+            raise ValueError(f"Invalid checkpoint_type: {checkpoint_type}. Must be one of {allowed_types}")
+
+        if pool_nft is None:
+            query = """
+                SELECT block_height FROM sync_checkpoints
+                WHERE checkpoint_type = %s AND pool_nft IS NULL
+            """
+            params = (checkpoint_type,)
+        else:
+            query = """
+                SELECT block_height FROM sync_checkpoints
+                WHERE checkpoint_type = %s AND pool_nft = %s
+            """
+            params = (checkpoint_type, pool_nft)
+
+        try:
+            result = self.execute_query(query, params)
+            if result:
+                return result[0]['block_height']
+            return None
+        except Exception as e:
+            print(f"Error getting checkpoint: {e}")
+            return None
+
+    def get_safe_point(self, pool_nft: Optional[str] = None) -> int:
+        """
+        Get the safe point block height for recovery operations.
+
+        For a specific pool, this will first try to get a pool-specific safe point,
+        then fall back to the global safe point if none exists.
+
+        Args:
+            pool_nft: Pool NFT identifier, or None to only check global
+
+        Returns:
+            Block height of safe point, or 0 if no safe point is set
+        """
+        if pool_nft is not None:
+            # Try pool-specific first
+            query = """
+                SELECT block_height FROM sync_checkpoints
+                WHERE checkpoint_type = 'safe_point'
+                AND (pool_nft = %s OR pool_nft IS NULL)
+                ORDER BY pool_nft NULLS LAST
+                LIMIT 1
+            """
+            params = (pool_nft,)
+        else:
+            # Global only
+            query = """
+                SELECT block_height FROM sync_checkpoints
+                WHERE checkpoint_type = 'safe_point' AND pool_nft IS NULL
+            """
+            params = None
+
+        try:
+            result = self.execute_query(query, params)
+            if result:
+                return result[0]['block_height']
+            return 0
+        except Exception as e:
+            print(f"Error getting safe point: {e}")
+            return 0
+
+    def set_safe_point(self, block_height: int, pool_nft: Optional[str] = None,
+                       notes: Optional[str] = None) -> bool:
+        """
+        Manually set a safe point checkpoint (human-verified correct state).
+
+        Args:
+            block_height: The verified block height
+            pool_nft: Pool NFT identifier, or None for global safe point
+            notes: Description of verification (e.g., "Manually verified 2024-01-15")
+
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.set_checkpoint('safe_point', pool_nft, block_height, notes, 'manual')
+
+    def get_all_checkpoints(self) -> List[Dict]:
+        """
+        Get all checkpoints for monitoring/debugging.
+
+        Returns:
+            List of checkpoint records
+        """
+        query = """
+            SELECT id, checkpoint_type, pool_nft, block_height, notes, created_by, created_at
+            FROM sync_checkpoints
+            ORDER BY created_at DESC
+        """
+
+        try:
+            return self.execute_query(query)
+        except Exception as e:
+            print(f"Error getting all checkpoints: {e}")
+            return []
+
+    def get_max_block_height_for_pool(self, table_name: str, pool_nft: str) -> Optional[int]:
+        """
+        Get the maximum block_height for a pool in a given table.
+        Use this instead of sync_block for incremental sync logic.
+
+        Args:
+            table_name: Name of the table to check
+            pool_nft: The pool NFT identifier
+
+        Returns:
+            Maximum block_height found, or None if no data exists
+        """
+        # Validate table name to prevent SQL injection
+        allowed_tables = [
+            'user_lend_positions_historical',
+            'user_deposits_historical',
+            'user_portfolio_snapshots',
+            'pool_data_historical',
+            'transactions'
+        ]
+
+        if table_name not in allowed_tables:
+            raise ValueError(f"Table '{table_name}' is not allowed for block_height checking")
+
+        query = f"SELECT MAX(block_height) as max_height FROM {table_name} WHERE pool_nft = %s"
+
+        try:
+            result = self.execute_query(query, (pool_nft,))
+            if result and result[0]['max_height'] is not None:
+                max_height = result[0]['max_height']
+                print(f"Max block_height in {table_name} for pool {pool_nft}: {max_height}")
+                return max_height
+            print(f"No entries found in {table_name} for pool {pool_nft}")
+            return None
+        except Exception as e:
+            print(f"Error getting max block_height from {table_name} for pool {pool_nft}: {e}")
+            return None

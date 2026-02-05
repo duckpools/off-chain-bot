@@ -152,6 +152,19 @@ CREATE TABLE headlinestats (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ========== SYNC CHECKPOINTS ==========
+-- Safe point system for tracking verified sync state and recovery points
+CREATE TABLE sync_checkpoints (
+    id SERIAL PRIMARY KEY,
+    checkpoint_type TEXT NOT NULL,      -- 'safe_point', 'ingested', 'verified'
+    pool_nft TEXT,                       -- NULL for global, specific NFT for per-pool
+    block_height BIGINT NOT NULL,
+    notes TEXT,                          -- Why this checkpoint was set
+    created_by TEXT DEFAULT 'system',    -- 'manual' or 'system'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_checkpoint UNIQUE (checkpoint_type, pool_nft)
+);
+
 -- ========================================
 -- CONSOLIDATED INDEXES (matching actual database)
 -- ========================================
@@ -236,6 +249,10 @@ CREATE INDEX idx_headlinestats_timestamp ON headlinestats(timestamp DESC);
 -- Created_at index for database insertion tracking
 CREATE INDEX idx_headlinestats_created_at ON headlinestats(created_at DESC);
 
+-- ========== SYNC CHECKPOINTS INDEXES ==========
+-- Index for fast checkpoint lookups by type and pool
+CREATE INDEX idx_sync_checkpoints_type ON sync_checkpoints(checkpoint_type, pool_nft);
+
 -- ========================================
 -- MAINTENANCE-FREE VIEWS
 -- ========================================
@@ -296,7 +313,7 @@ LEFT JOIN LATERAL (
 -- ========================================
 
 /*
-TABLES: 10 total
+TABLES: 11 total
 - addresses (+ sync_block)
 - pools (+ sync_block)
 - currency_rates (+ sync_block)
@@ -307,8 +324,9 @@ TABLES: 10 total
 - user_portfolio_snapshots (+ sync_block)
 - user_pool_debts (+ sync_block)
 - headlinestats (+ sync_block)
+- sync_checkpoints (safe point system for verified sync state)
 
-INDEXES: 42 total (consolidated and optimized)
+INDEXES: 43 total (consolidated and optimized)
 - addresses: 2 indexes
 - pools: 3 indexes
 - currency_rates: 2 indexes
@@ -319,6 +337,7 @@ INDEXES: 42 total (consolidated and optimized)
 - user_portfolio_snapshots: 6 indexes
 - user_pool_debts: 3 indexes
 - headlinestats: 2 indexes
+- sync_checkpoints: 1 index
 - (Plus system-generated primary key and unique constraint indexes)
 
 VIEWS: 3 maintenance-free views (updated to include sync_block)

@@ -1,8 +1,9 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from consts import FEE_ADDRESS_LIST
 from database.db_manager import DatabaseManager
 from database_services.data_aggregation.pool_stats import borrow_apy as calculate_borrow_apy
+from database_services.shutdown_handler import is_shutdown_requested
 from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
 from helpers.serializer import extract_number
@@ -1049,12 +1050,27 @@ def sync_transactions(db: DatabaseManager, pool, pool_boxes, sync_block: int, mi
 
 
 # ========== sync_transactions_batched ==========
-def sync_transactions_batched_v1(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
-    """V1 implementation of sync_transactions_batched - original logic."""
+def sync_transactions_batched_v1(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0,
+                                  batch_size=500) -> Tuple[int, bool]:
+    """
+    V1 implementation of sync_transactions_batched with interruption support.
+
+    Returns:
+        Tuple of (processed_count, was_interrupted)
+    """
     transactions_batch = []
     processed_count = 0
+    total_boxes = len(pool_boxes)
+    interrupted = False
 
-    for pool_box in pool_boxes:
+    for i, pool_box in enumerate(pool_boxes):
+        # Check for shutdown at batch boundaries
+        if processed_count > 0 and processed_count % batch_size == 0:
+            if is_shutdown_requested():
+                print(f"  Transaction sync interrupted at {processed_count}/{total_boxes}")
+                interrupted = True
+                break
+
         transaction_data = _process_single_transaction(pool_box, pool, sync_block, min_height)
         if not transaction_data:
             continue
@@ -1072,15 +1088,33 @@ def sync_transactions_batched_v1(db: DatabaseManager, pool, pool_boxes,  sync_bl
         success_count = db.batch_upsert_transactions(transactions_batch)
 
     if processed_count > 0:
-        print(f"  Transactions: {processed_count} processed ✓")
+        status = "interrupted" if interrupted else "processed"
+        print(f"  Transactions: {processed_count} {status}")
+
+    return processed_count, interrupted
 
 
-def sync_transactions_batched_v2(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
-    """V2 implementation of sync_transactions_batched - same structure as V1, uses V2 dispatchers."""
+def sync_transactions_batched_v2(db: DatabaseManager, pool, pool_boxes, sync_block: int, min_height=0,
+                                  batch_size=500) -> Tuple[int, bool]:
+    """
+    V2 implementation of sync_transactions_batched with interruption support.
+
+    Returns:
+        Tuple of (processed_count, was_interrupted)
+    """
     transactions_batch = []
     processed_count = 0
+    total_boxes = len(pool_boxes)
+    interrupted = False
 
-    for pool_box in pool_boxes:
+    for i, pool_box in enumerate(pool_boxes):
+        # Check for shutdown at batch boundaries
+        if processed_count > 0 and processed_count % batch_size == 0:
+            if is_shutdown_requested():
+                print(f"  V2 Transaction sync interrupted at {processed_count}/{total_boxes}")
+                interrupted = True
+                break
+
         transaction_data = _process_single_transaction(pool_box, pool, sync_block, min_height)
         if not transaction_data:
             continue
@@ -1098,7 +1132,10 @@ def sync_transactions_batched_v2(db: DatabaseManager, pool, pool_boxes,  sync_bl
         success_count = db.batch_upsert_transactions(transactions_batch)
 
     if processed_count > 0:
-        print(f"  V2 Transactions: {processed_count} processed")
+        status = "interrupted" if interrupted else "processed"
+        print(f"  V2 Transactions: {processed_count} {status}")
+
+    return processed_count, interrupted
 
 
 def sync_transactions_batched(db: DatabaseManager, pool, pool_boxes,  sync_block: int, min_height=0, batch_size=500):
