@@ -537,7 +537,7 @@ def generate_collateral_script(repaymentScript, interestNft, poolCurrencyId):
 		)	
 
         val nftProofGiven = INPUTS.filter{{
-            (b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFTShort && b.R9[Coll[Byte]].get == iSpendingNFTEnd
+			(b: Box) => b.tokens.size > 0 && b.tokens(0)._1 == iSpendingNFTShort && b.R9[Coll[Coll[Byte]]].get(selfIndex) == iSpendingNFTEnd
         }}.size > 0
         
         val validUseOfCollateral = if (nftProofGiven) {{

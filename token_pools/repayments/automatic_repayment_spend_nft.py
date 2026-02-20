@@ -472,9 +472,9 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
             r8_value = "1a00"
 
         # R9: [boxIndex, dexStartIndex]
-        # Collateral is at INPUTS(2), so boxIndex = -2 - 1 = -3
+        # Collateral is at INPUTS(0), so boxIndex = -0 - 1 = -1
         # Primary DEX is at dataInputs(1), so dexStartIndex = 1
-        r9_value = encode_coll_int([-3, 1])
+        r9_value = encode_coll_int([-1, 1])
 
         # Build data inputs
         data_inputs_raw = [
@@ -489,7 +489,7 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
         funder_erg_value = funding_box["value"] + collateral_value - MIN_BOX_VALUE - 2 * TX_FEE - logic_box["value"] - user_erg
 
         # Build transaction outputs
-        # Inputs: spend_nft_box, funding_box, collateral_box, logic_box
+        # Inputs: collateral_box, spend_nft_box, funding_box, logic_box
         # Outputs: repayment_box, logic_box, user_box (if applicable), funding_box (with collateral), spend_nft_box
         output_requests = [
             {
@@ -564,9 +564,9 @@ def process_automatic_repayment(pool, spend_nft_box, collateral_box, quote):
             "requests": output_requests,
             "fee": TX_FEE,
             "inputsRaw": [
-                box_id_to_binary(spend_nft_box["boxId"]),      # INPUTS(0)
-                box_id_to_binary(funding_box["boxId"]),         # INPUTS(1)
-                box_id_to_binary(collateral_box["boxId"]),      # INPUTS(2)
+                box_id_to_binary(collateral_box["boxId"]),      # INPUTS(0) - selfIndex = 0
+                box_id_to_binary(spend_nft_box["boxId"]),      # INPUTS(1)
+                box_id_to_binary(funding_box["boxId"]),         # INPUTS(2)
                 box_id_to_binary(logic_box["boxId"]),           # INPUTS(3)
             ],
             "dataInputsRaw": data_inputs_raw
