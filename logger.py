@@ -19,12 +19,16 @@ class SafeRotatingFileHandler(RotatingFileHandler):
                 logging.error(f"Unexpected error: {e}")
                 break
 
-def set_logger(name):
+def set_logger(name, log_file='main.log'):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
+    # Prevent adding duplicate handlers on repeated calls
+    if logger.handlers:
+        return logger
+
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = SafeRotatingFileHandler('main.log', maxBytes=1024*1024*500, backupCount=3, delay=True)
+    file_handler = SafeRotatingFileHandler(log_file, maxBytes=1024*1024*500, backupCount=3, delay=True)
     file_handler.setFormatter(formatter)
 
     stream_handler = logging.StreamHandler()
