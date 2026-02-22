@@ -1,4 +1,7 @@
+import logging
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsMixin:
@@ -50,6 +53,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching next snapshot for address {address} after timestamp {timestamp}: {e}")
+            logger.error("Error fetching next snapshot for address %s after timestamp %s: %s", address, timestamp, e, exc_info=True)
             return {}
 
     def get_latest_snapshot(self, address: str) -> Dict[str, Dict[str, Any]]:
@@ -98,6 +102,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching latest snapshot for address {address}: {e}")
+            logger.error("Error fetching latest snapshot for address %s: %s", address, e, exc_info=True)
             return {}
 
     def get_currency_rates(self) -> Dict[str, float]:
@@ -120,6 +125,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching currency rates: {e}")
+            logger.error("Error fetching currency rates: %s", e, exc_info=True)
             return {}
 
     def get_pool_asset(self, pool_nft: str) -> Optional[str]:
@@ -143,6 +149,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching pool asset for {pool_nft}: {e}")
+            logger.error("Error fetching pool asset for %s: %s", pool_nft, e, exc_info=True)
             return None
 
     def get_address_id(self, address: str) -> Optional[int]:
@@ -166,6 +173,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching address ID for {address}: {e}")
+            logger.error("Error fetching address ID for %s: %s", address, e, exc_info=True)
             return None
 
     def get_pool_lend_apy(self, pool_nft: str) -> float:
@@ -189,6 +197,7 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching lend APY for pool {pool_nft}: {e}")
+            logger.error("Error fetching lend APY for pool %s: %s", pool_nft, e, exc_info=True)
             return 0.0
 
     def get_all_addresses(self) -> List[str]:
@@ -211,4 +220,5 @@ class AnalyticsMixin:
 
         except Exception as e:
             print(f"Error fetching all addresses: {e}")
+            logger.error("Error fetching all addresses: %s", e, exc_info=True)
             return []

@@ -1,8 +1,11 @@
+import logging
 from database.db_manager import DatabaseManager
 from helpers.node_calls import get_block_timestamp
 from helpers.platform_functions import get_all_boxes_by_token_id, fetch_transaction_data
 from collections import defaultdict, OrderedDict
 from typing import Dict, List, Tuple, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ========== sync_user_lend_positions ==========
@@ -57,6 +60,7 @@ def sync_user_lend_positions_v1(
 
         if not transaction_data:
             print(f"Failed to fetch transaction data for {transaction_id}")
+            logger.warning("Failed to fetch transaction data for %s", transaction_id)
             continue
 
         block_height = transaction_data.get("inclusionHeight", 0)
@@ -319,10 +323,12 @@ def load_latest_deposit_totals(db: DatabaseManager, pool_nft: str, before_height
                     }
 
                 print(f"Loaded deposit totals for {len(user_totals)} addresses (before height {before_height})")
+                logger.info("Loaded deposit totals for %d addresses (before height %d)", len(user_totals), before_height)
                 return user_totals
 
     except Exception as e:
         print(f"Error loading latest deposit totals for pool {pool_nft}: {e}")
+        logger.error("Error loading latest deposit totals for pool %s: %s", pool_nft, e, exc_info=True)
         return {}
 
 
@@ -401,13 +407,16 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
 
                         if result is None:
                             print(f"Failed to upsert historical record for transaction {tx_id}")
+                            logger.error("Failed to upsert historical record for transaction %s", tx_id)
                             return False
 
                 print(f"Successfully synced {len(transactions)} transactions for pool {pool_nft} (from height {min_height})")
+                logger.info("Successfully synced %d transactions for pool %s (from height %d)", len(transactions), pool_nft, min_height)
                 return True
 
     except Exception as e:
         print(f"Error syncing user deposits historical for pool {pool_nft}: {e}")
+        logger.error("Error syncing user deposits historical for pool %s: %s", pool_nft, e, exc_info=True)
         return False
 
 
@@ -485,6 +494,7 @@ def sync_user_portfolio_snapshots_v1(db: DatabaseManager, pool, sync_block: Opti
 
     except Exception as e:
         print(f"Error syncing user portfolio snapshots for pool {pool_nft}: {e}")
+        logger.error("Error syncing user portfolio snapshots for pool %s: %s", pool_nft, e, exc_info=True)
         return False
 
 
@@ -515,6 +525,7 @@ def get_pool_lend_token_value_map(db: DatabaseManager, pool_nft: str) -> dict:
 
                 if not results:
                     print(f"No pool data historical found for pool {pool_nft}")
+                    logger.warning("No pool data historical found for pool %s", pool_nft)
                     return {}
 
                 # Create a map where each block height maps to its lend token value
@@ -523,10 +534,12 @@ def get_pool_lend_token_value_map(db: DatabaseManager, pool_nft: str) -> dict:
                     value_map[block_height] = float(lend_token_value)
 
                 print(f"Retrieved lend token values for {len(value_map)} block heights for pool {pool_nft}")
+                logger.info("Retrieved lend token values for %d block heights for pool %s", len(value_map), pool_nft)
                 return value_map
 
     except Exception as e:
         print(f"Error fetching pool lend token value map for pool {pool_nft}: {e}")
+        logger.error("Error fetching pool lend token value map for pool %s: %s", pool_nft, e, exc_info=True)
         return {}
 
 
@@ -572,9 +585,11 @@ def add_granular_user_lend_positions(
     try:
         # Step 1: Get the lend token value map
         print(f"Fetching lend token value map for pool {pool_nft}")
+        logger.info("Fetching lend token value map for pool %s", pool_nft)
         value_map = get_pool_lend_token_value_map(db, pool_nft)
         if not value_map:
             print(f"No lend token value data available for pool {pool_nft}")
+            logger.warning("No lend token value data available for pool %s", pool_nft)
             return False
 
         # Step 2: Generate interval heights
@@ -584,6 +599,7 @@ def add_granular_user_lend_positions(
             if max_height is not None:
                 min_height = max_height
         print("Using min_height", min_height)
+        logger.info("Using min_height %s", min_height)
 
         max_height = max(max(value_map.keys()), sync_block)
         interval_heights = []
@@ -593,6 +609,7 @@ def add_granular_user_lend_positions(
             current_height += interval_blocks
 
         print(f"Generated {len(interval_heights)} interval heights every {interval_blocks} blocks")
+        logger.info("Generated %d interval heights every %d blocks", len(interval_heights), interval_blocks)
 
         if not interval_heights:
             return True
@@ -603,21 +620,25 @@ def add_granular_user_lend_positions(
 
                 for interval_height in interval_heights:
                     print(f"Processing interval height {interval_height}")
+                    logger.debug("Processing interval height %d", interval_height)
 
                     # Get REAL block timestamp from node API
                     block_timestamp = get_block_timestamp(interval_height)
                     if block_timestamp is None:
                         print(f"  Failed to get timestamp for block {interval_height}, skipping")
+                        logger.warning("Failed to get timestamp for block %d, skipping", interval_height)
                         continue
 
                     # Get lend token value for this height
                     lend_token_value = get_lend_token_value_at_height(value_map, interval_height)
                     if lend_token_value == -1:
                         print(f"  No lend token value available for height {interval_height}, skipping")
+                        logger.warning("No lend token value available for height %d, skipping", interval_height)
                         continue
 
                     print(f"  Using lend_token_value: {lend_token_value}")
                     print(f"  Using REAL block_timestamp: {block_timestamp}")
+                    logger.debug("  lend_token_value: %s, block_timestamp: %s", lend_token_value, block_timestamp)
 
                     # FIXED QUERY: Get truly latest position first, then filter for active positions
                     user_query = """
@@ -643,6 +664,7 @@ def add_granular_user_lend_positions(
                     user_positions = cur.fetchall()
 
                     print(f"  Found {len(user_positions)} users with active positions")
+                    logger.debug("  Found %d users with active positions at height %d", len(user_positions), interval_height)
 
                     # Create position records with REAL node API timestamps
                     for address_id, address, position_tokens in user_positions:
@@ -662,18 +684,23 @@ def add_granular_user_lend_positions(
 
                 print("This is my batch data", batch_data)
                 print(f"Generated {len(batch_data)} granular position records with REAL timestamps")
+                logger.info("Generated %d granular position records with REAL timestamps", len(batch_data))
 
                 if batch_data:
                     print("Performing batch upsert of granular positions...")
+                    logger.info("Performing batch upsert of granular positions...")
                     successful_inserts = db.batch_upsert_user_lend_positions_historical(batch_data, sync_block)
                     print(f"Successfully inserted {successful_inserts} granular position records")
+                    logger.info("Successfully inserted %d granular position records", successful_inserts)
                     return successful_inserts == len(batch_data)
                 else:
                     print("No granular records to insert")
+                    logger.info("No granular records to insert")
                     return True
 
     except Exception as e:
         print(f"Error adding granular user lend positions for pool {pool_nft}: {e}")
+        logger.error("Error adding granular user lend positions for pool %s: %s", pool_nft, e, exc_info=True)
         return False
 
 

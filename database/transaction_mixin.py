@@ -1,4 +1,7 @@
+import logging
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class TransactionMixin:
@@ -23,6 +26,7 @@ class TransactionMixin:
             valid_types = ('lend', 'withdraw', 'borrow', 'repayment', 'partial_repayment', 'liquidation')
             if transaction_type not in valid_types:
                 print(f"Invalid transaction type {transaction_type}")
+                logger.error("Invalid transaction type %s", transaction_type)
                 return None
 
             with self.get_connection() as conn:
@@ -43,6 +47,7 @@ class TransactionMixin:
                         address_result = cur.fetchone()
                         if not address_result:
                             print("Failed to create address")
+                            logger.error("Failed to create address %s for transaction", address)
                             return None
                         address_id = address_result[0]
 
@@ -77,6 +82,7 @@ class TransactionMixin:
 
         except Exception as e:
             print(f"Error upserting transaction: {e}")
+            logger.error("Error upserting transaction: %s", e, exc_info=True)
             return None
 
     def batch_upsert_transactions(self, transactions: List[Dict[str, Any]]) -> int:
@@ -134,10 +140,12 @@ class TransactionMixin:
                             address_result = cur.fetchone()
                             if not address_result:
                                 print(f"Failed to create address {address}")
+                                logger.error("Failed to create address %s for batch transactions", address)
                                 continue
                             address_to_id[address] = address_result[0]
                         except Exception as e:
                             print(f"Error creating address {address}: {e}")
+                            logger.error("Error creating address %s: %s", address, e, exc_info=True)
                             continue
 
                     # Prepare transaction data for bulk insert
@@ -148,12 +156,14 @@ class TransactionMixin:
                         # Validate transaction type
                         if tx_data['transaction_type'] not in valid_types:
                             print(f"Invalid transaction type {tx_data['transaction_type']}")
+                            logger.error("Invalid transaction type %s in batch", tx_data['transaction_type'])
                             continue
 
                         # Get address_id
                         address_id = address_to_id.get(tx_data['address'])
                         if not address_id:
                             print(f"Could not find address_id for {tx_data['address']}")
+                            logger.error("Could not find address_id for %s", tx_data['address'])
                             continue
 
                         transaction_params.append((
@@ -199,4 +209,5 @@ class TransactionMixin:
 
         except Exception as e:
             print(f"Error processing transaction batch: {e}")
+            logger.error("Error processing transaction batch: %s", e, exc_info=True)
             return 0

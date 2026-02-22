@@ -1,8 +1,11 @@
+import logging
 from typing import Optional, List
 
 from psycopg2.extras import execute_values
 
 from .core import CoreDB
+
+logger = logging.getLogger(__name__)
 
 
 class PoolMixin:
@@ -54,10 +57,12 @@ class PoolMixin:
                 return nft
             else:
                 print(f"Failed to upsert pool: {nft}")
+                logger.error("Failed to upsert pool: %s", nft)
                 return None
 
         except Exception as e:
-            print(f"Error upserting pool: {e}")
+            print(f"Error upserting pool {nft}: {e}")
+            logger.error("Error upserting pool %s: %s", nft, e, exc_info=True)
             return None
 
     def upsert_pool_data_historical(self,
@@ -124,12 +129,14 @@ class PoolMixin:
             if result:
                 return True
             else:
-                print(
-                    f"Failed to upsert pool data for pool: {pool_nft} at block: {block_height}, transaction: {transaction_id}")
+                print(f"Failed to upsert pool data for pool: {pool_nft} at block: {block_height}, transaction: {transaction_id}")
+                logger.error("Failed to upsert pool data for pool: %s at block: %d, transaction: %s",
+                             pool_nft, block_height, transaction_id)
                 return None
 
         except Exception as e:
-            print(f"Error upserting pool data: {e}")
+            print(f"Error upserting pool data for pool {pool_nft}: {e}")
+            logger.error("Error upserting pool data for pool %s: %s", pool_nft, e, exc_info=True)
             return None
 
     def batch_upsert_pools(self, pools_data: List[tuple]) -> int:
@@ -174,7 +181,8 @@ class PoolMixin:
                     return len(pools_data)
 
         except Exception as e:
-            print(f"Error batch upserting pools: {e}")
+            print(f"Error batch upserting pools ({len(pools_data)} records): {e}")
+            logger.error("Error batch upserting pools (%d records): %s", len(pools_data), e, exc_info=True)
             return 0
 
     def batch_upsert_pool_data_historical(self, pool_data: List[tuple]) -> int:
@@ -190,13 +198,15 @@ class PoolMixin:
         if not pool_data:
             return 0
 
+        logger.debug("batch_upsert_pool_data_historical: inserting %d records", len(pool_data))
+
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     upsert_query = """
-                        INSERT INTO pool_data_historical 
-                        (pool_nft, block_height, transaction_id, lend_apy, borrow_apy, 
-                         pool_utilization, total_lent, total_borrowed, box_timestamp, 
+                        INSERT INTO pool_data_historical
+                        (pool_nft, block_height, transaction_id, lend_apy, borrow_apy,
+                         pool_utilization, total_lent, total_borrowed, box_timestamp,
                          pool_box_id, lend_token_value, sync_block)
                         VALUES %s
                         ON CONFLICT (pool_nft, block_height, transaction_id)
@@ -222,8 +232,33 @@ class PoolMixin:
                     )
 
                     conn.commit()
+                    logger.info("batch_upsert_pool_data_historical: successfully inserted %d records", len(pool_data))
                     return len(pool_data)
 
         except Exception as e:
-            print(f"Error batch upserting pool historical data: {e}")
+            print(f"batch_upsert_pool_data_historical FAILED ({len(pool_data)} records): {e}")
+            logger.error("batch_upsert_pool_data_historical FAILED (%d records): %s", len(pool_data), e, exc_info=True)
+            # Log sample of the data that failed for diagnosis
+            if pool_data:
+                sample = pool_data[0]
+                logger.error("  Sample row — pool_nft: %s, block_height: %s, tx_id: %s, "
+                             "lend_apy: %s, borrow_apy: %s, utilization: %s, total_lent: %s, "
+                             "total_borrowed: %s, timestamp: %s (type=%s), box_id: %s, "
+                             "lend_token_value: %s, sync_block: %s",
+                             str(sample[0])[:20], sample[1], str(sample[2])[:20],
+                             sample[3], sample[4], sample[5], sample[6],
+                             sample[7], sample[8], type(sample[8]).__name__, str(sample[9])[:20],
+                             sample[10], sample[11])
+                # Check for duplicate keys in the batch
+                keys = [(r[0], r[1], r[2]) for r in pool_data]
+                unique_keys = set(keys)
+                if len(keys) != len(unique_keys):
+                    logger.error("  DUPLICATE KEYS DETECTED: %d total rows, %d unique keys, %d duplicates",
+                                 len(keys), len(unique_keys), len(keys) - len(unique_keys))
+                # Check for None values in NOT NULL columns
+                none_rows = [i for i, r in enumerate(pool_data) if any(v is None for v in r[:11])]
+                if none_rows:
+                    logger.error("  NULL VALUES in NOT NULL columns at row indices: %s", none_rows[:10])
+                    first_bad = pool_data[none_rows[0]]
+                    logger.error("  First bad row: %s", first_bad)
             return 0

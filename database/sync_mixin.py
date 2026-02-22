@@ -1,4 +1,7 @@
+import logging
 from typing import Optional, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 class SyncMixin:
@@ -42,6 +45,7 @@ class SyncMixin:
             if not results:
                 # No existing data for this pool in this table
                 print(f"No existing entries found in {table_name} for pool {pool_nft}")
+                logger.debug("No existing entries found in %s for pool %s", table_name, pool_nft)
                 return 0
 
             # Results are dictionaries, not tuples, so access by column name
@@ -51,21 +55,25 @@ class SyncMixin:
             if None in sync_blocks:
                 print(f"WARNING: Found NULL sync_block values in {table_name} for pool {pool_nft}")
                 print(f"Will need full scan to ensure consistency")
+                logger.warning("Found NULL sync_block values in %s for pool %s — full scan needed", table_name, pool_nft)
                 return None
 
             if len(sync_blocks) == 1:
                 # All sync_blocks are the same and non-NULL
                 sync_block = sync_blocks[0]
                 print(f"Found consistent sync_block {sync_block} in {table_name} for pool {pool_nft}")
+                logger.debug("Found consistent sync_block %s in %s for pool %s", sync_block, table_name, pool_nft)
                 return sync_block
             else:
                 # Multiple different non-NULL sync_blocks
                 print(f"WARNING: Inconsistent sync_blocks in {table_name} for pool {pool_nft}: {sync_blocks}")
                 print(f"Will need full scan to ensure consistency")
+                logger.warning("Inconsistent sync_blocks in %s for pool %s: %s — full scan needed", table_name, pool_nft, sync_blocks)
                 return None
 
         except Exception as e:
             print(f"Error checking sync_block consistency in {table_name} for pool {pool_nft}: {e}")
+            logger.error("Error checking sync_block consistency in %s for pool %s: %s", table_name, pool_nft, e, exc_info=True)
             return None
 
     def get_lowest_sync_block_for_pool(self, table_name: str, pool_nft: str) -> int:
@@ -105,14 +113,17 @@ class SyncMixin:
             if not results or results[0]['min_sync_block'] is None:
                 # No existing data for this pool in this table
                 print(f"No existing entries found in {table_name} for pool {pool_nft}")
+                logger.debug("No existing entries found in %s for pool %s", table_name, pool_nft)
                 return 0
 
             min_sync_block = results[0]['min_sync_block']
             print(f"Lowest sync_block in {table_name} for pool {pool_nft}: {min_sync_block}")
+            logger.debug("Lowest sync_block in %s for pool %s: %s", table_name, pool_nft, min_sync_block)
             return min_sync_block
 
         except Exception as e:
             print(f"Error getting lowest sync_block in {table_name} for pool {pool_nft}: {e}")
+            logger.error("Error getting lowest sync_block in %s for pool %s: %s", table_name, pool_nft, e, exc_info=True)
             return 0
 
 
@@ -149,18 +160,22 @@ class SyncMixin:
                                 min_sync_blocks.append(int(result[0]))
                         except Exception as e:
                             print(f"Error querying sync_block from table: {e}")
+                            logger.error("Error querying sync_block from table: %s", e, exc_info=True)
                             continue
 
                     if not min_sync_blocks:
                         print("No sync_block values found in any table")
+                        logger.info("No sync_block values found in any table")
                         return None
 
                     lowest_sync_block = min(min_sync_blocks)
                     print(f"Lowest sync_block found: {lowest_sync_block}")
+                    logger.info("Lowest sync_block found: %s", lowest_sync_block)
                     return lowest_sync_block
 
         except Exception as e:
             print(f"Error getting lowest sync_block: {e}")
+            logger.error("Error getting lowest sync_block: %s", e, exc_info=True)
             return None
 
     def get_highest_sync_block(self) -> Optional[int]:
@@ -196,18 +211,22 @@ class SyncMixin:
                                 max_sync_blocks.append(int(result[0]))
                         except Exception as e:
                             print(f"Error querying sync_block from table: {e}")
+                            logger.error("Error querying sync_block from table: %s", e, exc_info=True)
                             continue
 
                     if not max_sync_blocks:
                         print("No sync_block values found in any table")
+                        logger.info("No sync_block values found in any table")
                         return None
 
                     highest_sync_block = max(max_sync_blocks)
                     print(f"Highest sync_block found: {highest_sync_block}")
+                    logger.info("Highest sync_block found: %s", highest_sync_block)
                     return highest_sync_block
 
         except Exception as e:
             print(f"Error getting highest sync_block: {e}")
+            logger.error("Error getting highest sync_block: %s", e, exc_info=True)
             return None
 
     def get_sync_block_summary(self) -> Dict[str, Optional[int]]:
@@ -253,6 +272,7 @@ class SyncMixin:
                             }
                         except Exception as e:
                             print(f"Error querying table {table}: {e}")
+                            logger.error("Error querying table %s: %s", table, e, exc_info=True)
                             summary[table] = {
                                 'min_sync_block': None,
                                 'max_sync_block': None,
@@ -264,6 +284,7 @@ class SyncMixin:
 
         except Exception as e:
             print(f"Error getting sync_block summary: {e}")
+            logger.error("Error getting sync_block summary: %s", e, exc_info=True)
             return {}
 
     def update_all_sync_blocks(self, new_sync_block: int) -> Dict[str, int]:
@@ -296,6 +317,7 @@ class SyncMixin:
                     total_updated = 0
 
                     print(f"\n=== Updating all sync_blocks to {new_sync_block} ===")
+                    logger.info("Updating all sync_blocks to %s", new_sync_block)
 
                     for table in tables:
                         try:
@@ -307,16 +329,20 @@ class SyncMixin:
 
                             if rows_updated > 0:
                                 print(f"  {table}: {rows_updated} rows updated")
+                                logger.debug("  %s: %d rows updated", table, rows_updated)
                         except Exception as e:
                             print(f"  Error updating sync_block in {table}: {e}")
+                            logger.error("Error updating sync_block in %s: %s", table, e, exc_info=True)
                             affected_rows[table] = 0
 
                     conn.commit()
                     print(f"=== Total: {total_updated} rows updated across {len(tables)} tables ===\n")
+                    logger.info("Total: %d rows updated across %d tables", total_updated, len(tables))
                     return affected_rows
 
         except Exception as e:
             print(f"Error updating all sync_blocks: {e}")
+            logger.error("Error updating all sync_blocks: %s", e, exc_info=True)
             return {}
 
     def clear_sync_blocks_before(self, before_block: int) -> Dict[str, int]:
@@ -350,6 +376,7 @@ class SyncMixin:
                             affected_rows[table] = cur.rowcount
                         except Exception as e:
                             print(f"Error clearing sync_blocks from table {table}: {e}")
+                            logger.error("Error clearing sync_blocks from table %s: %s", table, e, exc_info=True)
                             affected_rows[table] = 0
 
                     conn.commit()
@@ -357,6 +384,7 @@ class SyncMixin:
 
         except Exception as e:
             print(f"Error clearing sync_blocks: {e}")
+            logger.error("Error clearing sync_blocks: %s", e, exc_info=True)
             return {}
 
     # ========================================
@@ -401,9 +429,11 @@ class SyncMixin:
         try:
             self.execute_upsert(query, (checkpoint_type, pool_nft, block_height, notes, created_by))
             print(f"Set checkpoint: type={checkpoint_type}, pool={pool_nft or 'global'}, height={block_height}")
+            logger.info("Set checkpoint: type=%s, pool=%s, height=%s", checkpoint_type, pool_nft or 'global', block_height)
             return True
         except Exception as e:
             print(f"Error setting checkpoint: {e}")
+            logger.error("Error setting checkpoint: %s", e, exc_info=True)
             return False
 
     def get_checkpoint(self, checkpoint_type: str, pool_nft: Optional[str] = None) -> Optional[int]:
@@ -441,6 +471,7 @@ class SyncMixin:
             return None
         except Exception as e:
             print(f"Error getting checkpoint: {e}")
+            logger.error("Error getting checkpoint: %s", e, exc_info=True)
             return None
 
     def get_safe_point(self, pool_nft: Optional[str] = None) -> int:
@@ -481,6 +512,7 @@ class SyncMixin:
             return 0
         except Exception as e:
             print(f"Error getting safe point: {e}")
+            logger.error("Error getting safe point: %s", e, exc_info=True)
             return 0
 
     def set_safe_point(self, block_height: int, pool_nft: Optional[str] = None,
@@ -515,6 +547,7 @@ class SyncMixin:
             return self.execute_query(query)
         except Exception as e:
             print(f"Error getting all checkpoints: {e}")
+            logger.error("Error getting all checkpoints: %s", e, exc_info=True)
             return []
 
     def get_max_block_height_for_pool(self, table_name: str, pool_nft: str) -> Optional[int]:
@@ -548,9 +581,12 @@ class SyncMixin:
             if result and result[0]['max_height'] is not None:
                 max_height = result[0]['max_height']
                 print(f"Max block_height in {table_name} for pool {pool_nft}: {max_height}")
+                logger.debug("Max block_height in %s for pool %s: %s", table_name, pool_nft, max_height)
                 return max_height
             print(f"No entries found in {table_name} for pool {pool_nft}")
+            logger.debug("No entries found in %s for pool %s", table_name, pool_nft)
             return None
         except Exception as e:
             print(f"Error getting max block_height from {table_name} for pool {pool_nft}: {e}")
+            logger.error("Error getting max block_height from %s for pool %s: %s", table_name, pool_nft, e, exc_info=True)
             return None

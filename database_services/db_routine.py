@@ -247,6 +247,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
         print("=" * 70)
         print("Currency rates: synced every 3rd loop")
         print("Borrow debts: synced every 5th loop")
+        print("On-chain positions: synced every 10th loop")
         print("DEX pools: synced every 12th loop")
         print("Headline stats: synced every 30th loop")
         if run_verification:
@@ -274,6 +275,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                 # Determine what to sync this loop
                 sync_currency = (loop_counter % 3 == 0)
                 sync_debts = (loop_counter % 5 == 0)
+                sync_positions = (loop_counter % 10 == 0)
                 sync_dex_pools = (loop_counter % 12 == 0)
                 sync_headline = (loop_counter % 30 == 0)
                 run_deep_verify = run_verification and (loop_counter % 100 == 0)
@@ -282,6 +284,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                 status_parts = [
                     f"Currency:{'YES' if sync_currency else 'NO'}",
                     f"Debts:{'YES' if sync_debts else 'NO'}",
+                    f"Positions:{'YES' if sync_positions else 'NO'}",
                     f"DEX:{'YES' if sync_dex_pools else 'NO'}",
                     f"Stats:{'YES' if sync_headline else 'NO'}"
                 ]
@@ -290,8 +293,8 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                 print(f"LOOP #{loop_counter} | {' '.join(status_parts)}")
                 print(f"{'='*70}")
 
-                logger.info("Loop #%d starting | currency=%s debts=%s dex=%s stats=%s deep_verify=%s",
-                           loop_counter, sync_currency, sync_debts, sync_dex_pools, sync_headline, run_deep_verify)
+                logger.info("Loop #%d starting | currency=%s debts=%s positions=%s dex=%s stats=%s deep_verify=%s",
+                           loop_counter, sync_currency, sync_debts, sync_positions, sync_dex_pools, sync_headline, run_deep_verify)
 
                 # Get current block height
                 current_block = current_height()
@@ -308,7 +311,8 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                     sync_dex_pools=sync_dex_pools,
                     sync_headline_stats=sync_headline,
                     parallel_sync=parallel_sync,
-                    run_verification=run_verification
+                    run_verification=run_verification,
+                    sync_positions=sync_positions
                 )
 
                 loop_elapsed = time.time() - loop_start

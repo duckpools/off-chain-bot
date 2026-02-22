@@ -391,6 +391,76 @@ def check_pool_totals_vs_positions(db: DatabaseManager, tolerance: float = 1.0) 
         return False, [{'error': str(e)}]
 
 
+def check_positions_vs_chain(db: DatabaseManager, tolerance: float = 0.01) -> Tuple[bool, List[Dict]]:
+    """
+    Verify derived positions (from tx replay) match on-chain positions (from UTXOs).
+
+    Uses raw subquery from user_lend_positions_historical (not the view) so we
+    catch negative position_tokens that the view filters out.
+
+    Args:
+        db: Database manager instance
+        tolerance: Allowed difference between derived and chain position tokens
+
+    Returns:
+        Tuple of (passed: bool, details: List of mismatched records)
+    """
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                query = """
+                    WITH derived_latest AS (
+                        SELECT DISTINCT ON (address_id, pool_nft)
+                            address_id,
+                            pool_nft,
+                            position_tokens as derived_tokens,
+                            position_value as derived_value
+                        FROM user_lend_positions_historical
+                        ORDER BY address_id, pool_nft, block_height DESC, id DESC
+                    )
+                    SELECT
+                        a.address,
+                        COALESCE(d.pool_nft, c.pool_nft) as pool_nft,
+                        COALESCE(d.derived_tokens, 0) as derived_tokens,
+                        COALESCE(c.position_tokens, 0) as chain_tokens,
+                        ABS(COALESCE(d.derived_tokens, 0) - COALESCE(c.position_tokens, 0)) as token_diff
+                    FROM derived_latest d
+                    FULL OUTER JOIN user_current_positions c
+                        ON d.address_id = c.address_id AND d.pool_nft = c.pool_nft
+                    JOIN addresses a ON a.id = COALESCE(d.address_id, c.address_id)
+                    WHERE ABS(COALESCE(d.derived_tokens, 0) - COALESCE(c.position_tokens, 0)) > %s
+                    ORDER BY ABS(COALESCE(d.derived_tokens, 0) - COALESCE(c.position_tokens, 0)) DESC
+                """
+                cur.execute(query, (tolerance,))
+                results = cur.fetchall()
+
+                mismatches = []
+                for row in results:
+                    address, pnft, derived_tokens, chain_tokens, diff = row
+                    mismatches.append({
+                        'address': address,
+                        'pool_nft': pnft,
+                        'derived_tokens': float(derived_tokens) if derived_tokens else 0,
+                        'chain_tokens': float(chain_tokens) if chain_tokens else 0,
+                        'difference': float(diff) if diff else 0
+                    })
+
+                passed = len(mismatches) == 0
+
+                if not passed:
+                    print(f"DEEP VERIFICATION FAILED: Found {len(mismatches)} position mismatches vs chain (tolerance={tolerance})")
+                    for m in mismatches[:10]:
+                        print(f"  {m['address'][:16]}... pool={m['pool_nft'][:16]}... "
+                              f"derived={m['derived_tokens']:.4f} chain={m['chain_tokens']:.4f} "
+                              f"diff={m['difference']:.4f}")
+
+                return passed, mismatches
+
+    except Exception as e:
+        print(f"Error in check_positions_vs_chain: {e}")
+        return False, [{'error': str(e)}]
+
+
 def run_deep_verification(db: DatabaseManager, pool_nft: Optional[str] = None) -> Tuple[bool, Dict]:
     """
     Run all deep verification checks. These can take minutes.
@@ -435,6 +505,15 @@ def run_deep_verification(db: DatabaseManager, pool_nft: Optional[str] = None) -
         if not passed:
             all_passed = False
             results['pool_totals_vs_positions']['details'] = details
+
+    # Check 4: Derived positions vs on-chain positions
+    if pool_nft is None:
+        print("  Running: positions_vs_chain...")
+        passed, details = check_positions_vs_chain(db)
+        results['positions_vs_chain'] = {'passed': passed, 'mismatched_count': len(details)}
+        if not passed:
+            all_passed = False
+            results['positions_vs_chain']['sample'] = details[:10]
 
     if all_passed:
         print("=== All Deep Verification Checks PASSED ===")

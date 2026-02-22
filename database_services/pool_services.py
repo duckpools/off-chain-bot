@@ -2,6 +2,9 @@ from current_pools import current_pools
 from database.db_manager import DatabaseManager
 from database_services.data_aggregation.pool_stats import borrow_apy, total_borrowed, lend_apy, pool_utilization
 from helpers.platform_functions import get_pool_box, get_transaction_timestamp
+from logger import set_logger
+
+logger = set_logger(__name__)
 
 
 def update_pool_v1(db: DatabaseManager, pool, sync_block: int = None):
@@ -84,7 +87,7 @@ def sync_all_pools(db: DatabaseManager, sync_block: int = None):
 
 def sync_all_pools_batched_v1(db: DatabaseManager, sync_block: int = None):
     """V1 implementation of sync_all_pools_batched - original logic."""
-    print("Starting batch pool sync (V1)...")
+    logger.info("Starting batch pool sync (V1)...")
 
     pools_batch_data = []
 
@@ -92,8 +95,13 @@ def sync_all_pools_batched_v1(db: DatabaseManager, sync_block: int = None):
         if pool.get("version", 1) != 1:
             continue
 
+        pool_nft_short = pool["POOL_NFT"][:16] + "..."
         try:
             pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
+
+            if pool_box is None:
+                logger.error("get_pool_box returned None for pool %s — skipping", pool_nft_short)
+                continue
 
             # Calculate metrics
             borrowed = total_borrowed(pool, pool_box)
@@ -122,30 +130,38 @@ def sync_all_pools_batched_v1(db: DatabaseManager, sync_block: int = None):
                 borrow_rate,
                 sync_block
             ))
+            logger.debug("Pool %s: total_lent=%.4f, borrowed=%.4f, lend_apy=%.4f",
+                         pool_nft_short, total_lent_friendly, borrowed_friendly, lend_rate)
 
         except Exception as e:
-            print(f"Error processing pool {pool['POOL_NFT']}: {e}")
+            logger.error("Error processing pool %s: %s", pool_nft_short, e, exc_info=True)
             continue
 
     # Batch insert/update all pools
     if pools_batch_data:
         success_count = db.batch_upsert_pools(pools_batch_data)
-        print(f"Successfully updated {success_count}/{len(pools_batch_data)} V1 pools")
+        logger.info("Successfully updated %d/%d V1 pools", success_count, len(pools_batch_data))
     else:
-        print("No V1 pool data to update")
+        logger.warning("No V1 pool data to update")
 
 
 def sync_all_pools_batched_v2(db: DatabaseManager, sync_block: int = None):
     """V2 implementation of sync_all_pools_batched - token-only pools."""
-    print("Starting batch pool sync (V2)...")
+    logger.info("Starting batch pool sync (V2)...")
     pools_batch_data = []
 
     for pool in current_pools:
         if pool.get("version") != 2:
             continue
 
+        pool_nft_short = pool["POOL_NFT"][:16] + "..."
         try:
             pool_box = get_pool_box(pool["pool"], pool["POOL_NFT"])
+
+            if pool_box is None:
+                logger.error("get_pool_box returned None for V2 pool %s — skipping", pool_nft_short)
+                continue
+
             borrowed = total_borrowed(pool, pool_box)
 
             # V2 is token-only, always use assets[3]
@@ -168,16 +184,17 @@ def sync_all_pools_batched_v2(db: DatabaseManager, sync_block: int = None):
                 borrow_rate,
                 sync_block
             ))
+            logger.debug("V2 Pool %s: total_lent=%.4f, borrowed=%.4f", pool_nft_short, total_lent_friendly, borrowed_friendly)
 
         except Exception as e:
-            print(f"Error processing V2 pool {pool['POOL_NFT']}: {e}")
+            logger.error("Error processing V2 pool %s: %s", pool_nft_short, e, exc_info=True)
             continue
 
     if pools_batch_data:
         success_count = db.batch_upsert_pools(pools_batch_data)
-        print(f"Successfully updated {success_count}/{len(pools_batch_data)} V2 pools")
+        logger.info("Successfully updated %d/%d V2 pools", success_count, len(pools_batch_data))
     else:
-        print("No V2 pool data to update")
+        logger.warning("No V2 pool data to update")
 
 
 def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
@@ -185,24 +202,25 @@ def sync_all_pools_batched(db: DatabaseManager, sync_block: int = None):
     Dispatcher for sync_all_pools_batched - syncs all pools using batch processing.
     Processes V1 and V2 pools separately.
     """
-    print("Starting batch pool sync...")
+    v1_pools = [p for p in current_pools if p.get("version", 1) == 1]
+    v2_pools = [p for p in current_pools if p.get("version", 1) == 2]
+    logger.info("Starting batch pool sync — %d V1, %d V2 pools", len(v1_pools), len(v2_pools))
 
     # Process V1 pools
-    v1_pools = [p for p in current_pools if p.get("version", 1) == 1]
     if v1_pools:
         sync_all_pools_batched_v1(db, sync_block)
 
     # Process V2 pools
-    v2_pools = [p for p in current_pools if p.get("version", 1) == 2]
     if v2_pools:
         try:
             sync_all_pools_batched_v2(db, sync_block)
         except NotImplementedError:
-            print("V2 pool sync not yet implemented, skipping V2 pools")
+            logger.warning("V2 pool sync not yet implemented, skipping V2 pools")
 
 
 def sync_pool_interest_data_v1(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
     """V1 implementation of sync_pool_interest_data - original logic."""
+    pool_nft_short = pool["POOL_NFT"][:16] + "..."
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
             continue
@@ -229,10 +247,10 @@ def sync_pool_interest_data_v1(db: DatabaseManager, pool, pool_boxes, min_height
         lend_token_value = (assets_in_Pool + borrowed) / (pool["LendTokenSupply"] - pool_box["assets"][1]["amount"])
         try:
             timestamp = get_transaction_timestamp(pool_box["transactionId"])
-        except Exception:
-            print("Error getting timestamp for pool box")
+        except Exception as e:
+            logger.warning("Error getting timestamp for pool box %s: %s", pool_box.get('boxId', '?')[:16], e)
             continue
-        print(db.upsert_pool_data_historical(
+        result = db.upsert_pool_data_historical(
             pool["POOL_NFT"],
             pool_box["settlementHeight"],
             pool_box["transactionId"],
@@ -245,7 +263,10 @@ def sync_pool_interest_data_v1(db: DatabaseManager, pool, pool_boxes, min_height
             pool_box["boxId"],
             lend_token_value,
             sync_block
-        ))
+        )
+        if result is None:
+            logger.error("upsert_pool_data_historical returned None for pool %s, height %s",
+                         pool_nft_short, pool_box.get("settlementHeight"))
 
 
 def sync_pool_interest_data_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
@@ -278,11 +299,17 @@ def sync_pool_interest_data_v2(db: DatabaseManager, pool, pool_boxes, min_height
 
         try:
             timestamp = get_transaction_timestamp(pool_box["transactionId"])
-        except Exception:
-            print("Error getting timestamp for pool box")
+        except Exception as e:
+            logger.warning("V2 error getting timestamp for pool box %s: %s",
+                           pool_box.get('boxId', '?')[:16], e)
             continue
 
-        print(db.upsert_pool_data_historical(
+        if timestamp is None:
+            logger.warning("V2 timestamp returned None for box %s (tx=%s) — skipping",
+                           pool_box.get('boxId', '?')[:16], pool_box.get('transactionId', '?')[:16])
+            continue
+
+        result = db.upsert_pool_data_historical(
             pool["POOL_NFT"],
             pool_box["settlementHeight"],
             pool_box["transactionId"],
@@ -295,7 +322,10 @@ def sync_pool_interest_data_v2(db: DatabaseManager, pool, pool_boxes, min_height
             pool_box["boxId"],
             lend_token_value,
             sync_block
-        ))
+        )
+        if result is None:
+            logger.error("V2 upsert_pool_data_historical returned None for pool %s, height %s",
+                         pool["POOL_NFT"][:16] + "...", pool_box.get("settlementHeight"))
 
 
 def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0, sync_block: int = None):
@@ -320,15 +350,26 @@ def sync_pool_interest_data(db: DatabaseManager, pool, pool_boxes, min_height=0,
 def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
                                        sync_block: int = None):
     """V1 implementation of sync_pool_interest_data_batched - original logic."""
+    pool_nft_short = pool["POOL_NFT"][:16] + "..."
     batch_data = []
     processed_count = 0
+    skipped_address = 0
+    skipped_height = 0
+    skipped_timestamp = 0
+    skipped_error = 0
+    total_upserted = 0
+
+    logger.info("sync_pool_interest_data_batched_v1 START for pool %s — %d boxes, min_height=%d, batch_size=%d",
+                pool_nft_short, len(pool_boxes), min_height, batch_size)
 
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
+            skipped_address += 1
             continue
 
         # Skip boxes below min_height
         if pool_box.get("settlementHeight", 0) <= min_height:
+            skipped_height += 1
             continue
 
         try:
@@ -353,8 +394,16 @@ def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, mi
 
             try:
                 timestamp = get_transaction_timestamp(pool_box["transactionId"])
-            except Exception:
-                print(f"Error getting timestamp for pool box {pool_box['boxId']}, skipping")
+            except Exception as ts_err:
+                skipped_timestamp += 1
+                logger.warning("Timestamp fetch failed for box %s (tx=%s): %s",
+                               pool_box['boxId'][:16], pool_box['transactionId'][:16], ts_err)
+                continue
+
+            if timestamp is None:
+                skipped_timestamp += 1
+                logger.warning("Timestamp returned None for box %s (tx=%s) — skipping",
+                               pool_box['boxId'][:16], pool_box['transactionId'][:16])
                 continue
 
             # Add to batch - use settlement height as sync_block if not provided
@@ -380,29 +429,54 @@ def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, mi
             # Process batch when it reaches batch_size
             if len(batch_data) >= batch_size:
                 success_count = db.batch_upsert_pool_data_historical(batch_data)
+                total_upserted += success_count
+                logger.info("  Flushed batch: %d/%d rows upserted (processed so far: %d)",
+                            success_count, len(batch_data), processed_count)
                 batch_data = []
 
         except Exception as e:
-            print(f"Error processing pool box {pool_box.get('boxId', 'unknown')}: {e}")
+            skipped_error += 1
+            logger.error("Error processing pool box %s (height=%s): %s",
+                         pool_box.get('boxId', 'unknown')[:16],
+                         pool_box.get('settlementHeight', '?'), e, exc_info=True)
             continue
 
     # Process any remaining data in the final batch
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
+        total_upserted += success_count
+        logger.info("  Final batch: %d/%d rows upserted", success_count, len(batch_data))
+
+    logger.info("sync_pool_interest_data_batched_v1 DONE for pool %s — "
+                "processed: %d, upserted: %d, skipped_address: %d, skipped_height: %d, "
+                "skipped_timestamp: %d, skipped_error: %d",
+                pool_nft_short, processed_count, total_upserted,
+                skipped_address, skipped_height, skipped_timestamp, skipped_error)
 
 
 def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,
                                        sync_block: int = None):
     """V2 implementation of sync_pool_interest_data_batched - token-only pools."""
+    pool_nft_short = pool["POOL_NFT"][:16] + "..."
     batch_data = []
     processed_count = 0
+    skipped_address = 0
+    skipped_height = 0
+    skipped_timestamp = 0
+    skipped_error = 0
+    total_upserted = 0
+
+    logger.info("sync_pool_interest_data_batched_v2 START for pool %s — %d boxes, min_height=%d, batch_size=%d",
+                pool_nft_short, len(pool_boxes), min_height, batch_size)
 
     for pool_box in pool_boxes:
         if pool_box["address"] != pool["pool"]:
+            skipped_address += 1
             continue
 
         # Skip boxes below min_height
         if pool_box.get("settlementHeight", 0) <= min_height:
+            skipped_height += 1
             continue
 
         try:
@@ -427,8 +501,16 @@ def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, mi
 
             try:
                 timestamp = get_transaction_timestamp(pool_box["transactionId"])
-            except Exception:
-                print(f"Error getting timestamp for pool box {pool_box['boxId']}, skipping")
+            except Exception as ts_err:
+                skipped_timestamp += 1
+                logger.warning("V2 timestamp fetch failed for box %s (tx=%s): %s",
+                               pool_box['boxId'][:16], pool_box['transactionId'][:16], ts_err)
+                continue
+
+            if timestamp is None:
+                skipped_timestamp += 1
+                logger.warning("V2 timestamp returned None for box %s (tx=%s) — skipping",
+                               pool_box['boxId'][:16], pool_box['transactionId'][:16])
                 continue
 
             # Add to batch
@@ -454,15 +536,29 @@ def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, mi
             # Process batch when it reaches batch_size
             if len(batch_data) >= batch_size:
                 success_count = db.batch_upsert_pool_data_historical(batch_data)
+                total_upserted += success_count
+                logger.info("  V2 flushed batch: %d/%d rows upserted (processed so far: %d)",
+                            success_count, len(batch_data), processed_count)
                 batch_data = []
 
         except Exception as e:
-            print(f"Error processing V2 pool box {pool_box.get('boxId', 'unknown')}: {e}")
+            skipped_error += 1
+            logger.error("Error processing V2 pool box %s (height=%s): %s",
+                         pool_box.get('boxId', 'unknown')[:16],
+                         pool_box.get('settlementHeight', '?'), e, exc_info=True)
             continue
 
     # Process any remaining data in the final batch
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
+        total_upserted += success_count
+        logger.info("  V2 final batch: %d/%d rows upserted", success_count, len(batch_data))
+
+    logger.info("sync_pool_interest_data_batched_v2 DONE for pool %s — "
+                "processed: %d, upserted: %d, skipped_address: %d, skipped_height: %d, "
+                "skipped_timestamp: %d, skipped_error: %d",
+                pool_nft_short, processed_count, total_upserted,
+                skipped_address, skipped_height, skipped_timestamp, skipped_error)
 
 
 def sync_pool_interest_data_batched(db: DatabaseManager, pool, pool_boxes, min_height=0, batch_size=500,

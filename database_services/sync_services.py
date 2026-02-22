@@ -9,6 +9,7 @@ from database_services.transaction_service import sync_transactions_batched
 from database_services.user_history_services import sync_user_lend_positions, sync_user_deposits_historical, \
     add_granular_user_lend_positions, sync_user_portfolio_snapshots
 from database_services.debt_services import sync_all_user_pool_debts
+from database_services.position_verification_services import sync_all_user_current_positions
 from helpers.platform_functions import get_all_boxes_by_token_id
 from database_services.currency_services import sync_currency_rates as _sync_currency_rates, \
     sync_currency_rates_batched
@@ -98,7 +99,7 @@ def sync_currency_rates(db: DatabaseManager, pools, sync_block: Optional[int] = 
 def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
                        sync_currency_rates: bool = True, sync_debts: bool = True,
                        sync_dex_pools: bool = True, sync_headline_stats: bool = True,
-                       run_verification: bool = False):
+                       run_verification: bool = False, sync_positions: bool = True):
     """
     Optimized sync routine using batch processing throughout.
 
@@ -110,6 +111,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     :param sync_dex_pools: Whether to sync DEX pool prices (default: True)
     :param sync_headline_stats: Whether to sync headline stats (default: True)
     :param run_verification: Whether to run verification after sync (default: False, handled by caller)
+    :param sync_positions: Whether to sync on-chain positions (default: True)
     """
     print(f"Starting optimized full sync from height {min_height}")
     logger.info("Starting optimized sync from height %d (currency=%s, debts=%s, dex=%s, headline=%s)",
@@ -124,7 +126,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         insert_headline_stats(db, sync_block=sync_block)
         logger.debug("Step 0 completed in %.2fs", _time.time() - t0)
 
-    pools = current_pools[2:3]
+    pools = current_pools[:]
     full_scan = False
     if min_height == 0:
         full_scan = True
@@ -167,44 +169,85 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
 
+        pool_failed = False
+
         if not pool_boxes:
-            print(f"No boxes found")
+            print(f"No boxes found", end=" ", flush=True)
             logger.info("Pool %d/%d (%s): no boxes found", i, len(pools), pool_nft_short)
         else:
             logger.info("Pool %d/%d (%s): found %d boxes", i, len(pools), pool_nft_short, len(pool_boxes))
             # Use batched versions for everything
-            logger.info("Pool %d/%d (%s): syncing transactions", i, len(pools), pool_nft_short)
-            t_sub = _time.time()
-            sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
-            logger.info("Pool %d/%d (%s): transactions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-            logger.info("Pool %d/%d (%s): syncing interest data", i, len(pools), pool_nft_short)
-            t_sub = _time.time()
-            sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
-                                            sync_block=sync_block)
-            logger.info("Pool %d/%d (%s): interest data done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-            print("Interest ✓", end=" ", flush=True)
+            try:
+                logger.info("Pool %d/%d (%s): syncing transactions", i, len(pools), pool_nft_short)
+                t_sub = _time.time()
+                sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
+                logger.info("Pool %d/%d (%s): transactions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+            except Exception as e:
+                logger.error("Pool %s: transactions FAILED: %s", pool_nft_short, e, exc_info=True)
+                print(f"ERROR in transactions: {e}", end=" ", flush=True)
+                pool_failed = True
+
+            try:
+                logger.info("Pool %d/%d (%s): syncing interest data", i, len(pools), pool_nft_short)
+                t_sub = _time.time()
+                sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
+                                                sync_block=sync_block)
+                logger.info("Pool %d/%d (%s): interest data done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+                print("Interest ✓", end=" ", flush=True)
+            except Exception as e:
+                logger.error("Pool %s: interest data FAILED: %s", pool_nft_short, e, exc_info=True)
+                print(f"ERROR in interest data: {e}", end=" ", flush=True)
+                pool_failed = True
 
         # User lend data - already optimized with batching
-        logger.info("Pool %d/%d (%s): syncing user lend positions", i, len(pools), pool_nft_short)
-        t_sub = _time.time()
-        sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
-        logger.info("Pool %d/%d (%s): user lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-        logger.info("Pool %d/%d (%s): syncing granular lend positions", i, len(pools), pool_nft_short)
-        t_sub = _time.time()
-        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
-        logger.info("Pool %d/%d (%s): granular lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-        logger.info("Pool %d/%d (%s): syncing user deposits historical", i, len(pools), pool_nft_short)
-        t_sub = _time.time()
-        sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
-        logger.info("Pool %d/%d (%s): user deposits historical done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-        print("Positions ✓", end=" ", flush=True)
-        logger.info("Pool %d/%d (%s): syncing portfolio snapshots", i, len(pools), pool_nft_short)
-        t_sub = _time.time()
-        sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
-        logger.info("Pool %d/%d (%s): portfolio snapshots done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-        print("Complete ✓")
+        try:
+            logger.info("Pool %d/%d (%s): syncing user lend positions", i, len(pools), pool_nft_short)
+            t_sub = _time.time()
+            sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
+            logger.info("Pool %d/%d (%s): user lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+        except Exception as e:
+            logger.error("Pool %s: user lend positions FAILED: %s", pool_nft_short, e, exc_info=True)
+            print(f"ERROR in user lend positions: {e}", end=" ", flush=True)
+            pool_failed = True
+
+        try:
+            logger.info("Pool %d/%d (%s): syncing granular lend positions", i, len(pools), pool_nft_short)
+            t_sub = _time.time()
+            add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+            logger.info("Pool %d/%d (%s): granular lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+        except Exception as e:
+            logger.error("Pool %s: granular lend positions FAILED: %s", pool_nft_short, e, exc_info=True)
+            print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
+            pool_failed = True
+
+        try:
+            logger.info("Pool %d/%d (%s): syncing user deposits historical", i, len(pools), pool_nft_short)
+            t_sub = _time.time()
+            sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
+            logger.info("Pool %d/%d (%s): user deposits historical done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+            print("Positions ✓", end=" ", flush=True)
+        except Exception as e:
+            logger.error("Pool %s: user deposits historical FAILED: %s", pool_nft_short, e, exc_info=True)
+            print(f"ERROR in user deposits: {e}", end=" ", flush=True)
+            pool_failed = True
+
+        try:
+            logger.info("Pool %d/%d (%s): syncing portfolio snapshots", i, len(pools), pool_nft_short)
+            t_sub = _time.time()
+            sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+            logger.info("Pool %d/%d (%s): portfolio snapshots done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+        except Exception as e:
+            logger.error("Pool %s: portfolio snapshots FAILED: %s", pool_nft_short, e, exc_info=True)
+            print(f"ERROR in portfolio snapshots: {e}", end=" ", flush=True)
+            pool_failed = True
+
+        if pool_failed:
+            print("PARTIAL ✗")
+            logger.warning("Pool %d/%d (%s) completed with errors in %.2fs", i, len(pools), pool_nft_short, _time.time() - pool_start)
+        else:
+            print("Complete ✓")
+            logger.info("Pool %d/%d (%s) completed in %.2fs", i, len(pools), pool_nft_short, _time.time() - pool_start)
         pools_completed += 1
-        logger.info("Pool %d/%d (%s) completed in %.2fs", i, len(pools), pool_nft_short, _time.time() - pool_start)
 
     logger.info("Step 3 completed: %d/%d pools in %.2fs", pools_completed, len(pools), _time.time() - t3)
 
@@ -224,6 +267,23 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
     else:
         print("\n=== Step 4: Skipping user pool debts (not scheduled this loop) ===")
         logger.debug("Step 4: Skipping user pool debts")
+
+    # Check for shutdown before Step 5
+    if is_shutdown_requested():
+        print("\n=== Shutdown requested, skipping remaining steps ===")
+        logger.warning("Shutdown requested - skipping remaining steps after Step 4")
+        return
+
+    # Step 5: Sync on-chain positions (optional)
+    if sync_positions:
+        print("\n=== Step 5: Syncing on-chain positions ===")
+        logger.info("Step 5: Syncing on-chain positions")
+        t5 = _time.time()
+        sync_all_user_current_positions(db, pools, sync_block=sync_block)
+        logger.info("Step 5 completed in %.2fs", _time.time() - t5)
+    else:
+        print("\n=== Step 5: Skipping on-chain positions (not scheduled this loop) ===")
+        logger.debug("Step 5: Skipping on-chain positions")
 
     total_elapsed = _time.time() - sync_start
     print("\n=== Full sync complete ===")
@@ -250,22 +310,35 @@ def _process_single_pool(pool_info):
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
 
+        pool_failed = False
+
         if not pool_boxes:
-            print(f"No boxes found")
+            print(f"No boxes found", end=" ", flush=True)
             logger.info("[Thread %d/%d] Pool %s: no boxes found", pool_index, total_pools, pool_nft_short)
         else:
             logger.info("[Thread %d/%d] Pool %s: found %d boxes", pool_index, total_pools, pool_nft_short, len(pool_boxes))
             # Use batched versions for everything
-            logger.info("[Thread %d/%d] Pool %s: syncing transactions", pool_index, total_pools, pool_nft_short)
-            t_sub = _time.time()
-            sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
-            logger.info("[Thread %d/%d] Pool %s: transactions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-            logger.info("[Thread %d/%d] Pool %s: syncing interest data", pool_index, total_pools, pool_nft_short)
-            t_sub = _time.time()
-            sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
-                                            sync_block=sync_block)
-            logger.info("[Thread %d/%d] Pool %s: interest data done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-            print("Interest ✓", end=" ", flush=True)
+            try:
+                logger.info("[Thread %d/%d] Pool %s: syncing transactions", pool_index, total_pools, pool_nft_short)
+                t_sub = _time.time()
+                sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height, batch_size=500)
+                logger.info("[Thread %d/%d] Pool %s: transactions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+            except Exception as e:
+                logger.error("[Thread %d/%d] Pool %s: transactions FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                print(f"ERROR in transactions: {e}", end=" ", flush=True)
+                pool_failed = True
+
+            try:
+                logger.info("[Thread %d/%d] Pool %s: syncing interest data", pool_index, total_pools, pool_nft_short)
+                t_sub = _time.time()
+                sync_pool_interest_data_batched(db, pool, pool_boxes, min_height=min_height, batch_size=500,
+                                                sync_block=sync_block)
+                logger.info("[Thread %d/%d] Pool %s: interest data done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                print("Interest ✓", end=" ", flush=True)
+            except Exception as e:
+                logger.error("[Thread %d/%d] Pool %s: interest data FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                print(f"ERROR in interest data: {e}", end=" ", flush=True)
+                pool_failed = True
 
         # Acquire advisory lock before user data writes
         # This prevents interleaved writes from parallel workers
@@ -274,30 +347,58 @@ def _process_single_pool(pool_info):
                 cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
                 try:
                     # User lend data - protected by lock
-                    logger.info("[Thread %d/%d] Pool %s: syncing user lend positions", pool_index, total_pools, pool_nft_short)
-                    t_sub = _time.time()
-                    sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
-                    logger.info("[Thread %d/%d] Pool %s: user lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-                    logger.info("[Thread %d/%d] Pool %s: syncing granular lend positions", pool_index, total_pools, pool_nft_short)
-                    t_sub = _time.time()
-                    add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
-                    logger.info("[Thread %d/%d] Pool %s: granular lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-                    logger.info("[Thread %d/%d] Pool %s: syncing user deposits historical", pool_index, total_pools, pool_nft_short)
-                    t_sub = _time.time()
-                    sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
-                    logger.info("[Thread %d/%d] Pool %s: user deposits historical done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-                    print("Positions ✓", end=" ", flush=True)
-                    logger.info("[Thread %d/%d] Pool %s: syncing portfolio snapshots", pool_index, total_pools, pool_nft_short)
-                    t_sub = _time.time()
-                    sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
-                    logger.info("[Thread %d/%d] Pool %s: portfolio snapshots done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                    try:
+                        logger.info("[Thread %d/%d] Pool %s: syncing user lend positions", pool_index, total_pools, pool_nft_short)
+                        t_sub = _time.time()
+                        sync_user_lend_positions(db, pool, sync_block=sync_block, full_scan=full_scan)
+                        logger.info("[Thread %d/%d] Pool %s: user lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                    except Exception as e:
+                        logger.error("[Thread %d/%d] Pool %s: user lend positions FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                        print(f"ERROR in user lend positions: {e}", end=" ", flush=True)
+                        pool_failed = True
+
+                    try:
+                        logger.info("[Thread %d/%d] Pool %s: syncing granular lend positions", pool_index, total_pools, pool_nft_short)
+                        t_sub = _time.time()
+                        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+                        logger.info("[Thread %d/%d] Pool %s: granular lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                    except Exception as e:
+                        logger.error("[Thread %d/%d] Pool %s: granular lend positions FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                        print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
+                        pool_failed = True
+
+                    try:
+                        logger.info("[Thread %d/%d] Pool %s: syncing user deposits historical", pool_index, total_pools, pool_nft_short)
+                        t_sub = _time.time()
+                        sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
+                        logger.info("[Thread %d/%d] Pool %s: user deposits historical done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                        print("Positions ✓", end=" ", flush=True)
+                    except Exception as e:
+                        logger.error("[Thread %d/%d] Pool %s: user deposits historical FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                        print(f"ERROR in user deposits: {e}", end=" ", flush=True)
+                        pool_failed = True
+
+                    try:
+                        logger.info("[Thread %d/%d] Pool %s: syncing portfolio snapshots", pool_index, total_pools, pool_nft_short)
+                        t_sub = _time.time()
+                        sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
+                        logger.info("[Thread %d/%d] Pool %s: portfolio snapshots done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                    except Exception as e:
+                        logger.error("[Thread %d/%d] Pool %s: portfolio snapshots FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                        print(f"ERROR in portfolio snapshots: {e}", end=" ", flush=True)
+                        pool_failed = True
                 finally:
                     cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
 
         elapsed = _time.time() - pool_start
-        print("Complete ✓")
-        logger.info("[Thread %d/%d] Pool %s completed in %.2fs", pool_index, total_pools, pool_nft_short, elapsed)
-        return (pool_nft, True, None)
+        if pool_failed:
+            print("PARTIAL ✗")
+            logger.warning("[Thread %d/%d] Pool %s completed with errors in %.2fs", pool_index, total_pools, pool_nft_short, elapsed)
+            return (pool_nft, False, f"Pool {pool_nft_short} completed with sub-step errors")
+        else:
+            print("Complete ✓")
+            logger.info("[Thread %d/%d] Pool %s completed in %.2fs", pool_index, total_pools, pool_nft_short, elapsed)
+            return (pool_nft, True, None)
 
     except Exception as e:
         error_msg = f"Error processing pool {pool_nft}: {str(e)}"
@@ -309,7 +410,8 @@ def _process_single_pool(pool_info):
 def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[int] = None,
                       sync_currency_rates: bool = True, sync_debts: bool = True,
                       sync_dex_pools: bool = True, sync_headline_stats: bool = True,
-                      max_workers: int = 6, run_verification: bool = False):
+                      max_workers: int = 6, run_verification: bool = False,
+                      sync_positions: bool = True):
     """
     Parallel sync routine using ThreadPoolExecutor for pool processing.
 
@@ -322,6 +424,7 @@ def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[in
     :param sync_headline_stats: Whether to sync headline stats (default: True)
     :param max_workers: Maximum number of parallel workers (default: 6)
     :param run_verification: Whether to run verification after sync (default: False, handled by caller)
+    :param sync_positions: Whether to sync on-chain positions (default: True)
     """
     print(f"Starting PARALLEL sync from height {min_height} with {max_workers} workers")
     logger.info("Starting PARALLEL sync from height %d with %d workers (currency=%s, debts=%s, dex=%s, headline=%s)",
@@ -473,6 +576,23 @@ def sync_all_parallel(db: DatabaseManager, min_height=0, sync_block: Optional[in
         print("\n=== Step 4: Skipping user pool debts (not scheduled this loop) ===")
         logger.debug("Step 4: Skipping user pool debts")
 
+    # Check for shutdown before Step 5
+    if is_shutdown_requested():
+        print("\n=== Shutdown requested, skipping remaining steps ===")
+        logger.warning("Shutdown requested - skipping remaining steps after Step 4")
+        return len(failed_pools) == 0 and len(cancelled_pools) == 0
+
+    # Step 5: Sync on-chain positions (optional)
+    if sync_positions:
+        print("\n=== Step 5: Syncing on-chain positions ===")
+        logger.info("Step 5: Syncing on-chain positions")
+        t5 = _time.time()
+        sync_all_user_current_positions(db, pools, sync_block=sync_block)
+        logger.info("Step 5 completed in %.2fs", _time.time() - t5)
+    else:
+        print("\n=== Step 5: Skipping on-chain positions (not scheduled this loop) ===")
+        logger.debug("Step 5: Skipping on-chain positions")
+
     total_elapsed = _time.time() - sync_start
     print("\n=== Full PARALLEL sync complete ===")
     logger.info("PARALLEL sync complete in %.2fs", total_elapsed)
@@ -504,7 +624,8 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
 def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[int] = None,
                          sync_currency_rates: bool = True, sync_debts: bool = True,
                          sync_dex_pools: bool = True, sync_headline_stats: bool = True,
-                         parallel_sync: bool = False, run_verification: bool = True) -> bool:
+                         parallel_sync: bool = False, run_verification: bool = True,
+                         sync_positions: bool = True) -> bool:
     """
     Perform incremental sync starting from the lowest sync_block in the database.
     This allows for efficient incremental updates without re-processing all historical data.
@@ -518,6 +639,7 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
         sync_headline_stats: Whether to sync headline stats (default: True)
         parallel_sync: If True, uses parallel pool processing for faster syncing (default: False)
         run_verification: If True, runs light verification after sync (default: True)
+        sync_positions: Whether to sync on-chain positions (default: True)
 
     Returns:
         True if sync was successful, False otherwise
@@ -559,11 +681,13 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
             if parallel_sync:
                 sync_all_parallel(db, min_height=min_height, sync_block=current_block_height,
                                 sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
-                                sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats)
+                                sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats,
+                                sync_positions=sync_positions)
             else:
                 sync_all_optimized(db, min_height=min_height, sync_block=current_block_height,
                                  sync_currency_rates=sync_currency_rates, sync_debts=sync_debts,
-                                 sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats)
+                                 sync_dex_pools=sync_dex_pools, sync_headline_stats=sync_headline_stats,
+                                 sync_positions=sync_positions)
         except Exception as e:
             print(f"Error during sync: {e}")
             logger.error("Error during sync: %s", e, exc_info=True)

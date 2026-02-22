@@ -141,6 +141,20 @@ CREATE TABLE user_pool_debts (
     FOREIGN KEY (pool_nft) REFERENCES pools(nft)
 );
 
+-- ========== USER CURRENT POSITIONS (On-Chain Verification) ==========
+CREATE TABLE user_current_positions (
+    address_id INTEGER NOT NULL,
+    pool_nft TEXT NOT NULL,
+    position_tokens NUMERIC NOT NULL DEFAULT 0,
+    position_value NUMERIC NOT NULL DEFAULT 0,
+    sync_block BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (address_id, pool_nft),
+    FOREIGN KEY (address_id) REFERENCES addresses(id),
+    FOREIGN KEY (pool_nft) REFERENCES pools(nft)
+);
+
 -- ========== HEADLINE STATS ==========
 CREATE TABLE headlinestats (
     id SERIAL PRIMARY KEY,
@@ -243,6 +257,10 @@ CREATE INDEX idx_user_pool_debts_pool_nft ON user_pool_debts(pool_nft);
 -- Composite index for direct lookup
 CREATE INDEX idx_user_pool_debts_address_pool ON user_pool_debts(address_id, pool_nft);
 
+-- ========== USER CURRENT POSITIONS INDEXES ==========
+CREATE INDEX idx_ucp_address ON user_current_positions(address_id);
+CREATE INDEX idx_ucp_pool_nft ON user_current_positions(pool_nft);
+
 -- ========== HEADLINE STATS INDEXES ==========
 -- Primary index for time-based queries (DESC for most recent first)
 CREATE INDEX idx_headlinestats_timestamp ON headlinestats(timestamp DESC);
@@ -313,7 +331,7 @@ LEFT JOIN LATERAL (
 -- ========================================
 
 /*
-TABLES: 11 total
+TABLES: 12 total
 - addresses (+ sync_block)
 - pools (+ sync_block)
 - currency_rates (+ sync_block)
@@ -323,10 +341,11 @@ TABLES: 11 total
 - user_deposits_historical (+ sync_block)
 - user_portfolio_snapshots (+ sync_block)
 - user_pool_debts (+ sync_block)
+- user_current_positions (+ sync_block, on-chain verification)
 - headlinestats (+ sync_block)
 - sync_checkpoints (safe point system for verified sync state)
 
-INDEXES: 43 total (consolidated and optimized)
+INDEXES: 45 total (consolidated and optimized)
 - addresses: 2 indexes
 - pools: 3 indexes
 - currency_rates: 2 indexes
@@ -336,6 +355,7 @@ INDEXES: 43 total (consolidated and optimized)
 - user_deposits_historical: 3 indexes
 - user_portfolio_snapshots: 6 indexes
 - user_pool_debts: 3 indexes
+- user_current_positions: 2 indexes
 - headlinestats: 2 indexes
 - sync_checkpoints: 1 index
 - (Plus system-generated primary key and unique constraint indexes)

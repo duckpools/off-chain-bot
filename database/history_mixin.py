@@ -1,5 +1,8 @@
+import logging
 from typing import Optional, List, Tuple, Dict
 from .core import CoreDB
+
+logger = logging.getLogger(__name__)
 
 
 class HistoryMixin:
@@ -37,6 +40,7 @@ class HistoryMixin:
                         address_result = cur.fetchone()
                         if not address_result:
                             print("Failed to create address")
+                            logger.error("Failed to create address %s for lend position historical", address)
                             return None
                         address_id = address_result[0]
 
@@ -64,6 +68,7 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error upserting user lend position historical: {e}")
+            logger.error("Error upserting user lend position historical: %s", e, exc_info=True)
             return None
 
     def upsert_user_deposits_historical(self,
@@ -101,6 +106,7 @@ class HistoryMixin:
                         address_result = cur.fetchone()
                         if not address_result:
                             print("Failed to create address")
+                            logger.error("Failed to create address %s for deposits historical", address)
                             return None
                         address_id = address_result[0]
 
@@ -130,6 +136,7 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error upserting user deposits historical: {e}")
+            logger.error("Error upserting user deposits historical: %s", e, exc_info=True)
             return None
 
     def upsert_user_portfolio_snapshot(self,
@@ -166,6 +173,7 @@ class HistoryMixin:
                         address_result = cur.fetchone()
                         if not address_result:
                             print("Failed to create address")
+                            logger.error("Failed to create address %s for portfolio snapshot", address)
                             return None
                         address_id = address_result[0]
 
@@ -194,6 +202,7 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error upserting user portfolio snapshot: {e}")
+            logger.error("Error upserting user portfolio snapshot: %s", e, exc_info=True)
             return None
 
     def get_pool_data_batch(self, pool_nft: str, block_heights: List[int]) -> Dict[int, float]:
@@ -238,6 +247,7 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error fetching pool data batch: {e}")
+            logger.error("Error fetching pool data batch: %s", e, exc_info=True)
             return {}
 
     def get_latest_positions_batch(self, address_pool_pairs: List[Tuple[str, str]]) -> Dict[Tuple[str, str], float]:
@@ -300,6 +310,7 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error fetching latest positions batch: {e}")
+            logger.error("Error fetching latest positions batch: %s", e, exc_info=True)
             return {}
 
     def batch_upsert_user_lend_positions_historical(self, batch_data: List[Tuple], sync_block: Optional[int] = None) -> int:
@@ -342,6 +353,7 @@ class HistoryMixin:
                             address_result = cur.fetchone()
                             if not address_result:
                                 print(f"Failed to create address {address}")
+                                logger.error("Failed to create address %s for batch lend positions", address)
                                 continue
                             address_id_map[address] = address_result[0]
 
@@ -354,6 +366,7 @@ class HistoryMixin:
                             item_sync_block = item[6] if len(item) > 6 else sync_block
                         else:
                             print(f"Invalid batch_data item: {item}")
+                            logger.error("Invalid batch_data item: %s", item)
                             continue
 
                         if address in address_id_map:
@@ -401,4 +414,5 @@ class HistoryMixin:
 
         except Exception as e:
             print(f"Error in batch upsert user lend positions historical: {e}")
+            logger.error("Error in batch upsert user lend positions historical: %s", e, exc_info=True)
             return 0

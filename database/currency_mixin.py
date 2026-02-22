@@ -1,5 +1,8 @@
+import logging
 from typing import Optional, List
 import time
+
+logger = logging.getLogger(__name__)
 
 
 class CurrencyMixin:
@@ -20,6 +23,7 @@ class CurrencyMixin:
 
         except Exception as e:
             print(f"Error inserting currency rate for {pooled_asset}: {e}")
+            logger.error("Error inserting currency rate for %s: %s", pooled_asset, e, exc_info=True)
             return None
 
     def get_latest_currency_timestamp(self, pooled_asset: str) -> Optional[int]:
@@ -38,6 +42,7 @@ class CurrencyMixin:
                     return result[0] if result else None
         except Exception as e:
             print(f"Error getting latest currency timestamp for {pooled_asset}: {e}")
+            logger.error("Error getting latest currency timestamp for %s: %s", pooled_asset, e, exc_info=True)
             return None
 
     def upsert_currency_rate(self, pooled_asset: str, usd_rate: float = 0, sync_block: Optional[int] = None) -> Optional[str]:
@@ -96,6 +101,7 @@ class CurrencyMixin:
 
         except Exception as e:
             print(f"Error batch inserting currency rates: {e}")
+            logger.error("Error batch inserting currency rates: %s", e, exc_info=True)
             return 0
 
     def batch_upsert_currency_rates(self, currency_data: List[tuple], sync_block: Optional[int] = None) -> int:

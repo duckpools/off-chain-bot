@@ -1,5 +1,8 @@
+import logging
 from typing import List, Dict, Optional, Tuple
 from .core import CoreDB
+
+logger = logging.getLogger(__name__)
 
 
 class DebtMixin:
@@ -77,6 +80,7 @@ class DebtMixin:
 
         except Exception as e:
             print(f"Error batch upserting user pool debts: {e}")
+            logger.error("Error batch upserting user pool debts: %s", e, exc_info=True)
             return 0
 
     def get_user_debts_by_pool(self, pool_nft: str) -> List[Dict]:
@@ -100,6 +104,7 @@ class DebtMixin:
             return self.execute_query(query, (pool_nft,))
         except Exception as e:
             print(f"Error getting user debts by pool: {e}")
+            logger.error("Error getting user debts by pool: %s", e, exc_info=True)
             return []
 
     def get_user_debts_by_address(self, address: str) -> List[Dict]:
@@ -123,6 +128,7 @@ class DebtMixin:
             return self.execute_query(query, (address,))
         except Exception as e:
             print(f"Error getting user debts by address: {e}")
+            logger.error("Error getting user debts by address: %s", e, exc_info=True)
             return []
 
     def get_all_addresses(self) -> List[str]:
@@ -138,6 +144,7 @@ class DebtMixin:
             return [row['address'] for row in results]
         except Exception as e:
             print(f"Error getting all addresses: {e}")
+            logger.error("Error getting all addresses: %s", e, exc_info=True)
             return []
 
     def delete_pool_debts(self, pool_nft: str) -> int:
@@ -161,4 +168,5 @@ class DebtMixin:
                     return rows_deleted
         except Exception as e:
             print(f"Error deleting pool debts for {pool_nft}: {e}")
+            logger.error("Error deleting pool debts for %s: %s", pool_nft, e, exc_info=True)
             return 0

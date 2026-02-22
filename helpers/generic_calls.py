@@ -19,7 +19,12 @@ def get_request(url, headers=headers, max_retries=5, delay=REQUEST_DELAY):
     :return: The response object, or 404 if the final status code is 404.
     """
     for attempt in range(max_retries):
-        response = requests.get(url, headers)
+        try:
+            response = requests.get(url, headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Attempt {attempt + 1}: Connection error for URL: {url} - {e}")
+            time.sleep(delay)
+            continue
         if response.status_code == 200:
             return response
         if response.status_code == 404:

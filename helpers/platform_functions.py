@@ -408,6 +408,7 @@ def get_all_boxes_by_token_id(
     request_count = 0
 
     print(f"Starting to fetch boxes for token ID: {token_id} (min_height: {min_height})")
+    logger.info("Starting to fetch boxes for token ID: %s (min_height: %s)", token_id[:16] + "...", min_height)
 
     # First, get the total count
     initial_url = f"{base_url}{token_id}?offset=0&limit=1"
@@ -418,6 +419,7 @@ def get_all_boxes_by_token_id(
 
     if response == 404:
         print(f"Token ID '{token_id}' not found (404)")
+        logger.warning("Token ID '%s' not found (404)", token_id[:16] + "...")
         return []
 
     try:
@@ -427,9 +429,11 @@ def get_all_boxes_by_token_id(
 
     total = data.get('total', 0)
     print(f"Total boxes available: {total}")
+    logger.info("Total boxes available: %d", total)
 
     if total == 0:
         print("No boxes found for this token ID")
+        logger.info("No boxes found for this token ID")
         return []
 
     # Start from the end and work backwards
@@ -442,6 +446,7 @@ def get_all_boxes_by_token_id(
         # Show progress periodically
         if request_count % progress_interval == 0 or request_count == 1:
             print(f"Progress: Request #{request_count}, Boxes collected: {len(all_boxes)}, Current offset: {offset}")
+            logger.debug("Progress: Request #%d, Boxes collected: %d, Current offset: %d", request_count, len(all_boxes), offset)
 
         # Construct URL with parameters
         url = f"{base_url}{token_id}?offset={offset}&limit={limit}"
@@ -475,6 +480,7 @@ def get_all_boxes_by_token_id(
             # If we've reached min_height, we're done
             if reached_min_height:
                 print(f"Reached minimum height {min_height}, stopping pagination")
+                logger.info("Reached minimum height %d, stopping pagination", min_height)
                 break
 
         # Move to previous batch
@@ -484,6 +490,7 @@ def get_all_boxes_by_token_id(
         offset = max(0, offset - limit)
 
     print(f"Completed! Collected {len(all_boxes)} boxes above height {min_height} in {request_count} requests")
+    logger.info("Completed! Collected %d boxes above height %d in %d requests", len(all_boxes), min_height, request_count)
 
     # Remove exactly identical boxes using json serialization
     seen = set()
@@ -512,10 +519,12 @@ def fetch_transaction_data(transaction_id):
     # Handle different response types
     if response is None:
         print(f"Failed to fetch transaction after {max_retries} retries")
+        logger.warning("Failed to fetch transaction after %d retries", max_retries)
         return None
 
     if response == 404:
         print(f"Transaction '{transaction_id}' not found (404)")
+        logger.warning("Transaction '%s' not found (404)", transaction_id[:16] + "...")
         return None
 
     # Parse JSON response
@@ -523,6 +532,7 @@ def fetch_transaction_data(transaction_id):
         return response.json()
     except (ValueError, AttributeError) as e:
         print(f"Failed to parse JSON response for transaction {transaction_id}: {e}")
+        logger.error("Failed to parse JSON response for transaction %s: %s", transaction_id[:16] + "...", e)
         return None
 
 

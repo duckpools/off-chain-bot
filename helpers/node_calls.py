@@ -49,6 +49,7 @@ def sign_tx(tx):
         return ERROR
 
     logger.debug("Request Response: %s", res.text)
+    logger.info("sign_tx response status_code=%d", res.status_code)
     print(res.text)
     print(res.status_code)
 
@@ -201,10 +202,12 @@ def generate_dummy_script(node_address):
         else:
             print(f"Error: Received status code {response.status_code}")
             print(f"Message: {response.text}")
+            logger.error("generate_dummy_script error: status=%d, message=%s", response.status_code, response.text)
             return None
 
     except requests.RequestException as e:
         print(f"An error occurred while making the request: {e}")
+        logger.error("generate_dummy_script request error: %s", e, exc_info=True)
         return None
 
 
@@ -329,10 +332,12 @@ def compile_script(script):
         else:
             print(f"Error: Received status code {response.status_code}")
             print(f"Message: {response.text}")
+            logger.error("compile_script error: status=%d, message=%s", response.status_code, response.text)
             return None
 
     except requests.RequestException as e:
         print(f"An error occurred while making the request: {e}")
+        logger.error("compile_script request error: %s", e, exc_info=True)
         return None
 
 def address_to_tree(addr):
@@ -356,8 +361,10 @@ def generate_dummy_script_liquidations(node_address):
         else:
             print(f"Error: Received status code {response.status_code}")
             print(f"Message: {response.text}")
+            logger.error("generate_dummy_script_liquidations error: status=%d, message=%s", response.status_code, response.text)
             return None
 
     except requests.RequestException as e:
         print(f"An error occurred while making the request: {e}")
+        logger.error("generate_dummy_script_liquidations request error: %s", e, exc_info=True)
         return None

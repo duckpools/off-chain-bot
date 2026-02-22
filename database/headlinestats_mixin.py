@@ -1,5 +1,8 @@
+import logging
 from typing import Optional, Dict
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class HeadlinestatsMixin:
@@ -36,4 +39,5 @@ class HeadlinestatsMixin:
 
         except Exception as e:
             print(f"Error inserting headline stats: {e}")
+            logger.error("Error inserting headline stats: %s", e, exc_info=True)
             return None
