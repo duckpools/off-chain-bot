@@ -1,11 +1,11 @@
-import logging
 from typing import Optional, List
 
 from psycopg2.extras import execute_values
 
 from .core import CoreDB
+from logger import set_logger
 
-logger = logging.getLogger(__name__)
+logger = set_logger(__name__)
 
 
 class PoolMixin:
@@ -255,6 +255,13 @@ class PoolMixin:
                 if len(keys) != len(unique_keys):
                     logger.error("  DUPLICATE KEYS DETECTED: %d total rows, %d unique keys, %d duplicates",
                                  len(keys), len(unique_keys), len(keys) - len(unique_keys))
+                    # Log the actual duplicate keys
+                    from collections import Counter
+                    key_counts = Counter(keys)
+                    dup_keys = [(k, cnt) for k, cnt in key_counts.items() if cnt > 1]
+                    for (pool_nft, height, tx_id), cnt in dup_keys[:20]:
+                        logger.error("  DUP KEY (x%d): pool_nft=%s, block_height=%s, tx_id=%s",
+                                     cnt, str(pool_nft)[:20], height, str(tx_id)[:20])
                 # Check for None values in NOT NULL columns
                 none_rows = [i for i, r in enumerate(pool_data) if any(v is None for v in r[:11])]
                 if none_rows:

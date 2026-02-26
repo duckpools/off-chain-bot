@@ -430,8 +430,12 @@ def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, mi
             if len(batch_data) >= batch_size:
                 success_count = db.batch_upsert_pool_data_historical(batch_data)
                 total_upserted += success_count
-                logger.info("  Flushed batch: %d/%d rows upserted (processed so far: %d)",
-                            success_count, len(batch_data), processed_count)
+                if success_count == 0:
+                    logger.error("  Flushed batch FAILED: 0/%d rows upserted for pool %s (processed so far: %d)",
+                                 len(batch_data), pool_nft_short, processed_count)
+                else:
+                    logger.info("  Flushed batch: %d/%d rows upserted (processed so far: %d)",
+                                success_count, len(batch_data), processed_count)
                 batch_data = []
 
         except Exception as e:
@@ -445,7 +449,10 @@ def sync_pool_interest_data_batched_v1(db: DatabaseManager, pool, pool_boxes, mi
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
         total_upserted += success_count
-        logger.info("  Final batch: %d/%d rows upserted", success_count, len(batch_data))
+        if success_count == 0:
+            logger.error("  Final batch FAILED: 0/%d rows upserted for pool %s", len(batch_data), pool_nft_short)
+        else:
+            logger.info("  Final batch: %d/%d rows upserted", success_count, len(batch_data))
 
     logger.info("sync_pool_interest_data_batched_v1 DONE for pool %s — "
                 "processed: %d, upserted: %d, skipped_address: %d, skipped_height: %d, "
@@ -537,8 +544,12 @@ def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, mi
             if len(batch_data) >= batch_size:
                 success_count = db.batch_upsert_pool_data_historical(batch_data)
                 total_upserted += success_count
-                logger.info("  V2 flushed batch: %d/%d rows upserted (processed so far: %d)",
-                            success_count, len(batch_data), processed_count)
+                if success_count == 0:
+                    logger.error("  V2 flushed batch FAILED: 0/%d rows upserted for pool %s (processed so far: %d)",
+                                 len(batch_data), pool_nft_short, processed_count)
+                else:
+                    logger.info("  V2 flushed batch: %d/%d rows upserted (processed so far: %d)",
+                                success_count, len(batch_data), processed_count)
                 batch_data = []
 
         except Exception as e:
@@ -552,7 +563,10 @@ def sync_pool_interest_data_batched_v2(db: DatabaseManager, pool, pool_boxes, mi
     if batch_data:
         success_count = db.batch_upsert_pool_data_historical(batch_data)
         total_upserted += success_count
-        logger.info("  V2 final batch: %d/%d rows upserted", success_count, len(batch_data))
+        if success_count == 0:
+            logger.error("  V2 final batch FAILED: 0/%d rows upserted for pool %s", len(batch_data), pool_nft_short)
+        else:
+            logger.info("  V2 final batch: %d/%d rows upserted", success_count, len(batch_data))
 
     logger.info("sync_pool_interest_data_batched_v2 DONE for pool %s — "
                 "processed: %d, upserted: %d, skipped_address: %d, skipped_height: %d, "

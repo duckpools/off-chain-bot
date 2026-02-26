@@ -86,6 +86,7 @@ def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Opt
 
 def sync_all_historical_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
     pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
+    pool_boxes = [b for b in pool_boxes if b.get("address") == pool["pool"]]
     if pool_boxes:
         sync_transactions_batched(db, pool, pool_boxes, sync_block=sync_block, min_height=min_height)
         sync_pool_interest_data(db, pool, pool_boxes, min_height=min_height, sync_block=sync_block)
@@ -168,6 +169,7 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
 
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
+        pool_boxes = [b for b in pool_boxes if b.get("address") == pool["pool"]]
 
         pool_failed = False
 
@@ -309,6 +311,7 @@ def _process_single_pool(pool_info):
 
         # Get all boxes once
         pool_boxes = get_all_boxes_by_token_id(pool["POOL_NFT"], min_height=min_height)
+        pool_boxes = [b for b in pool_boxes if b.get("address") == pool["pool"]]
 
         pool_failed = False
 
