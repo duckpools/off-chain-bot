@@ -79,8 +79,8 @@ def sync_with_checkpoints(db: DatabaseManager, items: list, sync_func, batch_siz
 def sync_user_lend_data(db: DatabaseManager, pool, min_height=0, sync_block: Optional[int] = None):
     # Can only be called on up-to-date database
     sync_user_lend_positions(db, pool, sync_block=sync_block)
-    add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block)
     sync_user_deposits_historical(db, pool, sync_block=sync_block)
+    add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block)
     sync_user_portfolio_snapshots(db, pool, sync_block=sync_block)
 
 
@@ -213,16 +213,6 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
             pool_failed = True
 
         try:
-            logger.info("Pool %d/%d (%s): syncing granular lend positions", i, len(pools), pool_nft_short)
-            t_sub = _time.time()
-            add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
-            logger.info("Pool %d/%d (%s): granular lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
-        except Exception as e:
-            logger.error("Pool %s: granular lend positions FAILED: %s", pool_nft_short, e, exc_info=True)
-            print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
-            pool_failed = True
-
-        try:
             logger.info("Pool %d/%d (%s): syncing user deposits historical", i, len(pools), pool_nft_short)
             t_sub = _time.time()
             sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
@@ -231,6 +221,16 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
         except Exception as e:
             logger.error("Pool %s: user deposits historical FAILED: %s", pool_nft_short, e, exc_info=True)
             print(f"ERROR in user deposits: {e}", end=" ", flush=True)
+            pool_failed = True
+
+        try:
+            logger.info("Pool %d/%d (%s): syncing granular lend positions", i, len(pools), pool_nft_short)
+            t_sub = _time.time()
+            add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+            logger.info("Pool %d/%d (%s): granular lend positions done in %.2fs", i, len(pools), pool_nft_short, _time.time() - t_sub)
+        except Exception as e:
+            logger.error("Pool %s: granular lend positions FAILED: %s", pool_nft_short, e, exc_info=True)
+            print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
             pool_failed = True
 
         try:
@@ -361,16 +361,6 @@ def _process_single_pool(pool_info):
                         pool_failed = True
 
                     try:
-                        logger.info("[Thread %d/%d] Pool %s: syncing granular lend positions", pool_index, total_pools, pool_nft_short)
-                        t_sub = _time.time()
-                        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
-                        logger.info("[Thread %d/%d] Pool %s: granular lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
-                    except Exception as e:
-                        logger.error("[Thread %d/%d] Pool %s: granular lend positions FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
-                        print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
-                        pool_failed = True
-
-                    try:
                         logger.info("[Thread %d/%d] Pool %s: syncing user deposits historical", pool_index, total_pools, pool_nft_short)
                         t_sub = _time.time()
                         sync_user_deposits_historical(db, pool, sync_block=sync_block, full_scan=full_scan)
@@ -379,6 +369,16 @@ def _process_single_pool(pool_info):
                     except Exception as e:
                         logger.error("[Thread %d/%d] Pool %s: user deposits historical FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
                         print(f"ERROR in user deposits: {e}", end=" ", flush=True)
+                        pool_failed = True
+
+                    try:
+                        logger.info("[Thread %d/%d] Pool %s: syncing granular lend positions", pool_index, total_pools, pool_nft_short)
+                        t_sub = _time.time()
+                        add_granular_user_lend_positions(db, pool, 1000, sync_block=sync_block, full_scan=full_scan)
+                        logger.info("[Thread %d/%d] Pool %s: granular lend positions done in %.2fs", pool_index, total_pools, pool_nft_short, _time.time() - t_sub)
+                    except Exception as e:
+                        logger.error("[Thread %d/%d] Pool %s: granular lend positions FAILED: %s", pool_index, total_pools, pool_nft_short, e, exc_info=True)
+                        print(f"ERROR in granular lend positions: {e}", end=" ", flush=True)
                         pool_failed = True
 
                     try:

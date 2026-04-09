@@ -8,6 +8,9 @@ from helpers.platform_functions import total_owed, get_interest_box, get_childre
 from helpers.node_calls import tree_to_address
 from helpers.serializer import extract_number
 from consts import INTEREST_DENOMINATION, BORROW_TOKEN_DENOMINATION
+from logger import set_logger
+
+logger = set_logger(__name__)
 
 
 def get_all_collateral_boxes(collateral_address: str, limit: int = 100) -> list:
@@ -127,6 +130,7 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
         collateral_boxes = get_all_collateral_boxes(collateral_address)
     except Exception as e:
         print(f"Error fetching collateral boxes for pool {pool_nft}: {e}")
+        logger.error("Error fetching collateral boxes for pool %s: %s", pool_nft, e, exc_info=True)
         return []
 
     if not collateral_boxes:
@@ -155,12 +159,14 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
 
             if not parent_box:
                 print(f"Parent box not found for pool {pool_nft}")
+                logger.error("Parent box not found for pool %s", pool_nft)
                 return []
 
             # Fetch children boxes
             children = get_children_boxes(child_address, child_nft)
             if not children:
                 print(f"No children boxes found for pool {pool_nft}")
+                logger.error("No children boxes found for pool %s", pool_nft)
                 return []
 
             # Get head child
@@ -175,6 +181,7 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
 
             if not head_child:
                 print(f"Head child not found for pool {pool_nft}")
+                logger.error("Head child not found for pool %s", pool_nft)
                 return []
 
         elif version == 2:
@@ -185,13 +192,16 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
 
             if not interest_box:
                 print(f"Interest box not found for pool {pool_nft}")
+                logger.error("Interest box not found for pool %s", pool_nft)
                 return []
         else:
             print(f"Unknown pool version {version} for pool {pool_nft}")
+            logger.error("Unknown pool version %s for pool %s", version, pool_nft)
             return []
 
     except Exception as e:
         print(f"Error fetching pool data for {pool_nft}: {e}")
+        logger.error("Error fetching pool data for %s: %s", pool_nft, e, exc_info=True)
         return []
 
     # Step 3: Process each collateral box and calculate debts
@@ -216,10 +226,12 @@ def get_user_debts_for_pool(pool: dict) -> List[Tuple[str, str, float]]:
         except Exception as e:
             box_id = collateral_box.get("boxId", "unknown")
             print(f"Error processing collateral box {box_id}: {e}")
+            logger.error("Error processing collateral box %s: %s", box_id, e, exc_info=True)
             continue
 
     # Step 4: Convert to list of tuples
     debts_list = [(addr, pool, debt) for (addr, pool), debt in debts.items()]
+    logger.info("Pool %s: calculated %d debts from %d collateral boxes", pool_nft, len(debts_list), len(collateral_boxes))
 
     return debts_list
 
@@ -241,15 +253,18 @@ def sync_user_pool_debts(db: DatabaseManager, pool: dict, sync_block: Optional[i
     # Step 1: Clear all existing debt entries for this pool
     # This ensures repaid loans are removed from the database
     rows_deleted = db.delete_pool_debts(pool_nft)
+    logger.info("Pool %s: deleted %s existing debt rows", pool_nft, rows_deleted)
 
     # Step 2: Get all current active debts for this pool
     debts_data = get_user_debts_for_pool(pool)
 
     if not debts_data:
+        logger.info("Pool %s: no active debts found", pool_nft)
         return 0
 
     # Step 3: Batch insert fresh debt data
     num_upserted = db.batch_upsert_user_pool_debts(debts_data, sync_block)
+    logger.info("Pool %s: upserted %d debt records", pool_nft, num_upserted)
 
     return num_upserted
 
@@ -276,10 +291,13 @@ def sync_all_user_pool_debts(db: DatabaseManager, pools: list, sync_block: Optio
             num_upserted = sync_user_pool_debts(db, pool, sync_block)
             total_upserted += num_upserted
             print(f"  Pool {i}/{len(pools)} ({pool_nft_short}): {num_upserted} debts ✓")
+            logger.info("Pool %d/%d (%s): %d debts synced", i, len(pools), pool_nft_short, num_upserted)
         except Exception as e:
             print(f"  Pool {i}/{len(pools)} ({pool_nft_short}): ERROR - {e}")
+            logger.error("Pool %d/%d (%s): ERROR - %s", i, len(pools), pool_nft_short, e, exc_info=True)
             continue
 
     print(f"  Total debt records: {total_upserted} ✓")
+    logger.info("sync_all_user_pool_debts complete: %d total records across %d pools", total_upserted, len(pools))
 
     return total_upserted

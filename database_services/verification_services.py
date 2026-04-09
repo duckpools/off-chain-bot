@@ -9,6 +9,9 @@ Phase 3 implementation from DATABASE_BEST_PRACTICES.md:
 
 from typing import List, Dict, Tuple, Optional
 from database.db_manager import DatabaseManager
+from logger import set_logger
+
+logger = set_logger('verification_services')
 
 
 # ========================================
@@ -48,11 +51,15 @@ def check_no_negative_amounts(db: DatabaseManager) -> Tuple[bool, Dict[str, int]
                 passed = total_bad == 0
                 if not passed:
                     print(f"VERIFICATION FAILED: Negative amounts found: {details}")
+                    logger.error("check_no_negative_amounts FAILED: %s", details)
+                else:
+                    logger.debug("check_no_negative_amounts PASSED")
 
                 return passed, details
 
     except Exception as e:
         print(f"Error in check_no_negative_amounts: {e}")
+        logger.error("check_no_negative_amounts exception: %s", e, exc_info=True)
         return False, {'error': str(e)}
 
 
@@ -104,11 +111,15 @@ def check_referential_integrity(db: DatabaseManager) -> Tuple[bool, Dict[str, in
 
                 if not passed:
                     print(f"VERIFICATION FAILED: Orphaned records found: {details}")
+                    logger.error("check_referential_integrity FAILED: %s", details)
+                else:
+                    logger.debug("check_referential_integrity PASSED")
 
                 return passed, details
 
     except Exception as e:
         print(f"Error in check_referential_integrity: {e}")
+        logger.error("check_referential_integrity exception: %s", e, exc_info=True)
         return False, {'error': str(e)}
 
 
@@ -154,13 +165,20 @@ def check_block_height_consistency(db: DatabaseManager, max_allowed_diff: int = 
 
                 if not passed:
                     print(f"VERIFICATION FAILED: Block height inconsistency in {len(inconsistent_pools)} pools")
+                    logger.error("check_block_height_consistency FAILED: %d pools inconsistent", len(inconsistent_pools))
                     for pool in inconsistent_pools:
                         print(f"  - {pool['pool_nft'][:16]}...: diff={pool['height_difference']}")
+                        logger.error("  pool_nft=%s max_tx_height=%s max_pool_data_height=%s diff=%s",
+                                     pool['pool_nft'], pool['max_transaction_height'],
+                                     pool['max_pool_data_height'], pool['height_difference'])
+                else:
+                    logger.debug("check_block_height_consistency PASSED")
 
                 return passed, inconsistent_pools
 
     except Exception as e:
         print(f"Error in check_block_height_consistency: {e}")
+        logger.error("check_block_height_consistency exception: %s", e, exc_info=True)
         return False, [{'error': str(e)}]
 
 
@@ -172,6 +190,7 @@ def run_light_verification(db: DatabaseManager) -> Tuple[bool, Dict]:
         Tuple of (all_passed: bool, details: Dict with results of each check)
     """
     print("\n=== Running Light Verification Checks ===")
+    logger.info("Running light verification checks")
 
     results = {}
     all_passed = True
@@ -196,10 +215,12 @@ def run_light_verification(db: DatabaseManager) -> Tuple[bool, Dict]:
 
     if all_passed:
         print("=== All Light Verification Checks PASSED ===")
+        logger.info("Light verification PASSED — all checks clean")
     else:
         print("=== Light Verification FAILED ===")
         failed_checks = [k for k, v in results.items() if not v['passed']]
         print(f"Failed checks: {failed_checks}")
+        logger.error("Light verification FAILED — failed checks: %s", failed_checks)
 
     return all_passed, results
 
@@ -263,11 +284,19 @@ def check_deposits_never_decrease(db: DatabaseManager, pool_nft: Optional[str] =
 
                 if not passed:
                     print(f"DEEP VERIFICATION FAILED: Found {len(bad_records)} records where deposits decreased")
+                    logger.error("check_deposits_never_decrease FAILED: %d records", len(bad_records))
+                    for rec in bad_records[:10]:
+                        logger.error("  address_id=%s pool_nft=%s block_height=%s total_deposited=%s prev_deposited=%s decrease=%s",
+                                     rec['address_id'], rec['pool_nft'], rec['block_height'],
+                                     rec['total_deposited'], rec['prev_deposited'], rec['decrease'])
+                else:
+                    logger.debug("check_deposits_never_decrease PASSED")
 
                 return passed, bad_records
 
     except Exception as e:
         print(f"Error in check_deposits_never_decrease: {e}")
+        logger.error("check_deposits_never_decrease exception: %s", e, exc_info=True)
         return False, [{'error': str(e)}]
 
 
@@ -333,11 +362,19 @@ def check_profit_formula_consistency(db: DatabaseManager, pool_nft: Optional[str
 
                 if not passed:
                     print(f"DEEP VERIFICATION FAILED: Found {len(drifted_records)} records with profit drift > {tolerance}")
+                    logger.error("check_profit_formula_consistency FAILED: %d records with drift > %s", len(drifted_records), tolerance)
+                    for rec in drifted_records[:10]:
+                        logger.error("  address_id=%s pool_nft=%s block_height=%s stored_profit=%s calculated_profit=%s drift=%s",
+                                     rec['address_id'], rec['pool_nft'], rec['block_height'],
+                                     rec['stored_profit'], rec['calculated_profit'], rec['drift'])
+                else:
+                    logger.debug("check_profit_formula_consistency PASSED")
 
                 return passed, drifted_records
 
     except Exception as e:
         print(f"Error in check_profit_formula_consistency: {e}")
+        logger.error("check_profit_formula_consistency exception: %s", e, exc_info=True)
         return False, [{'error': str(e)}]
 
 
@@ -383,11 +420,19 @@ def check_pool_totals_vs_positions(db: DatabaseManager, tolerance: float = 1.0) 
 
                 if not passed:
                     print(f"DEEP VERIFICATION FAILED: Found {len(mismatched_pools)} pools with total mismatch > {tolerance}")
+                    logger.error("check_pool_totals_vs_positions FAILED: %d pools with mismatch > %s", len(mismatched_pools), tolerance)
+                    for rec in mismatched_pools:
+                        logger.error("  pool_nft=%s pool_total_lent=%s sum_positions=%s difference=%s",
+                                     rec['pool_nft'], rec['pool_total_lent'],
+                                     rec['sum_positions'], rec['difference'])
+                else:
+                    logger.debug("check_pool_totals_vs_positions PASSED")
 
                 return passed, mismatched_pools
 
     except Exception as e:
         print(f"Error in check_pool_totals_vs_positions: {e}")
+        logger.error("check_pool_totals_vs_positions exception: %s", e, exc_info=True)
         return False, [{'error': str(e)}]
 
 
@@ -449,15 +494,22 @@ def check_positions_vs_chain(db: DatabaseManager, tolerance: float = 0.01) -> Tu
 
                 if not passed:
                     print(f"DEEP VERIFICATION FAILED: Found {len(mismatches)} position mismatches vs chain (tolerance={tolerance})")
+                    logger.error("check_positions_vs_chain FAILED: %d mismatches (tolerance=%s)", len(mismatches), tolerance)
                     for m in mismatches[:10]:
                         print(f"  {m['address'][:16]}... pool={m['pool_nft'][:16]}... "
                               f"derived={m['derived_tokens']:.4f} chain={m['chain_tokens']:.4f} "
                               f"diff={m['difference']:.4f}")
+                        logger.error("  address=%s pool_nft=%s derived_tokens=%s chain_tokens=%s difference=%s",
+                                     m['address'], m['pool_nft'], m['derived_tokens'],
+                                     m['chain_tokens'], m['difference'])
+                else:
+                    logger.debug("check_positions_vs_chain PASSED")
 
                 return passed, mismatches
 
     except Exception as e:
         print(f"Error in check_positions_vs_chain: {e}")
+        logger.error("check_positions_vs_chain exception: %s", e, exc_info=True)
         return False, [{'error': str(e)}]
 
 
@@ -473,6 +525,7 @@ def run_deep_verification(db: DatabaseManager, pool_nft: Optional[str] = None) -
         Tuple of (all_passed: bool, details: Dict with results of each check)
     """
     print("\n=== Running Deep Verification Checks ===")
+    logger.info("Running deep verification checks (pool_nft=%s)", pool_nft or "all")
     if pool_nft:
         print(f"Checking pool: {pool_nft}")
     else:
@@ -517,10 +570,12 @@ def run_deep_verification(db: DatabaseManager, pool_nft: Optional[str] = None) -
 
     if all_passed:
         print("=== All Deep Verification Checks PASSED ===")
+        logger.info("Deep verification PASSED — all checks clean")
     else:
         print("=== Deep Verification FAILED ===")
         failed_checks = [k for k, v in results.items() if not v['passed']]
         print(f"Failed checks: {failed_checks}")
+        logger.error("Deep verification FAILED — failed checks: %s", failed_checks)
 
     return all_passed, results
 

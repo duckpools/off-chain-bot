@@ -1,11 +1,12 @@
-import logging
 from database.db_manager import DatabaseManager
 from helpers.node_calls import get_block_timestamp
 from helpers.platform_functions import get_all_boxes_by_token_id, fetch_transaction_data
 from collections import defaultdict, OrderedDict
 from typing import Dict, List, Tuple, Optional
+from logger import set_logger
+from database_services.debug_config import DEBUG_ADDRESSES, is_debug_address, debug_logger
 
-logger = logging.getLogger(__name__)
+logger = set_logger(__name__)
 
 
 # ========== sync_user_lend_positions ==========
@@ -195,12 +196,22 @@ def sync_user_lend_positions_v1(
             if net_change != 0:
                 address_changes[address] = net_change
 
+            # DEBUG: Log input/output breakdown for debug addresses
+            if is_debug_address(address):
+                debug_logger.info(
+                    "[LEND_POS] tx=%s | pool=%s | addr=%s | block=%s | "
+                    "input_tokens=%.6f | output_tokens=%.6f | net_change=%.6f",
+                    transaction_id, pool_nft, address, block_height,
+                    inputs, outputs, net_change
+                )
+
         # Update positions for each affected address in this transaction
         for address, net_change in address_changes.items():
             if net_change == 0:
                 continue
 
             # Update current position using local tracking
+            old_position = current_positions[address]
             current_positions[address] += net_change
             new_position_tokens = current_positions[address]
 
@@ -216,6 +227,17 @@ def sync_user_lend_positions_v1(
                 position_value = new_position_tokens_friendly * float(lend_token_value)
             else:
                 position_value = -1
+
+            # DEBUG: Log position update for debug addresses
+            if is_debug_address(address):
+                debug_logger.info(
+                    "[LEND_POS] POSITION_UPDATE tx=%s | pool=%s | addr=%s | block=%s | ts=%s | "
+                    "old_pos_raw=%.6f | net_change=%.6f | new_pos_raw=%.6f | "
+                    "new_pos_friendly=%.10f | lend_token_value=%s | position_value=%s",
+                    transaction_id, pool_nft, address, block_height, timestamp,
+                    old_position, net_change, new_position_tokens,
+                    new_position_tokens_friendly, lend_token_value, position_value
+                )
 
             # Add to batch data - use the determined sync_block
             final_batch_data.append((
@@ -243,6 +265,18 @@ def sync_user_lend_positions_v1(
                 consolidated_data[key] = record
 
         final_consolidated_data = list(consolidated_data.values())
+
+        # DEBUG: Log final consolidated records for debug addresses
+        for record in final_consolidated_data:
+            address = record[0]
+            if is_debug_address(address):
+                _, r_pool_nft, r_bh, r_ts, r_pos_tokens, r_pos_value, r_sb = record
+                debug_logger.info(
+                    "[LEND_POS] CONSOLIDATED_RECORD pool=%s | addr=%s | block=%s | ts=%s | "
+                    "position_tokens=%.10f | position_value=%s | sync_block=%s",
+                    r_pool_nft, address, r_bh, r_ts, r_pos_tokens, r_pos_value, r_sb
+                )
+
         successful_inserts = db.batch_upsert_user_lend_positions_historical(final_consolidated_data, sync_block)
 
 
@@ -368,17 +402,43 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
                 # For incremental sync, load prior cumulative totals
                 if full_scan or min_height == 0:
                     user_totals = {}  # Full scan starts fresh
+                    debug_logger.info("[DEPOSITS] FULL_SCAN pool=%s | starting fresh with empty totals", pool_nft)
                 else:
                     # Load prior cumulative totals for all users with deposits in this pool
                     user_totals = load_latest_deposit_totals(db, pool_nft, min_height)
+                    # DEBUG: Log loaded totals for debug addresses
+                    for addr, totals in user_totals.items():
+                        if is_debug_address(addr):
+                            debug_logger.info(
+                                "[DEPOSITS] LOADED_PRIOR pool=%s | addr=%s | min_height=%s | "
+                                "prior_deposited=%.10f | prior_withdrawn=%.10f",
+                                pool_nft, addr, min_height,
+                                totals['deposited'], totals['withdrawn']
+                            )
 
                 # Process each transaction in chronological order
                 for tx in transactions:
                     tx_id, address_id, tx_type, amount, fee_paid, block_height, timestamp, address = tx
 
+                    # DEBUG: Log every transaction seen for debug addresses (regardless of type)
+                    if is_debug_address(address):
+                        debug_logger.info(
+                            "[DEPOSITS] TX_SEEN tx_id=%s | pool=%s | addr=%s | type=%s | "
+                            "amount=%s | fee_paid=%s | block=%s | ts=%s",
+                            tx_id, pool_nft, address, tx_type,
+                            amount, fee_paid, block_height, timestamp
+                        )
+
                     # Initialize user totals if first time seeing this address
                     if address not in user_totals:
                         user_totals[address] = {'deposited': 0.0, 'withdrawn': 0.0}
+                        # DEBUG: Log initial state for debug addresses
+                        if is_debug_address(address):
+                            debug_logger.info(
+                                "[DEPOSITS] INIT_TOTALS pool=%s | addr=%s | deposited=0.0 | withdrawn=0.0 "
+                                "(first time seeing this address)",
+                                pool_nft, address
+                            )
 
                     # Handle different transaction types
                     # Note: amount and fee_paid are already user-friendly values (divided by decimals)
@@ -386,14 +446,49 @@ def sync_user_deposits_historical_v1(db: DatabaseManager, pool, sync_block: Opti
 
                     if tx_type == 'lend':
                         # For lend transactions: deposited amount increases by amount + fee
-                        user_totals[address]['deposited'] += float(amount) + float(fee)
+                        old_deposited = user_totals[address]['deposited']
+                        delta = float(amount) + float(fee)
+                        user_totals[address]['deposited'] += delta
+                        # DEBUG: Log lend deposit calculation for debug addresses
+                        if is_debug_address(address):
+                            debug_logger.info(
+                                "[DEPOSITS] LEND_CALC tx_id=%s | pool=%s | addr=%s | block=%s | "
+                                "amount=%s + fee=%s = delta=%.10f | "
+                                "old_deposited=%.10f -> new_deposited=%.10f",
+                                tx_id, pool_nft, address, block_height,
+                                amount, fee, delta,
+                                old_deposited, user_totals[address]['deposited']
+                            )
                     elif tx_type == 'withdraw':
                         # For withdraw transactions: withdrawn amount increases by amount - fee
-                        user_totals[address]['withdrawn'] += float(amount) - float(fee)
+                        old_withdrawn = user_totals[address]['withdrawn']
+                        delta = float(amount) - float(fee)
+                        user_totals[address]['withdrawn'] += delta
+                        # DEBUG: Log withdraw calculation for debug addresses
+                        if is_debug_address(address):
+                            debug_logger.info(
+                                "[DEPOSITS] WITHDRAW_CALC tx_id=%s | pool=%s | addr=%s | block=%s | "
+                                "amount=%s - fee=%s = delta=%.10f | "
+                                "old_withdrawn=%.10f -> new_withdrawn=%.10f",
+                                tx_id, pool_nft, address, block_height,
+                                amount, fee, delta,
+                                old_withdrawn, user_totals[address]['withdrawn']
+                            )
                     # Note: Other transaction types (borrow, repayment, etc.) don't affect deposit/withdrawal totals
 
                     # Only create historical entries for lend and withdraw transactions
                     if tx_type in ('lend', 'withdraw'):
+                        # DEBUG: Log the upsert for debug addresses
+                        if is_debug_address(address):
+                            debug_logger.info(
+                                "[DEPOSITS] UPSERT tx_id=%s | pool=%s | addr=%s | block=%s | ts=%s | "
+                                "total_deposited=%.10f | total_withdrawn=%.10f | sync_block=%s",
+                                tx_id, pool_nft, address, block_height, timestamp,
+                                user_totals[address]['deposited'],
+                                user_totals[address]['withdrawn'],
+                                sync_block or block_height
+                            )
+
                         result = db.upsert_user_deposits_historical(
                             address=address,
                             pool_nft=pool_nft,
@@ -489,6 +584,63 @@ def sync_user_portfolio_snapshots_v1(db: DatabaseManager, pool, sync_block: Opti
                 cur.execute(bulk_upsert_query, (sync_block, pool_nft))
                 rows_affected = cur.rowcount
                 conn.commit()
+                logger.info("Portfolio snapshots upserted %d rows for pool %s", rows_affected, pool_nft)
+
+                # DEBUG: Query and log portfolio snapshot details for debug addresses
+                try:
+                    debug_query = """
+                        SELECT
+                            a.address,
+                            ups.block_height,
+                            ups.timestamp,
+                            ups.position_value,
+                            ups.total_profit,
+                            ups.sync_block,
+                            (SELECT udh.total_deposited
+                             FROM user_deposits_historical udh
+                             WHERE udh.address_id = ups.address_id
+                               AND udh.pool_nft = ups.pool_nft
+                               AND udh.block_height <= ups.block_height
+                             ORDER BY udh.block_height DESC, udh.id DESC
+                             LIMIT 1) as matched_total_deposited,
+                            (SELECT udh.total_withdrawn
+                             FROM user_deposits_historical udh
+                             WHERE udh.address_id = ups.address_id
+                               AND udh.pool_nft = ups.pool_nft
+                               AND udh.block_height <= ups.block_height
+                             ORDER BY udh.block_height DESC, udh.id DESC
+                             LIMIT 1) as matched_total_withdrawn
+                        FROM user_portfolio_snapshots ups
+                        JOIN addresses a ON ups.address_id = a.id
+                        WHERE ups.pool_nft = %s
+                          AND a.address = ANY(%s)
+                        ORDER BY a.address, ups.block_height ASC
+                    """
+                    debug_addrs_list = list(DEBUG_ADDRESSES)
+                    cur.execute(debug_query, (pool_nft, debug_addrs_list))
+                    debug_rows = cur.fetchall()
+                    if debug_rows:
+                        debug_logger.info(
+                            "[PORTFOLIO] ===== SNAPSHOT DUMP for pool %s (%d rows for debug addresses) =====",
+                            pool_nft, len(debug_rows)
+                        )
+                        for row in debug_rows:
+                            addr, bh, ts, pos_val, profit, sb, dep, wth = row
+                            dep = float(dep) if dep is not None else 0.0
+                            wth = float(wth) if wth is not None else 0.0
+                            recalc = float(pos_val) + wth - dep
+                            drift = float(profit) - recalc
+                            debug_logger.info(
+                                "[PORTFOLIO] SNAPSHOT pool=%s | addr=%s | block=%s | ts=%s | "
+                                "position_value=%.10f | total_deposited=%.10f | total_withdrawn=%.10f | "
+                                "total_profit=%.10f | recalculated=%.10f | drift=%.10f",
+                                pool_nft, addr, bh, ts,
+                                float(pos_val), dep, wth,
+                                float(profit), recalc, drift
+                            )
+                        debug_logger.info("[PORTFOLIO] ===== END SNAPSHOT DUMP for pool %s =====", pool_nft)
+                except Exception as debug_e:
+                    debug_logger.warning("[PORTFOLIO] Failed to query debug snapshots: %s", debug_e)
 
                 return True
 
@@ -641,26 +793,40 @@ def add_granular_user_lend_positions(
                     logger.debug("  lend_token_value: %s, block_timestamp: %s", lend_token_value, block_timestamp)
 
                     # FIXED QUERY: Get truly latest position first, then filter for active positions
+                    # Also includes users whose position recently went to 0 but have
+                    # deposit entries recorded after their last position entry (2-step proxy fix)
                     user_query = """
                     WITH latest_positions AS (
-                        SELECT DISTINCT 
-                            lp.address_id, 
+                        SELECT DISTINCT
+                            lp.address_id,
                             a.address,
                             FIRST_VALUE(lp.position_tokens) OVER (
-                                PARTITION BY lp.address_id 
-                                ORDER BY lp.block_height DESC, lp.id DESC 
+                                PARTITION BY lp.address_id
+                                ORDER BY lp.block_height DESC, lp.id DESC
                                 ROWS UNBOUNDED PRECEDING
-                            ) as latest_position_tokens
+                            ) as latest_position_tokens,
+                            FIRST_VALUE(lp.block_height) OVER (
+                                PARTITION BY lp.address_id
+                                ORDER BY lp.block_height DESC, lp.id DESC
+                                ROWS UNBOUNDED PRECEDING
+                            ) as latest_block_height
                         FROM user_lend_positions_historical lp
                         JOIN addresses a ON lp.address_id = a.id
                         WHERE lp.pool_nft = %s AND lp.block_height <= %s
                     )
                     SELECT address_id, address, latest_position_tokens
-                    FROM latest_positions
-                    WHERE latest_position_tokens > 0
+                    FROM latest_positions lp
+                    WHERE lp.latest_position_tokens > 0
+                       OR (lp.latest_position_tokens = 0 AND EXISTS (
+                           SELECT 1 FROM user_deposits_historical udh
+                           WHERE udh.address_id = lp.address_id
+                             AND udh.pool_nft = %s
+                             AND udh.block_height > lp.latest_block_height
+                             AND udh.block_height <= %s
+                       ))
                     """
 
-                    cur.execute(user_query, (pool_nft, interval_height))
+                    cur.execute(user_query, (pool_nft, interval_height, pool_nft, interval_height))
                     user_positions = cur.fetchall()
 
                     print(f"  Found {len(user_positions)} users with active positions")
@@ -671,6 +837,15 @@ def add_granular_user_lend_positions(
                         position_tokens = float(position_tokens)
                         # position_tokens from DB is already divided by decimals, so position_value calculation stays the same
                         position_value = position_tokens * lend_token_value
+
+                        # DEBUG: Log granular position for debug addresses
+                        if is_debug_address(address):
+                            debug_logger.info(
+                                "[GRANULAR] pool=%s | addr=%s | interval_height=%s | ts=%s | "
+                                "position_tokens=%.10f | lend_token_value=%s | position_value=%.10f",
+                                pool_nft, address, interval_height, block_timestamp,
+                                position_tokens, lend_token_value, position_value
+                            )
 
                         batch_data.append((
                             address,
