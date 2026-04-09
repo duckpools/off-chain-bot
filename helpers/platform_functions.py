@@ -492,10 +492,16 @@ def get_all_boxes_by_token_id(
     print(f"Completed! Collected {len(all_boxes)} boxes above height {min_height} in {request_count} requests")
     logger.info("Completed! Collected %d boxes above height %d in %d requests", len(all_boxes), min_height, request_count)
 
-    # Remove exactly identical boxes using json serialization
+    # Remove duplicate boxes by boxId (explorer can return the same box with
+    # different formatting of ergoTreeConstants/ergoTreeScript across pages)
     seen = set()
-    all_boxes = [box for box in all_boxes if
-                 json.dumps(box, sort_keys=True) not in seen and not seen.add(json.dumps(box, sort_keys=True))]
+    unique_boxes = []
+    for box in all_boxes:
+        box_id = box.get("boxId")
+        if box_id not in seen:
+            seen.add(box_id)
+            unique_boxes.append(box)
+    all_boxes = unique_boxes
 
     all_boxes.sort(key=lambda box: box.get("settlementHeight", 0))  # Ensure sorted
     return all_boxes

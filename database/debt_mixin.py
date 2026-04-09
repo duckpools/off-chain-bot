@@ -1,8 +1,9 @@
-import logging
 from typing import List, Dict, Optional, Tuple
 from .core import CoreDB
 
-logger = logging.getLogger(__name__)
+from logger import set_logger
+
+logger = set_logger(__name__)
 
 
 class DebtMixin:

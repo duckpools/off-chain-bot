@@ -1,7 +1,8 @@
-import logging
 from typing import Optional, List, Dict, Any
 
-logger = logging.getLogger(__name__)
+from logger import set_logger
+
+logger = set_logger(__name__)
 
 
 class AnalyticsMixin:

@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from consts import FEE_ADDRESS_LIST
 from database.db_manager import DatabaseManager
 from database_services.data_aggregation.pool_stats import borrow_apy as calculate_borrow_apy
+from database_services.debug_config import is_debug_address, debug_logger
 from database_services.shutdown_handler import is_shutdown_requested
 from helpers.node_calls import tree_to_address
 from helpers.platform_functions import fetch_transaction_data
@@ -859,9 +860,23 @@ def _process_single_transaction_v1(pool_box: dict, pool: dict, sync_block: int, 
     # Fees are in pool token, use pool decimals (ERG has decimals=9, tokens have their own)
     fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
 
+    # DEBUG: Log full transaction details for debug addresses
+    resolved_address = address or "unknown_address"
+    if is_debug_address(resolved_address):
+        debug_logger.info(
+            "[TX_SERVICE] CLASSIFIED tx_id=%s | pool=%s | addr=%s | type=%s | "
+            "raw_amount=%s | amount_friendly=%.10f | raw_fee=%s | fee_friendly=%.10f | "
+            "borrow_apy=%s | interest_paid=%s | block=%s | ts=%s | "
+            "main_tx_id=%s | final_tx_id=%s",
+            tx_id, pool["POOL_NFT"], resolved_address, transaction_type,
+            amount, amount_friendly, fee, fee_friendly,
+            borrow_apy, interest_paid, block_height, timestamp,
+            tx_id, final_tx_id
+        )
+
     return {
         'transaction_id': final_tx_id,
-        'address': address or "unknown_address",
+        'address': resolved_address,
         'pool_nft': pool["POOL_NFT"],
         'transaction_type': transaction_type,
         'amount': amount_friendly,
@@ -942,9 +957,23 @@ def _process_single_transaction_v2(pool_box: dict, pool: dict, sync_block: int, 
     # Fees are in pool token, use pool decimals
     fee_friendly = fee / (10 ** decimals) if fee > 0 else 0
 
+    # DEBUG: Log full transaction details for debug addresses
+    resolved_address = address or "unknown_address"
+    if is_debug_address(resolved_address):
+        debug_logger.info(
+            "[TX_SERVICE] CLASSIFIED tx_id=%s | pool=%s | addr=%s | type=%s | "
+            "raw_amount=%s | amount_friendly=%.10f | raw_fee=%s | fee_friendly=%.10f | "
+            "borrow_apy=%s | interest_paid=%s | block=%s | ts=%s | "
+            "main_tx_id=%s | final_tx_id=%s",
+            tx_id, pool["POOL_NFT"], resolved_address, transaction_type,
+            amount, amount_friendly, fee, fee_friendly,
+            borrow_apy, interest_paid, block_height, timestamp,
+            tx_id, final_tx_id
+        )
+
     return {
         'transaction_id': final_tx_id,
-        'address': address or "unknown_address",
+        'address': resolved_address,
         'pool_nft': pool["POOL_NFT"],
         'transaction_type': transaction_type,
         'amount': amount_friendly,
