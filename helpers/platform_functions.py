@@ -215,7 +215,7 @@ def liquidation_allowed_susd(box, interest_box, nft, liquidation_threshold, heig
     try:
         dex_box = get_dex_box(nft)
         loan_amount = int(box["assets"][0]["amount"])
-        liquidation_forced = json.loads(box["additionalRegisters"]["R6"]["renderedValue"])[0]
+        liquidation_forced = int(box["additionalRegisters"]["R6"]["renderedValue"])
         borrow_token_value = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
         total_due = loan_amount * borrow_token_value / 10000000000000000
         # total_due += 2

@@ -289,7 +289,7 @@ def process_liquidation(pool, box, sig_usd_tx, sig_rsv_tx, total_due, head_child
 
 def t_liquidation_job(pool, dummy_script, height):
     if pool["version"] == 2:
-        t_liquidation_job_v2(pool, dummy_script, height)
+        return t_liquidation_job_v2(pool, dummy_script, height)
     time.sleep(1)
     logger.info("Starting %s request processing", "liquidation")
     unspent_proxy_boxes = get_unspent_boxes_by_address(pool["collateral"])
