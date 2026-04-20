@@ -1157,7 +1157,7 @@ def generate_logic_script_simple():
 
 
 def generate_logic_script_lp():
-    return compile_script(f'''{{	
+	return compile_script(f'''{{	
 	val Slippage = 2.toBigInt
 	val SlippageDenom = 100.toBigInt
 	val DexFeeDenom = 1000.toBigInt
@@ -1259,20 +1259,20 @@ def generate_logic_script_lp():
 		}}
 	}}
 	)}})
-	
-	val LP_TOKEN_ID = fromBase58("...")
-	val LP_POOL_NFT = fromBase58("...")
-	val LP_INTEREST_NFT = fromBase58("...")
+
+	val LP_TOKEN_ID = fromBase58("j14t652aFYn4ZubMUebzPuQFMAQzMLD5o5CNrLMXFm3")
+	val LP_POOL_NFT = fromBase58("14pFfqcCpxJ7qUm85WegPPaZieokW9LHCoHfwnbnnuJD")
+	val LP_INTEREST_NFT = fromBase58("4a3cSQKC9NRX3GT2KsN2jVeESQ8KVQ6WaYTgvCCkyKJU")
 	val LP_MaxLendTokens = 9000000000000010L
 	val LP_MaxBorrowTokens = 9000000000000000L
 	val LP_BorrowTokenDenomination = 10000000000000000L.toBigInt
-	
+
 	val lpPoolBox = CONTEXT.dataInputs(fDexStartIndex - 2)
 	val lpInterestBox = CONTEXT.dataInputs(fDexStartIndex - 1)
-	
+
 	val validLpPoolBox = lpPoolBox.tokens(0)._1 == LP_POOL_NFT
 	val validLpInterestBox = lpInterestBox.tokens(0)._1 == LP_INTEREST_NFT
-	
+
 	val lpBorrowValue = lpInterestBox.R5[BigInt].get
 	val lpPooledAssets = lpPoolBox.tokens(3)._2.toBigInt
 	val lpLendCirc = (LP_MaxLendTokens - lpPoolBox.tokens(1)._2).toBigInt
@@ -1280,7 +1280,7 @@ def generate_logic_script_lp():
 	val lpBorrowed = lpBorrowCirc * lpBorrowValue / LP_BorrowTokenDenomination
 	val lpConversionNum = lpPooledAssets + lpBorrowed
 	val lpConversionDenom = lpLendCirc
-	
+
 	val aggregateThreshold = aggregateThresholdPrimarySum + aggregateThresholdSecondarySum
 	val zippedOrderedAssetsList = fOrderedQuotedAssetIds.zip(fOrderedAssetAmounts)
 	val matchingOrderedListSize = fOrderedAssetAmounts.size == fOrderedQuotedAssetIds.size
@@ -1308,12 +1308,20 @@ def generate_logic_script_lp():
 		(index: Int) =>
 		val dexBox = dexDIns(index)
 		val dexNFT = secondaryDexNfts(index)
-		val dexTokenId = dexBox.tokens(2)._1
 		val reportedAssetId = fOrderedQuotedAssetIds(index)
-		(
-			dexNFT == dexBox.tokens(0)._1 &&
-			reportedAssetId == dexTokenId
-		)
+		if (reportedAssetId == LP_TOKEN_ID) {{
+			val lpUnderlyingCurrency = lpPoolBox.tokens(3)._1
+			(
+				dexNFT == dexBox.tokens(0)._1 &&
+				dexBox.tokens(2)._1 == lpUnderlyingCurrency
+			)
+		}} else {{
+			val dexTokenId = dexBox.tokens(2)._1
+			(
+				dexNFT == dexBox.tokens(0)._1 &&
+				reportedAssetId == dexTokenId
+			)
+		}}
 	}}
 
 	val validAggregateThreshold = aggregateThreshold / LargeMultiplier == max(fAggregateThreshold, 1001L)
@@ -1363,6 +1371,8 @@ def generate_logic_script_lp():
         iShortLoanFee == max(min(fShortLoanFee, 1000L), 0L) &&
         iShortLoanDuration == max(fShortLoanDuration, 0L) &&
         iMaxBorrowAmount == max(fMaxBorrowAmount, 0L) &&
-        isValidPrimaryDexBox
+        isValidPrimaryDexBox &&
+        validLpPoolBox &&
+        validLpInterestBox
     )
 }}''')
