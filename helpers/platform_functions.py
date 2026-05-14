@@ -10,7 +10,7 @@ from helpers.node_calls import first_output_from_mempool_tx
 from helpers.serializer import extract_number
 
 
-def get_dex_box(token, start_limit=5, max_limit=200):
+def get_dex_box(token, start_limit=5, max_limit=500):
     """
     Get the dex box with the specified token from unspent boxes.
 
@@ -25,11 +25,8 @@ def get_dex_box(token, start_limit=5, max_limit=200):
         unspent_boxes = get_unspent_boxes_by_address(DEX_ADDRESS, limit)
 
         for box in unspent_boxes:
-            try:
-                if box["assets"][0]["tokenId"] == token:
-                    return box
-            except Exception as e:
-                logger.info(e)
+            if box.get("assets") and box["assets"][0]["tokenId"] == token:
+                return box
 
         limit *= 2  # Double the limit for the next iteration
 

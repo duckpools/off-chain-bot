@@ -29,7 +29,7 @@ def create_new_child(pool, head_child):
             "requests": [
                 {
                     "address": pool["parent"],
-                    "value":(MAX_CHILD_EXECUTION_FEE * MAX_INTEREST_SIZE),
+                    "value": int(parent_box["value"]) - MIN_BOX_VALUE - MAX_TX_FEE - (MAX_CHILD_EXECUTION_FEE * MAX_INTEREST_SIZE),
                     "assets": [
                         {
                             "tokenId": parent_box["assets"][0]["tokenId"],
@@ -70,7 +70,7 @@ def create_new_child(pool, head_child):
             ],
             "fee": MAX_TX_FEE,
             "inputsRaw":
-                [box_id_to_binary(parent_box["boxId"]), box_id_to_binary("10712463d02ae9d965b8a61abfe776122a3400aca2044668a4c0bb7dce8e5298")],
+                [box_id_to_binary(parent_box["boxId"])],
             "dataInputsRaw":
                 [box_id_to_binary(head_child["boxId"])]
         }

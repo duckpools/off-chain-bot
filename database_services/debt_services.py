@@ -101,8 +101,10 @@ def calculate_debt_v2(pool: dict, collateral_box: dict, interest_box: dict) -> f
     # Get borrowTokenValue from interest box R5 register
     borrow_token_value = extract_number(interest_box["additionalRegisters"]["R5"]["renderedValue"])
 
-    # Calculate total owed: (borrow_tokens * borrow_token_value) / BORROW_TOKEN_DENOMINATION + 1
-    total_owed_value = (borrow_tokens * borrow_token_value) // BORROW_TOKEN_DENOMINATION + 1
+    # Calculate total owed: floor division matches contract semantics, same as
+    # helpers.platform_functions.liquidation_allowed_susd (V2) and
+    # token_pools.repayments.automatic_repayment_spend_nft.total_owed (V2)
+    total_owed_value = (borrow_tokens * borrow_token_value) // BORROW_TOKEN_DENOMINATION
 
     # Apply decimal division to convert raw value to human-readable amount
     decimals = pool.get("decimals", 9)  # Default to 9 if not specified
