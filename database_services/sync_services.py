@@ -251,6 +251,9 @@ def sync_all_optimized(db: DatabaseManager, min_height=0, sync_block: Optional[i
             logger.info("Pool %d/%d (%s) completed in %.2fs", i, len(pools), pool_nft_short, _time.time() - pool_start)
         pools_completed += 1
 
+        # Throttle: yield to the DB/API between heavy per-pool work
+        _time.sleep(1.3)
+
     logger.info("Step 3 completed: %d/%d pools in %.2fs", pools_completed, len(pools), _time.time() - t3)
 
     # Check for shutdown before Step 4
@@ -713,6 +716,7 @@ def sync_from_last_update(db: DatabaseManager, current_block_height: Optional[in
             # Step 7: Run verification and set checkpoints
             if run_verification:
                 logger.debug("Running post-sync verification")
+                _time.sleep(2.5)
                 verification_passed = verify_and_checkpoint(db, current_block_height)
                 if not verification_passed:
                     print("WARNING: Sync completed but verification failed!")

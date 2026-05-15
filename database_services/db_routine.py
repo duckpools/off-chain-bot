@@ -251,7 +251,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
         print("DEX pools: synced every 12th loop")
         print("Headline stats: synced every 30th loop")
         if run_verification:
-            print("Light verification: every loop")
+            print("Light verification: every 5th loop")
             print("Deep verification: every 100th loop")
         print("Graceful shutdown: Ctrl+C, SIGTERM, or create 'shutdown.flag' file")
         print("=" * 70 + "\n")
@@ -278,6 +278,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                 sync_positions = (loop_counter % 10 == 0)
                 sync_dex_pools = (loop_counter % 12 == 0)
                 sync_headline = (loop_counter % 30 == 0)
+                run_light_verify = run_verification and (loop_counter % 5 == 0)
                 run_deep_verify = run_verification and (loop_counter % 100 == 0)
 
                 print(f"\n{'='*70}")
@@ -311,7 +312,7 @@ def db_routine(full_sync=False, parallel_sync=False, run_verification=True):
                     sync_dex_pools=sync_dex_pools,
                     sync_headline_stats=sync_headline,
                     parallel_sync=parallel_sync,
-                    run_verification=run_verification,
+                    run_verification=run_light_verify,
                     sync_positions=sync_positions
                 )
 
