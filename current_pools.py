@@ -470,7 +470,7 @@ current_pools = [
     'interest_coefficients':  [2000,200000,160,200,250,1],
     'InitializedPoolAmount': 10,
     'BorrowTokenSupply': 9000000000000000,
-    'LendTokenSupply': 9000000001000000,
+    'LendTokenSupply': 9000000000000010,
     'genesis_height': 1676418,
 
     # Price data fields
@@ -627,7 +627,7 @@ current_pools = [
     'interest_coefficients': [890,8000,0,0,53000,9840],
     'InitializedPoolAmount': 10,
     'BorrowTokenSupply': 9000000000000000,
-    'LendTokenSupply': 9000000001000000,
+    'LendTokenSupply': 9000000000000010,
     'CURRENCY_ID_DB': '089990451bb430f05a85f4ef3bcb6ebf852b3d6ee68d86d78658b9ccef20074f',
     'genesis_height': 1676418,
     'coingecko': 'quacks',
