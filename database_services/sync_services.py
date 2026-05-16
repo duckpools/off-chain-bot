@@ -619,7 +619,7 @@ def sync_all(db: DatabaseManager, min_height=0, optimized=True, sync_block: Opti
     if optimized:
         return sync_all_optimized(db, min_height, sync_block)
     else:
-        pools = current_pools[-1:]
+        pools = current_pools[:]
         sync_all_pools(db, sync_block=sync_block)
         sync_currency_rates(db, pools, sync_block=sync_block, min_height=min_height)
         for pool in pools:
