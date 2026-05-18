@@ -340,8 +340,10 @@ def process_repay_partial_proxy_box_v2(pool, box, empty):
                     }
                 ],
                 "fee": TX_FEE,
+                # Collateral box MUST be INPUTS(0): the collateral script pairs
+                # collateral input k with fRepayments(k) via selfIndex = INPUTS.indexOf(SELF).
                 "inputsRaw":
-                    [box_id_to_binary(box["boxId"]), box_id_to_binary(collateral_box_id), box_id_to_binary(logic_box["boxId"])],
+                    [box_id_to_binary(collateral_box_id), box_id_to_binary(box["boxId"]), box_id_to_binary(logic_box["boxId"])],
                 "dataInputsRaw": data_inputs_raw
             }
         print(transaction_to_sign)
